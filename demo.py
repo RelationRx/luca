@@ -7,8 +7,8 @@ Usage:
 import json
 import sys
 
-from bioworld import generate_organism, ExperimentSession
-from bioworld.agent import run_agent
+from lemons import generate_organism, ExperimentSession
+from lemons.agent import run_agent
 
 
 def smoke_test() -> None:
@@ -16,7 +16,7 @@ def smoke_test() -> None:
     print("=== Smoke Test ===")
 
     # 1. Generate organism
-    from bioworld import generate_organism
+    from lemons import generate_organism
     org = generate_organism(seed=0)
     print(f"Organism ID: {org.id}")
     print(f"  Genes: {len(org.genes)}")
@@ -32,11 +32,11 @@ def smoke_test() -> None:
     print("  JSON round-trip: OK")
 
     # 3. KO upstream gene changes phenotype
-    from bioworld.dynamics import simulate_sigmoid
+    from lemons.dynamics import simulate_sigmoid
     import numpy as np
 
     baseline_phenos = {}
-    from bioworld.dynamics import compute_phenotypes
+    from lemons.dynamics import compute_phenotypes
     baseline_phenos = compute_phenotypes(org, org.baseline_state, noise=False)
 
     # KO the first gene and check if phenotype changes
@@ -54,7 +54,7 @@ def smoke_test() -> None:
     print(f"  Phenotype diffs: {json.dumps(diffs)}")
 
     # 4. Module ARI: random vs ground truth
-    from bioworld import ExperimentSession
+    from lemons import ExperimentSession
     session = ExperimentSession(org, budget=20, seed=42)
 
     # Random assignment
@@ -77,11 +77,11 @@ def smoke_test() -> None:
     assert gt_result["ari"] > 0.99, f"GT ARI should be ~1.0, got {gt_result['ari']}"
 
     # 5. Dataset generation
-    from bioworld import generate_dataset
+    from lemons import generate_dataset
     paths = generate_dataset(
         n_organisms=3,
         experiments_per_organism=2,
-        output_path="/tmp/bioworld_test_dataset",
+        output_path="/tmp/lemons_test_dataset",
         seed=7,
     )
     import os

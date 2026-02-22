@@ -9,8 +9,8 @@ Usage:
 """
 import argparse
 
-from bioworld import generate_organism
-from bioworld.inspect import print_organism, plot_organism
+from lemons import generate_organism
+from lemons.inspect import print_organism, plot_organism
 
 
 def main() -> None:

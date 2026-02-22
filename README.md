@@ -14,7 +14,7 @@ The world is **unknowable via retrieval** — gene names, module labels, signals
 pip install -r requirements.txt
 
 # Smoke test
-python -c "from bioworld import generate_organism; o = generate_organism(seed=0); print(o.id)"
+python -c "from lemons import generate_organism; o = generate_organism(seed=0); print(o.id)"
 
 # Full demo (smoke tests + optional agent session)
 python demo.py
@@ -56,8 +56,8 @@ The **graph figure** (via `matplotlib` + `networkx`) shows:
 
 **Programmatic usage:**
 ```python
-from bioworld import generate_organism
-from bioworld.inspect import print_organism, plot_organism
+from lemons import generate_organism
+from lemons.inspect import print_organism, plot_organism
 
 org = generate_organism(seed=42)
 print_organism(org)                          # terminal
@@ -78,7 +78,7 @@ plot_organism(org, save_path="org.png")      # figure
 ## 📁 Package Structure
 
 ```
-bioworld/
+lemons/
 ├── __init__.py       # Public API
 ├── schema.py         # Dataclasses: Gene, Module, Signal, Relation, Phenotype, Organism
 ├── vocabulary.py     # Word banks for invented biological names
@@ -134,7 +134,7 @@ Convergence is detected on the deterministic trajectory (`||Δx||∞ < 1e-3`), w
 ### `generate_organism()`
 
 ```python
-from bioworld import generate_organism
+from lemons import generate_organism
 
 org = generate_organism(
     n_genes=20,
@@ -168,7 +168,7 @@ org3 = Organism.from_yaml(yaml_str)
 ### `ExperimentSession`
 
 ```python
-from bioworld import ExperimentSession
+from lemons import ExperimentSession
 
 session = ExperimentSession(org, budget=20, seed=0)
 ```
@@ -230,7 +230,7 @@ summary = session.get_summary()
 ### `generate_dataset()`
 
 ```python
-from bioworld import generate_dataset
+from lemons import generate_dataset
 
 paths = generate_dataset(
     n_organisms=50,
@@ -250,7 +250,7 @@ paths = generate_dataset(
 ### `run_agent()`
 
 ```python
-from bioworld.agent import run_agent
+from lemons.agent import run_agent
 
 summary = run_agent(
     session,

@@ -17,7 +17,7 @@ def generate_dataset(
     n_organisms: int = 10,
     experiments_per_organism: int = 5,
     complexity_range: dict[str, tuple[int, int]] | None = None,
-    output_path: str = "bioworld_dataset",
+    output_path: str = "lemons_dataset",
     seed: int = 42,
 ) -> dict[str, str]:
     """
