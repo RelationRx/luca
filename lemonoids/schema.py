@@ -1,4 +1,4 @@
-"""Pydantic-style dataclasses for BioWorld organisms."""
+"""Pydantic-style dataclasses for Lemonoids organisms."""
 from __future__ import annotations
 
 import json
@@ -6,6 +6,22 @@ from dataclasses import dataclass, field, asdict
 from typing import Any
 
 import yaml
+
+
+@dataclass
+class CellType:
+    id: str           # e.g. "ct_03"
+    label: str        # e.g. "secretory-cell-Q"
+    description: str  # human-readable cell type description
+
+
+@dataclass
+class Malfunction:
+    type: str         # "LOCK_HI" | "LOCK_LO" | "PERSIST"
+    target: str       # gene_id or signal_id
+    target_name: str  # gene name or signal label (for readability)
+    severity: float   # magnitude of perturbation applied
+    description: str  # e.g. "Constitutive activation of G007"
 
 
 @dataclass
@@ -58,6 +74,8 @@ class DynamicsConfig:
     type: str = "continuous_sigmoid"
     dt: float = 1.0
     noise_sigma: float = 0.01
+    sigmoid_steepness: float = 1.0   # controls non-linearity; <1 = near-linear, >1 = sharper
+    convergence_tol: float = 1e-3    # fixed-point convergence threshold
     rule: dict[str, Any] = field(default_factory=dict)
     # rule[gene_id] = {"bias": float, "inputs": [{"src": gene_id, "weight": float}]}
 
@@ -74,9 +92,24 @@ class Organism:
     seed: int
     baseline_state: dict[str, float] = field(default_factory=dict)
     observable_genes: list[str] = field(default_factory=list)
+    # Disease extension fields (None/empty for healthy organisms)
+    cell_type: CellType | None = None
+    healthy_baseline: dict[str, float] = field(default_factory=dict)
+    healthy_phenotype_ranges: dict[str, tuple[float, float]] = field(default_factory=dict)
+    malfunctions: list[Malfunction] = field(default_factory=list)
+    # Difficulty extension
+    difficulty: str = "medium"
+    latent_genes: list[str] = field(default_factory=list)  # hidden/untargetable genes
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        # Convert tuple ranges to lists for JSON compatibility (asdict already does this,
+        # but be explicit so from_dict can reconstruct tuples)
+        if d.get("healthy_phenotype_ranges"):
+            d["healthy_phenotype_ranges"] = {
+                k: list(v) for k, v in d["healthy_phenotype_ranges"].items()
+            }
+        return d
 
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent)
@@ -99,6 +132,17 @@ class Organism:
             for p in d["phenotypes"]
         ]
         dynamics = DynamicsConfig(**d["dynamics"])
+
+        # Disease extension fields
+        ct_data = d.get("cell_type")
+        cell_type = CellType(**ct_data) if ct_data else None
+
+        malfunctions = [Malfunction(**m) for m in d.get("malfunctions", [])]
+
+        # Ranges stored as lists in JSON — convert back to tuples
+        raw_ranges = d.get("healthy_phenotype_ranges", {})
+        healthy_phenotype_ranges = {k: tuple(v) for k, v in raw_ranges.items()}  # type: ignore[misc]
+
         return cls(
             id=d["id"],
             genes=genes,
@@ -110,6 +154,12 @@ class Organism:
             seed=d["seed"],
             baseline_state=d.get("baseline_state", {}),
             observable_genes=d.get("observable_genes", []),
+            cell_type=cell_type,
+            healthy_baseline=d.get("healthy_baseline", {}),
+            healthy_phenotype_ranges=healthy_phenotype_ranges,
+            malfunctions=malfunctions,
+            difficulty=d.get("difficulty", "medium"),
+            latent_genes=d.get("latent_genes", []),
         )
 
     @classmethod

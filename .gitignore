@@ -1,10 +1,27 @@
-.env
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
 dist/
 build/
+
+# Environment
+.env
 .DS_Store
+
+# Generated figures
 *.png
-bioworld_dataset/
+
+# Tool caches
+.claude/
+
+# Top-level logs directory
+logs/
+lemonoids_dataset/
+
+# Per-experiment session logs (verbose JSON/HTML dumps; regenerate locally)
+experiments/**/logs/
+
+# Compiled bytecode inside experiments
+experiments/**/__pycache__/

@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lemonoids"
+version = "0.1.0"
+description = "Synthetic organism reasoning benchmark for LLM agents"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "anthropic>=0.40.0",
+    "numpy>=1.24.0",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+    "networkx>=3.0",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[tool.setuptools.packages.find]
+include = ["lemonoids*"]
+
+[tool.ruff]
+line-length = 100

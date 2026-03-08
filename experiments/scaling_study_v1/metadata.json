@@ -1,0 +1,29 @@
+{
+  "study": "scaling_study_v1",
+  "description": "Factorial sweep: n_genes \u00d7 budget_multiplier \u00d7 seed. Disease mode only. Measures how malfunction diagnosis score and rescue quality scale with organism complexity and experiment budget.",
+  "date_created": "2026-03-01T19:02:11+00:00",
+  "model": "claude-sonnet-4-6",
+  "n_genes_levels": [
+    10,
+    15,
+    20
+  ],
+  "budget_multipliers": [
+    0.5,
+    1.0,
+    1.5
+  ],
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "fixed": {
+    "n_modules": 4,
+    "n_signals": 3,
+    "n_phenotypes": 3,
+    "n_malfunctions": 1,
+    "max_turns": 50,
+    "disease_mode": true
+  }
+}

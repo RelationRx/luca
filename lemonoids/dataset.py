@@ -1,4 +1,4 @@
-"""Offline dataset generation for BioWorld benchmarking."""
+"""Offline dataset generation for Lemonoids benchmarking."""
 from __future__ import annotations
 
 import json
@@ -17,7 +17,7 @@ def generate_dataset(
     n_organisms: int = 10,
     experiments_per_organism: int = 5,
     complexity_range: dict[str, tuple[int, int]] | None = None,
-    output_path: str = "lemons_dataset",
+    output_path: str = "lemonoids_dataset",
     seed: int = 42,
 ) -> dict[str, str]:
     """
@@ -59,7 +59,7 @@ def generate_dataset(
 
         # Generate experiments
         gene_ids = [g.id for g in org.genes]
-        iv_types = ["KO", "OE", "KD"]
+        iv_types = ["BLOCK", "BOOST", "DAMPEN"]
         exp_rng = np.random.default_rng(org_seed)
         exp_rng_py = random.Random(org_seed)
 

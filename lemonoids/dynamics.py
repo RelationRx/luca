@@ -1,4 +1,4 @@
-"""Continuous sigmoid simulation for BioWorld organisms."""
+"""Continuous sigmoid simulation for Lemonoids organisms."""
 from __future__ import annotations
 
 import math
@@ -9,11 +9,12 @@ import numpy as np
 from .schema import Organism
 
 
-def sigmoid(z: float) -> float:
-    """Numerically stable sigmoid."""
-    if z >= 0:
-        return 1.0 / (1.0 + math.exp(-z))
-    e = math.exp(z)
+def sigmoid(z: float, steepness: float = 1.0) -> float:
+    """Numerically stable sigmoid with adjustable steepness."""
+    sz = steepness * z
+    if sz >= 0:
+        return 1.0 / (1.0 + math.exp(-sz))
+    e = math.exp(sz)
     return e / (1.0 + e)
 
 
@@ -22,13 +23,13 @@ def simulate_sigmoid(
     interventions: dict[str, Any] | None = None,
     active_signals: dict[str, float] | None = None,
     max_steps: int = 500,
-    convergence_tol: float = 1e-3,
+    convergence_tol: float | None = None,
     rng: np.random.Generator | None = None,
 ) -> dict[str, Any]:
     """
     Run discrete-time sigmoid dynamics to convergence.
 
-    interventions: {gene_id → {"type": "KO"|"OE"|"KD"}}
+    interventions: {gene_id → {"type": "BLOCK"|"BOOST"|"DAMPEN"}}
     active_signals: {signal_id → strength}  (overrides signal.strength if provided)
     Returns: {final_state, steps, status, phenotypes}
     """
@@ -37,6 +38,9 @@ def simulate_sigmoid(
 
     rule = organism.dynamics.rule
     noise_sigma = organism.dynamics.noise_sigma
+    steepness = organism.dynamics.sigmoid_steepness
+    if convergence_tol is None:
+        convergence_tol = organism.dynamics.convergence_tol
     gene_ids = [g.id for g in organism.genes]
 
     # Build signal contribution map: gene_id -> list of (strength_value)
@@ -55,15 +59,15 @@ def simulate_sigmoid(
     else:
         x = {gid: 0.5 for gid in gene_ids}
 
-    # Apply KO/OE clamp before first step
+    # Apply BLOCK/BOOST clamp before first step
     interventions = interventions or {}
 
     def apply_interventions(state: dict[str, float]) -> dict[str, float]:
         for gid, iv in interventions.items():
             itype = iv["type"] if isinstance(iv, dict) else iv
-            if itype == "KO":
+            if itype == "BLOCK":
                 state[gid] = 0.0
-            elif itype == "OE":
+            elif itype == "BOOST":
                 state[gid] = 1.0
         return state
 
@@ -80,11 +84,11 @@ def simulate_sigmoid(
             z = bias + signal_contrib.get(gid, 0.0)
             for inp in r.get("inputs", []):
                 z += inp["weight"] * x.get(inp["src"], 0.0)
-            x_det[gid] = sigmoid(z)
+            x_det[gid] = sigmoid(z, steepness)
         x_det = apply_interventions(x_det)
         for gid, iv in interventions.items():
             itype = iv["type"] if isinstance(iv, dict) else iv
-            if itype == "KD":
+            if itype == "DAMPEN":
                 x_det[gid] = min(x_det[gid], 0.15)
 
         # Convergence check on deterministic trajectory
@@ -102,7 +106,7 @@ def simulate_sigmoid(
         x_new = apply_interventions(x_new)
         for gid, iv in interventions.items():
             itype = iv["type"] if isinstance(iv, dict) else iv
-            if itype == "KD":
+            if itype == "DAMPEN":
                 x_new[gid] = min(x_new[gid], 0.15)
 
         x = x_new
@@ -119,7 +123,7 @@ def simulate_sigmoid(
         z = ro.bias
         for gid, w in zip(ro.depends_on, ro.weights):
             z += w * x.get(gid, 0.0)
-        phenotype_values[phen.label] = float(np.clip(sigmoid(z) + phenotype_noise[j], 0.0, 1.0))
+        phenotype_values[phen.label] = float(np.clip(sigmoid(z, steepness) + phenotype_noise[j], 0.0, 1.0))
 
     return {
         "final_state": x,
@@ -139,13 +143,14 @@ def compute_phenotypes(
     if rng is None:
         rng = np.random.default_rng(None)
     noise_sigma = organism.dynamics.noise_sigma
+    steepness = organism.dynamics.sigmoid_steepness
     out: dict[str, float] = {}
     for phen in organism.phenotypes:
         ro = phen.readout
         z = ro.bias
         for gid, w in zip(ro.depends_on, ro.weights):
             z += w * state.get(gid, 0.0)
-        val = sigmoid(z)
+        val = sigmoid(z, steepness)
         if noise:
             val += float(rng.normal(0.0, noise_sigma * 2))
         out[phen.label] = float(np.clip(val, 0.0, 1.0))
