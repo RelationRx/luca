@@ -10,8 +10,9 @@ build/
 .env
 .DS_Store
 
-# Generated figures
+# Generated figures (but not tracked assets)
 *.png
+!assets/*.png
 
 # Tool caches
 .claude/

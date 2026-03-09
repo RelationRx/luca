@@ -244,6 +244,26 @@ Strategy tips:
 Always call get_organism_info() first."""
 
 # ---------------------------------------------------------------------------
+# OpenAI tool schema conversion
+# ---------------------------------------------------------------------------
+
+
+def _to_openai_tools(tools: list[dict]) -> list[dict]:
+    """Convert Anthropic-style tool schemas to OpenAI function-calling format."""
+    result = []
+    for t in tools:
+        result.append({
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t["description"],
+                "parameters": t["input_schema"],
+            },
+        })
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Tool dispatch
 # ---------------------------------------------------------------------------
 
@@ -481,6 +501,203 @@ def run_agent(
                     })
                 if tool_results:
                     messages.append({"role": "user", "content": tool_results})
+            log["turns"].append(final_turn_log)
+            break
+
+    # Embed ground truth gene→phenotype network for diagnostic reports
+    gene_id_to_name = {g.id: g.name for g in session.organism.genes}
+    gt_edges = []
+    for p in session.organism.phenotypes:
+        for gene_id, weight in zip(p.readout.depends_on, p.readout.weights):
+            if abs(weight) > 0.1:
+                gt_edges.append({
+                    "from": gene_id_to_name.get(gene_id, gene_id),
+                    "to": p.label,
+                    "direction": "activates" if weight > 0 else "inhibits",
+                    "weight": round(abs(float(weight)), 3),
+                })
+    log["metadata"]["ground_truth"] = {"gene_phenotype_edges": gt_edges}
+
+    summary = session.get_summary()
+    log["summary"] = summary
+
+    if verbose:
+        print("\n" + "=" * 60)
+        print("SESSION SUMMARY")
+        print("=" * 60)
+        print(json.dumps(summary, indent=2))
+
+    if log_path:
+        os.makedirs(os.path.dirname(os.path.abspath(log_path)), exist_ok=True)
+        with open(log_path, "w") as f:
+            json.dump(log, f, indent=2)
+        if verbose:
+            print(f"[agent] Log saved → {log_path}")
+
+    return summary
+
+
+# ---------------------------------------------------------------------------
+# OpenAI agent loop
+# ---------------------------------------------------------------------------
+
+
+def run_agent_openai(
+    session: ExperimentSession,
+    model: str = "gpt-5.1",
+    max_turns: int = 50,
+    verbose: bool = True,
+    disease_mode: bool | None = None,
+    log_path: str | None = None,
+) -> dict[str, Any]:
+    """
+    Run an OpenAI model as agent on a Lemonoids ExperimentSession.
+
+    Requires OPENAI_API_KEY in the environment.
+    disease_mode: if None, auto-detected from session._is_disease.
+    log_path: if provided, write a structured JSON log to this path.
+    Returns the session summary after the agent finishes or budget is exhausted.
+    """
+    import datetime, os
+    from openai import OpenAI
+
+    client = OpenAI()
+
+    if disease_mode is None:
+        disease_mode = session._is_disease
+
+    active_tools = _to_openai_tools(TOOLS + DISEASE_TOOLS if disease_mode else TOOLS)
+    system_prompt = DISEASE_SYSTEM_PROMPT if disease_mode else SYSTEM_PROMPT
+
+    # ── Log initialisation ────────────────────────────────────────────────
+    log: dict[str, Any] = {
+        "metadata": {
+            "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
+            "model": model,
+            "organism_id": session.organism.id,
+            "seed": session.organism.seed,
+            "budget": session.budget,
+            "disease_mode": disease_mode,
+        },
+        "turns": [],
+        "summary": None,
+    }
+
+    messages: list[dict] = [{"role": "system", "content": system_prompt}]
+
+    if disease_mode:
+        messages.append({
+            "role": "user",
+            "content": (
+                "A diseased cell has been prepared for analysis. "
+                "Its regulatory network has malfunctioned, producing aberrant phenotypes. "
+                "Your task is to identify the malfunction, design rescue interventions, "
+                "predict the phenotype tasks, and submit your hypothesis. "
+                "Budget is limited — reason carefully. Begin."
+            ),
+        })
+    else:
+        messages.append({
+            "role": "user",
+            "content": (
+                "A new synthetic organism has been prepared for you. "
+                "Your task is to probe it with experiments, predict the given phenotype tasks, "
+                "and submit your best hypothesis about its regulatory structure. "
+                "Budget is limited — reason carefully. Begin."
+            ),
+        })
+
+    def _run_turn(msgs: list[dict]) -> Any:
+        return client.chat.completions.create(
+            model=model,
+            tools=active_tools,
+            tool_choice="auto",
+            messages=msgs,
+        )
+
+    def _process_tool_calls(response_message, turn_log: dict) -> list[dict]:
+        """Dispatch all tool calls and return tool result messages."""
+        result_messages = []
+        for tc in response_message.tool_calls or []:
+            tool_name = tc.function.name
+            try:
+                tool_input = json.loads(tc.function.arguments)
+            except json.JSONDecodeError:
+                tool_input = {}
+
+            if verbose:
+                print(f"  tool_call: {tool_name}({json.dumps(tool_input)[:120]})")
+
+            result = dispatch_tool(session, tool_name, tool_input)
+
+            if verbose:
+                print(f"  tool_result: {json.dumps(result)[:200]}")
+
+            result_messages.append({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": json.dumps(result),
+            })
+            turn_log["tool_calls"].append({
+                "tool": tool_name,
+                "input": tool_input,
+                "result": result,
+            })
+        return result_messages
+
+    for turn in range(max_turns):
+        if verbose:
+            print(f"\n[turn {turn + 1}/{max_turns}] Calling {model}...")
+
+        response = _run_turn(messages)
+        msg = response.choices[0].message
+        finish_reason = response.choices[0].finish_reason
+
+        if verbose:
+            print(f"  finish_reason={finish_reason}")
+
+        messages.append(msg)
+
+        if finish_reason == "stop":
+            if verbose:
+                print("[agent] Agent finished naturally.")
+            break
+
+        if finish_reason != "tool_calls":
+            if verbose:
+                print(f"[agent] Unexpected finish_reason: {finish_reason}. Stopping.")
+            break
+
+        turn_log: dict[str, Any] = {
+            "turn": turn + 1,
+            "agent_text": msg.content or None,
+            "tool_calls": [],
+        }
+        tool_result_messages = _process_tool_calls(msg, turn_log)
+        messages.extend(tool_result_messages)
+        log["turns"].append(turn_log)
+
+        # Check budget
+        remaining = session.budget - session.budget_used
+        if remaining <= 0:
+            if verbose:
+                print("[agent] Budget exhausted.")
+            messages.append({
+                "role": "user",
+                "content": "Budget exhausted. Please submit your predictions and hypothesis now.",
+            })
+            response = _run_turn(messages)
+            msg = response.choices[0].message
+            messages.append(msg)
+            final_turn_log: dict[str, Any] = {
+                "turn": turn + 2,
+                "agent_text": msg.content or None,
+                "tool_calls": [],
+                "note": "budget-exhausted final turn",
+            }
+            if response.choices[0].finish_reason == "tool_calls":
+                tool_result_messages = _process_tool_calls(msg, final_turn_log)
+                messages.extend(tool_result_messages)
             log["turns"].append(final_turn_log)
             break
 
