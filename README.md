@@ -20,6 +20,15 @@ python -c "from lemonoids import generate_organism; o = generate_organism(seed=0
 python demo.py
 python demo.py --agent             # requires ANTHROPIC_API_KEY
 python demo.py --agent --disease   # disease mode agent session
+
+# Benchmark evaluation (no API key required)
+python evaluate.py --heuristic --n 20
+
+# Evaluate an LLM
+python evaluate.py --model claude-opus-4-6         # requires ANTHROPIC_API_KEY
+python evaluate.py --model gpt-5.1                 # requires OPENAI_API_KEY
+python evaluate.py --model claude-opus-4-6 --model gpt-5.1  # compare models
+python evaluate.py --model claude-opus-4-6 --disease         # disease mode
 ```
 
 ---
@@ -98,9 +107,9 @@ plot_organism(org, save_path="org.png")      # figure
 
 ## 🧬 Design Principles
 
-1. **Made-up vocabulary** — gene IDs like `G001`, modules labeled `"ion-flux-regulator"`, signals like `"nutrient-X"`. No real gene or pathway names. Distinguishes causal reasoning from retrieval.
+1. **Made-up vocabulary** — gene IDs like `G001`, modules labeled `"charge-flow-regulator"`, signals like `"substrate-X"`. No real gene or pathway names. Distinguishes causal reasoning from retrieval.
 2. **Continuous sigmoid dynamics** — `x_i(t+1) = σ(bias_i + Σ W_ij·x_j + signal_terms + ε)`. Values in [0, 1].
-3. **Named phenotype readouts** — non-linear summaries like `"growth-rate"` depending on gene states. The agent sees readout names and values, not raw gene states.
+3. **Named phenotype readouts** — non-linear summaries like `"expansion-rate"` depending on gene states. The agent sees readout names and values, not raw gene states.
 4. **JSON/YAML serialization** — organisms are fully serializable for reproducibility and offline evaluation.
 5. **Disease mode** — organisms can be given a malfunction (LOCK_HI/LOCK_LO/PERSIST) that shifts phenotypes away from healthy ranges. Agents must diagnose and rescue.
 
@@ -113,17 +122,19 @@ lemonoids/
 ├── __init__.py       # Public API
 ├── schema.py         # Dataclasses: Gene, Module, Signal, Relation, Phenotype,
 │                     #   DynamicsConfig, Organism, CellType, Malfunction
-├── vocabulary.py     # Word banks for invented biological names + cell types
+├── vocabulary.py     # Word banks for invented abstract names + cell types
 ├── generation.py     # generate_organism(), generate_disease_organism()
 ├── dynamics.py       # simulate_sigmoid(), compute_phenotypes()
 ├── experiment.py     # ExperimentSession — budget, interventions, scoring
 ├── dataset.py        # generate_dataset() — JSON export for offline benchmarking
-├── agent.py          # Claude tool definitions + run_agent() agentic loop
+├── agent.py          # Tool definitions + run_agent() (Anthropic + OpenAI)
 ├── inspect.py        # plot_organism(), plot_disease_organism(), plot_session()
 └── report.py         # print_session_trace(), export_session_html()
 
+evaluate.py           # Benchmark evaluation script
 demo.py               # Smoke tests + agent demo entry point
 inspect_organism.py   # CLI inspector and replay tool
+tests/                # pytest suite
 requirements.txt
 ```
 
@@ -135,10 +146,10 @@ requirements.txt
 
 An `Organism` contains:
 - 🧬 **Genes** — `G001`…`GNNN`, each with an internal ID (`g_001`) and display name (`G001`)
-- 🗂️ **Modules** — hidden groupings of genes by functional role (e.g. `"redox-oscillator"`)
-- 📡 **Signals** — external inputs that activate or inhibit target genes (e.g. `"nutrient-X"`)
+- 🗂️ **Modules** — hidden groupings of genes by functional role (e.g. `"polarity-oscillator"`)
+- 📡 **Signals** — external inputs that activate or inhibit target genes (e.g. `"substrate-X"`)
 - 🔗 **Relations** — signed weighted edges between genes (`activates` / `inhibits`)
-- 📊 **Phenotypes** — named readouts computed as sigmoid of weighted gene sums (e.g. `"growth-rate"`)
+- 📊 **Phenotypes** — named readouts computed as sigmoid of weighted gene sums (e.g. `"expansion-rate"`)
 - ⚙️ **Dynamics config** — per-gene bias, input weights, noise sigma
 
 > Modules are **hidden from the agent** — inferring them is part of the challenge.
@@ -247,7 +258,7 @@ plot_disease_organism(org, save_path="disease.png")
 ```python
 from lemonoids import ExperimentSession
 
-session = ExperimentSession(org, budget=20, seed=0)
+session = ExperimentSession(org, seed=0)  # budget defaults to recommended_budget(org)
 ```
 
 On init, 2 `PredictionTask`s are generated with hidden ground-truth phenotype values. Tasks use cross-module double-gene interventions that are unlikely to have been directly measured.
@@ -276,7 +287,7 @@ task = session.get_next_prediction_task()
 result = session.run_experiment({
     "G005": {"type": "BLOCK"},
     "G012": {"type": "BOOST"},
-    "nutrient-X": "activate",   # signal label
+    "substrate-X": "activate",   # signal label
 })
 # Returns: phenotypes dict, status, steps, budget_remaining
 ```
@@ -284,7 +295,7 @@ result = session.run_experiment({
 **`submit_prediction(task_id, prediction)`** — 🆓 free
 ```python
 score = session.submit_prediction("task_00", {
-    "growth-rate": 0.72,
+    "expansion-rate": 0.72,
     "stress-index": 0.45,
 })
 # Returns: mse, accuracy (fraction within 0.15 threshold), per-phenotype details
@@ -292,7 +303,7 @@ score = session.submit_prediction("task_00", {
 
 **`submit_hypothesis(text)`** — 🆓 free
 ```python
-session.submit_hypothesis("G010 appears to be a master regulator of stress-index...")
+session.submit_hypothesis("G010 appears to be a master regulator of expansion-rate...")
 ```
 
 **`test_rescue(interventions)`** — 💸 costs 1 budget unit *(disease mode only)*
@@ -324,11 +335,11 @@ summary = session.get_summary()
 ### `run_agent()`
 
 ```python
-from lemonoids.agent import run_agent
+from lemonoids import run_agent
 
 summary = run_agent(
     session,
-    model="claude-opus-4-6",   # or "claude-sonnet-4-6"
+    model="claude-opus-4-6",   # or "claude-sonnet-4-6", "gpt-5.1", etc.
     max_turns=50,
     verbose=True,
     disease_mode=None,         # None = auto-detect from session
@@ -336,7 +347,7 @@ summary = run_agent(
 )
 ```
 
-Runs Claude against the session using the tool harness. The system prompt frames the vocabulary as synthetic and instructs the model to reason from perturbation data only.
+Runs an LLM agent against the session using a tool-use harness. Provider is inferred from the model name (`claude-*` → Anthropic, `gpt-*`/`o1`/`o3` → OpenAI). The system prompt frames the vocabulary as synthetic and instructs the model to reason from perturbation data only.
 
 **Tools available to the agent:**
 
@@ -438,10 +449,26 @@ Agent sessions are evaluated on the following outcomes:
 ## 📦 Dependencies
 
 ```
-anthropic>=0.40.0    # Claude API (agent loop only)
+anthropic>=0.40.0    # Anthropic Claude API (agent loop)
+openai>=1.30.0       # OpenAI API (agent loop)
 numpy>=1.24.0        # Dynamics simulation
 pyyaml>=6.0          # YAML serialization
-rich                 # Terminal organism inspector
-matplotlib           # Plot figures
-networkx             # GRN graph layout
+rich>=13.0           # Terminal organism inspector
+matplotlib>=3.7      # Plot figures
+networkx>=3.0        # GRN graph layout
+```
+
+---
+
+## 📄 Citation
+
+If you use LEMONOIDS in your research, please cite:
+
+```bibtex
+@misc{lemonoids2026,
+  title  = {{LEMONOIDS}: A Synthetic Organism Reasoning Benchmark for LLM Agents},
+  author = {Turing Team and 👾},
+  year   = {2026},
+  url    = {https://github.com/RelationRx/rrx-lemonoids},
+}
 ```

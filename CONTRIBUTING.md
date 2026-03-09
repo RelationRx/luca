@@ -12,16 +12,32 @@ pip install -e ".[dev]"
 
 ```
 lemonoids/          # Core package
+tests/              # pytest suite (run with: python -m pytest tests/)
 demo.py             # Smoke tests + agent demo
 inspect_organism.py # CLI inspector
-experiments/        # (local only, not tracked) experiment scripts and results
+evaluate.py         # Benchmark evaluation script
+experiments/        # Experiment scripts (tracked) + summary results
+results/            # (local only, not tracked) evaluation output
 logs/               # (local only, not tracked) agent session logs
+```
+
+## Running tests
+
+```bash
+python -m pytest tests/ -v
 ```
 
 ## Running smoke tests
 
 ```bash
 python demo.py
+```
+
+## Running the benchmark
+
+```bash
+python evaluate.py --heuristic --n 5        # no API key required
+python evaluate.py --model claude-opus-4-6  # requires ANTHROPIC_API_KEY
 ```
 
 ## Code style
@@ -49,7 +65,7 @@ experiments/my_experiment/
 └── fig.py       # reads results and produces figures
 ```
 
-`experiments/` is gitignored — share results and figures separately.
+Experiment scripts and summary `.jsonl` files are tracked. Per-session logs (`logs/`) and figures (`*.png`) are gitignored.
 
 ## Questions
 

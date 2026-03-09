@@ -21,6 +21,9 @@ build/
 logs/
 lemonoids_dataset/
 
+# Evaluation output (regenerate locally)
+results/
+
 # Per-experiment session logs (verbose JSON/HTML dumps; regenerate locally)
 experiments/**/logs/
 

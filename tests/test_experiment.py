@@ -1,0 +1,152 @@
+"""Tests for ExperimentSession."""
+import pytest
+from lemonoids import generate_organism, generate_disease_organism, ExperimentSession
+from lemonoids.experiment import recommended_budget
+
+
+def test_recommended_budget_scales():
+    org = generate_organism(seed=0)
+    budget = recommended_budget(org)
+    assert budget == len(org.genes) + len(org.signals) + 8
+
+
+def test_default_budget_uses_recommended():
+    org = generate_organism(seed=0)
+    session = ExperimentSession(org)
+    assert session.budget == recommended_budget(org)
+
+
+def test_explicit_budget_overrides():
+    org = generate_organism(seed=0)
+    session = ExperimentSession(org, budget=10)
+    assert session.budget == 10
+
+
+def test_is_disease_healthy():
+    org = generate_organism(seed=0)
+    session = ExperimentSession(org)
+    assert session.is_disease is False
+
+
+def test_is_disease_disease():
+    org = generate_disease_organism(seed=0)
+    session = ExperimentSession(org)
+    assert session.is_disease is True
+
+
+def test_get_info_returns_expected_keys():
+    org = generate_organism(seed=0)
+    session = ExperimentSession(org)
+    info = session.get_info()
+    assert "gene_names" in info
+    assert "signals" in info
+    assert "observable_phenotypes" in info
+    assert "baseline_phenotypes" in info
+    assert "budget_remaining" in info
+    assert "budget_total" in info
+
+
+def test_get_info_disease_extra_keys():
+    org = generate_disease_organism(seed=0)
+    session = ExperimentSession(org)
+    info = session.get_info()
+    assert "aberrant_phenotypes" in info
+    assert "healthy_phenotype_ranges" in info
+    assert len(info["aberrant_phenotypes"]) >= 1
+
+
+def test_run_experiment_costs_budget():
+    org = generate_organism(seed=0)
+    session = ExperimentSession(org, budget=5)
+    first_gene = [g for g in session.get_info()["gene_names"]][0]
+    session.run_experiment({first_gene: {"type": "BLOCK"}})
+    assert session.budget_used == 1
+
+
+def test_run_experiment_unknown_target():
+    org = generate_organism(seed=0)
+    session = ExperimentSession(org, budget=5)
+    result = session.run_experiment({"NOTEXIST": {"type": "BLOCK"}})
+    assert "error" in result
+
+
+def test_run_experiment_budget_exhausted():
+    org = generate_organism(seed=0)
+    session = ExperimentSession(org, budget=1)
+    gene = session.get_info()["gene_names"][0]
+    session.run_experiment({gene: {"type": "BLOCK"}})
+    result = session.run_experiment({gene: {"type": "BOOST"}})
+    assert "error" in result
+
+
+def test_submit_prediction_scores_correctly():
+    org = generate_organism(seed=0)
+    session = ExperimentSession(org, budget=5)
+    task = session.get_next_prediction_task()
+    task_id = task["task_id"]
+    phenotype_labels = session.get_info()["observable_phenotypes"]
+    perfect = {label: 0.5 for label in phenotype_labels}
+    result = session.submit_prediction(task_id, perfect)
+    assert "mse" in result
+    assert "accuracy" in result
+    assert 0.0 <= result["accuracy"] <= 1.0
+
+
+def test_prediction_tasks_sequential():
+    org = generate_organism(seed=0)
+    session = ExperimentSession(org, budget=10)
+    task1 = session.get_next_prediction_task()
+    assert not task1.get("done")
+    # Second call before submitting returns same task
+    task1b = session.get_next_prediction_task()
+    assert task1["task_id"] == task1b["task_id"]
+
+
+def test_disease_rescue_requires_hypothesis_first():
+    org = generate_disease_organism(seed=0)
+    session = ExperimentSession(org, budget=10)
+    gene = session.get_info()["gene_names"][0]
+    result = session.test_rescue({gene: {"type": "BLOCK"}})
+    assert "error" in result
+
+
+def test_disease_hypothesis_locks_on_first_call():
+    org = generate_disease_organism(seed=0)
+    session = ExperimentSession(org, budget=10)
+    hyp1 = session.submit_malfunction_hypothesis("G001", "LOCK_HI")
+    assert hyp1.get("stored") is True
+    hyp2 = session.submit_malfunction_hypothesis("G002", "LOCK_LO")
+    assert "error" in hyp2
+
+
+def test_disease_rescue_available_after_hypothesis():
+    org = generate_disease_organism(seed=0)
+    session = ExperimentSession(org, budget=10)
+    session.submit_malfunction_hypothesis("G001", "LOCK_HI")
+    gene = session.get_info()["gene_names"][0]
+    result = session.test_rescue({gene: {"type": "BLOCK"}})
+    assert "restored_fraction" in result
+    assert "mse_vs_healthy" in result
+
+
+def test_get_summary_keys():
+    org = generate_organism(seed=0)
+    session = ExperimentSession(org, budget=5)
+    summary = session.get_summary()
+    assert "organism_id" in summary
+    assert "budget_total" in summary
+    assert "budget_used" in summary
+    assert "prediction_results" in summary
+    assert "avg_mse" in summary
+
+
+def test_resolve_interventions_error_on_latent():
+    """Latent genes should not be targetable."""
+    org = generate_organism(seed=0)
+    session = ExperimentSession(org, budget=5)
+    if org.latent_genes:
+        from lemonoids.schema import Gene
+        latent_id = org.latent_genes[0]
+        latent_name = next(g.name for g in org.genes if g.id == latent_id)
+        result = session._resolve_interventions({latent_name: {"type": "BLOCK"}})
+        assert isinstance(result, dict) and "error" in result
