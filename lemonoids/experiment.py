@@ -51,11 +51,11 @@ class ExperimentSession:
     def __init__(
         self,
         organism: Organism,
-        budget: int = 20,
+        budget: int | None = None,
         seed: int | None = None,
     ):
         self.organism = organism
-        self.budget = budget
+        self.budget = budget if budget is not None else recommended_budget(organism)
         self.budget_used = 0
         self._rng = np.random.default_rng(seed)
         self._rng_py = random.Random(seed)

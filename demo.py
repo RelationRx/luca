@@ -16,7 +16,6 @@ def smoke_test() -> None:
     print("=== Smoke Test ===")
 
     # 1. Generate organism
-    from lemonoids import generate_organism
     org = generate_organism(seed=0)
     print(f"Organism ID: {org.id}")
     print(f"  Genes: {len(org.genes)}")
