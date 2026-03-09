@@ -2,7 +2,7 @@
 from .generation import generate_organism, generate_disease_organism
 from .experiment import ExperimentSession
 from .dataset import generate_dataset
-from .agent import run_agent, run_agent_openai
+from .agent import run_agent
 from .schema import (
     Organism,
     Gene,
@@ -30,5 +30,4 @@ __all__ = [
     "CellType",
     "Malfunction",
     "run_agent",
-    "run_agent_openai",
 ]
