@@ -321,7 +321,7 @@ def _serialize_block(block) -> dict:
     return {"type": block.type}
 
 
-def run_agent(
+def _run_agent_anthropic(
     session: ExperimentSession,
     model: str = "claude-opus-4-6",
     max_turns: int = 50,
@@ -330,9 +330,9 @@ def run_agent(
     log_path: str | None = None,
 ) -> dict[str, Any]:
     """
-    Run the Claude agent on a Lemonoids ExperimentSession.
+    Run an Anthropic Claude model on a Lemonoids ExperimentSession.
 
-    disease_mode: if None, auto-detected from session._is_disease.
+    disease_mode: if None, auto-detected from session.is_disease.
     log_path: if provided, write a structured JSON log to this path.
     Returns the session summary after the agent finishes or budget is exhausted.
     """
@@ -340,7 +340,7 @@ def run_agent(
     client = anthropic.Anthropic()
 
     if disease_mode is None:
-        disease_mode = session._is_disease
+        disease_mode = session.is_disease
 
     active_tools = TOOLS + DISEASE_TOOLS if disease_mode else TOOLS
     system_prompt = DISEASE_SYSTEM_PROMPT if disease_mode else SYSTEM_PROMPT
@@ -541,8 +541,12 @@ def run_agent(
 # OpenAI agent loop
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# OpenAI agent loop
+# ---------------------------------------------------------------------------
 
-def run_agent_openai(
+
+def _run_agent_openai(
     session: ExperimentSession,
     model: str = "gpt-5.1",
     max_turns: int = 50,
@@ -551,10 +555,10 @@ def run_agent_openai(
     log_path: str | None = None,
 ) -> dict[str, Any]:
     """
-    Run an OpenAI model as agent on a Lemonoids ExperimentSession.
+    Run an OpenAI model on a Lemonoids ExperimentSession.
 
     Requires OPENAI_API_KEY in the environment.
-    disease_mode: if None, auto-detected from session._is_disease.
+    disease_mode: if None, auto-detected from session.is_disease.
     log_path: if provided, write a structured JSON log to this path.
     Returns the session summary after the agent finishes or budget is exhausted.
     """
@@ -564,7 +568,7 @@ def run_agent_openai(
     client = OpenAI()
 
     if disease_mode is None:
-        disease_mode = session._is_disease
+        disease_mode = session.is_disease
 
     active_tools = _to_openai_tools(TOOLS + DISEASE_TOOLS if disease_mode else TOOLS)
     system_prompt = DISEASE_SYSTEM_PROMPT if disease_mode else SYSTEM_PROMPT
@@ -732,3 +736,46 @@ def run_agent_openai(
             print(f"[agent] Log saved → {log_path}")
 
     return summary
+
+# ---------------------------------------------------------------------------
+# Unified entry point
+# ---------------------------------------------------------------------------
+
+_ANTHROPIC_PREFIXES = ("claude-",)
+_OPENAI_PREFIXES = ("gpt-", "o1", "o3", "o4")
+
+
+def run_agent(
+    session: ExperimentSession,
+    model: str = "claude-opus-4-6",
+    max_turns: int = 50,
+    verbose: bool = True,
+    disease_mode: bool | None = None,
+    log_path: str | None = None,
+) -> dict[str, Any]:
+    """
+    Run an LLM agent on a Lemonoids ExperimentSession.
+
+    Automatically routes to the correct provider based on the model name:
+    - claude-*          → Anthropic API  (requires ANTHROPIC_API_KEY)
+    - gpt-* / o1 / o3  → OpenAI API     (requires OPENAI_API_KEY)
+
+    Args:
+        session:      An ExperimentSession wrapping a generated organism.
+        model:        Model identifier, e.g. "claude-opus-4-6" or "gpt-5.1".
+        max_turns:    Maximum agent turns before forcing a summary.
+        verbose:      Print turn-by-turn progress to stdout.
+        disease_mode: Override disease mode detection (default: auto).
+        log_path:     Optional path to write a structured JSON session log.
+
+    Returns:
+        Session summary dict from ExperimentSession.get_summary().
+    """
+    if any(model.startswith(p) for p in _ANTHROPIC_PREFIXES):
+        return _run_agent_anthropic(session, model, max_turns, verbose, disease_mode, log_path)
+    if any(model.startswith(p) for p in _OPENAI_PREFIXES):
+        return _run_agent_openai(session, model, max_turns, verbose, disease_mode, log_path)
+    raise ValueError(
+        f"Cannot infer provider from model name {model!r}. "
+        "Use a model name starting with 'claude-' (Anthropic) or 'gpt-'/'o1'/'o3' (OpenAI)."
+    )

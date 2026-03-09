@@ -124,6 +124,50 @@ class ExperimentSession:
             )
 
     # ------------------------------------------------------------------
+    # Public properties
+    # ------------------------------------------------------------------
+
+    @property
+    def is_disease(self) -> bool:
+        """True if this session is running a disease organism."""
+        return self._is_disease
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _resolve_interventions(
+        self, interventions: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, float]] | dict:
+        """
+        Translate agent-facing intervention dict to internal gene/signal IDs.
+
+        Returns (gene_interventions, signal_overrides) on success,
+        or {"error": str} on failure.
+        """
+        name_to_id = {g.name: g.id for g in self.organism.genes}
+        label_to_signal = {s.label: s for s in self.organism.signals}
+        latent_ids = set(self.organism.latent_genes)
+
+        gene_interventions: dict[str, Any] = {}
+        signal_overrides: dict[str, float] = {}
+
+        for key, val in interventions.items():
+            if key in name_to_id:
+                gid = name_to_id[key]
+                if gid in latent_ids:
+                    return {"error": f"Gene {key} is not accessible for intervention"}
+                gene_interventions[gid] = val
+            elif key in label_to_signal:
+                sig = label_to_signal[key]
+                mult = 1.0 if val in ("activate", "activates") else -1.0
+                signal_overrides[sig.id] = mult * sig.strength
+            else:
+                return {"error": f"Unknown target: {key}"}
+
+        return gene_interventions, signal_overrides
+
+    # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
@@ -222,27 +266,10 @@ class ExperimentSession:
         if self.budget_used >= self.budget:
             return {"error": "Budget exhausted"}
 
-        # Translate gene names to IDs
-        name_to_id = {g.name: g.id for g in self.organism.genes}
-        label_to_signal = {s.label: s for s in self.organism.signals}
-        latent_ids = set(self.organism.latent_genes)
-
-        gene_interventions: dict[str, Any] = {}
-        signal_overrides: dict[str, float] = {}
-
-        for key, val in interventions.items():
-            if key in name_to_id:
-                gid = name_to_id[key]
-                if gid in latent_ids:
-                    return {"error": f"Gene {key} is not accessible for intervention"}
-                gene_interventions[gid] = val
-            elif key in label_to_signal:
-                sig = label_to_signal[key]
-                # "activate" → use signal's default strength
-                mult = 1.0 if val in ("activate", "activates") else -1.0
-                signal_overrides[sig.id] = mult * sig.strength
-            else:
-                return {"error": f"Unknown target: {key}"}
+        resolved = self._resolve_interventions(interventions)
+        if isinstance(resolved, dict):
+            return resolved  # error
+        gene_interventions, signal_overrides = resolved
 
         if active_signals:
             signal_overrides.update(active_signals)
@@ -346,26 +373,10 @@ class ExperimentSession:
         if self.budget_used >= self.budget:
             return {"error": "Budget exhausted"}
 
-        # Translate names to IDs (same logic as run_experiment)
-        name_to_id = {g.name: g.id for g in self.organism.genes}
-        label_to_signal = {s.label: s for s in self.organism.signals}
-        latent_ids = set(self.organism.latent_genes)
-
-        gene_interventions: dict[str, Any] = {}
-        signal_overrides: dict[str, float] = {}
-
-        for key, val in interventions.items():
-            if key in name_to_id:
-                gid = name_to_id[key]
-                if gid in latent_ids:
-                    return {"error": f"Gene {key} is not accessible for intervention"}
-                gene_interventions[gid] = val
-            elif key in label_to_signal:
-                sig = label_to_signal[key]
-                mult = 1.0 if val in ("activate", "activates") else -1.0
-                signal_overrides[sig.id] = mult * sig.strength
-            else:
-                return {"error": f"Unknown target: {key}"}
+        resolved = self._resolve_interventions(interventions)
+        if isinstance(resolved, dict):
+            return resolved  # error
+        gene_interventions, signal_overrides = resolved
 
         result = simulate_sigmoid(
             self.organism,
@@ -378,9 +389,7 @@ class ExperimentSession:
         rescue_phenos = result["phenotypes"]
         org = self.organism
         phenotype_in_range: dict[str, bool] = {}
-        healthy_phenos = _compute_phenotypes_from_state(
-            self.organism, org.healthy_baseline
-        )
+        healthy_phenos = self._compute_phenotypes_from_state(org.healthy_baseline)
         mse_sum = 0.0
         restored = 0
         total = len(org.healthy_phenotype_ranges)
@@ -485,10 +494,6 @@ class ExperimentSession:
 
         return summary
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
     def _compute_baseline_phenotypes(self) -> dict[str, float]:
         from .dynamics import compute_phenotypes
         return compute_phenotypes(
@@ -498,11 +503,6 @@ class ExperimentSession:
             noise=False,
         )
 
-
-def _compute_phenotypes_from_state(
-    organism,
-    state: dict[str, float],
-) -> dict[str, float]:
-    """Module-level helper used by test_rescue."""
-    from .dynamics import compute_phenotypes
-    return compute_phenotypes(organism, state, rng=np.random.default_rng(0), noise=False)
+    def _compute_phenotypes_from_state(self, state: dict[str, float]) -> dict[str, float]:
+        from .dynamics import compute_phenotypes
+        return compute_phenotypes(self.organism, state, rng=np.random.default_rng(0), noise=False)
