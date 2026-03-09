@@ -20,6 +20,15 @@ python -c "from lemonoids import generate_organism; o = generate_organism(seed=0
 python demo.py
 python demo.py --agent             # requires ANTHROPIC_API_KEY
 python demo.py --agent --disease   # disease mode agent session
+
+# Benchmark evaluation (no API key required)
+python evaluate.py --heuristic --n 20
+
+# Evaluate an LLM
+python evaluate.py --model claude-opus-4-6         # requires ANTHROPIC_API_KEY
+python evaluate.py --model gpt-5.1                 # requires OPENAI_API_KEY
+python evaluate.py --model claude-opus-4-6 --model gpt-5.1  # compare models
+python evaluate.py --model claude-opus-4-6 --disease         # disease mode
 ```
 
 ---
@@ -113,17 +122,19 @@ lemonoids/
 ├── __init__.py       # Public API
 ├── schema.py         # Dataclasses: Gene, Module, Signal, Relation, Phenotype,
 │                     #   DynamicsConfig, Organism, CellType, Malfunction
-├── vocabulary.py     # Word banks for invented biological names + cell types
+├── vocabulary.py     # Word banks for invented abstract names + cell types
 ├── generation.py     # generate_organism(), generate_disease_organism()
 ├── dynamics.py       # simulate_sigmoid(), compute_phenotypes()
 ├── experiment.py     # ExperimentSession — budget, interventions, scoring
 ├── dataset.py        # generate_dataset() — JSON export for offline benchmarking
-├── agent.py          # Claude tool definitions + run_agent() agentic loop
+├── agent.py          # Tool definitions + run_agent() (Anthropic + OpenAI)
 ├── inspect.py        # plot_organism(), plot_disease_organism(), plot_session()
 └── report.py         # print_session_trace(), export_session_html()
 
+evaluate.py           # Benchmark evaluation script
 demo.py               # Smoke tests + agent demo entry point
 inspect_organism.py   # CLI inspector and replay tool
+tests/                # pytest suite
 requirements.txt
 ```
 
@@ -456,7 +467,7 @@ If you use LEMONOIDS in your research, please cite:
 ```bibtex
 @misc{lemonoids2026,
   title  = {{LEMONOIDS}: A Synthetic Organism Reasoning Benchmark for LLM Agents},
-  author = {TBD},
+  author = {Turing Team and 👾},
   year   = {2026},
   url    = {https://github.com/RelationRx/rrx-lemonoids},
 }
