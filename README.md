@@ -456,7 +456,7 @@ If you use LEMONOIDS in your research, please cite:
 ```bibtex
 @misc{lemonoids2026,
   title  = {{LEMONOIDS}: A Synthetic Organism Reasoning Benchmark for LLM Agents},
-  author = {Gogleva, Anna and others},
+  author = {TBD},
   year   = {2026},
   url    = {https://github.com/RelationRx/rrx-lemonoids},
 }
