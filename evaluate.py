@@ -169,6 +169,27 @@ def evaluate_model(
     return records
 
 
+def _composite_score(record: dict, disease: bool) -> float | None:
+    """
+    Composite benchmark score (0–1, higher is better).
+
+    Healthy track:  accuracy
+    Disease track:  mean(accuracy, diagnosis_score, rescue_fraction)
+
+    Prediction accuracy is the shared component across both tracks.
+    MSE is reported separately as a secondary metric.
+    """
+    acc = record.get("avg_accuracy")
+    if acc is None:
+        return None
+    if not disease:
+        return round(acc, 4)
+    diag = record.get("diagnosis_score")
+    rescue = record.get("rescue_fraction")
+    components = [v for v in [acc, diag, rescue] if v is not None]
+    return round(sum(components) / len(components), 4) if components else None
+
+
 def _make_record(seed, org, summary, model_name, disease) -> dict[str, Any]:
     record: dict[str, Any] = {
         "seed": seed,
@@ -189,6 +210,7 @@ def _make_record(seed, org, summary, model_name, disease) -> dict[str, Any]:
         )
         record["diagnosis_score"] = hyp.get("score")
         record["rescue_fraction"] = best_rescue
+    record["composite_score"] = _composite_score(record, disease)
     return record
 
 
@@ -222,6 +244,8 @@ def print_summary(model_name: str, records: list[dict], disease: bool) -> None:
     width = 50
     print(f"\n{'─' * width}")
     print(f"  Model: {model_name}  |  N={n}  |  mode={'disease' if disease else 'healthy'}")
+    print(f"{'─' * width}")
+    print(f"  ★ Composite score     {mean_std('composite_score')}")
     print(f"{'─' * width}")
     print(f"  Prediction MSE       {mean_std('avg_mse')}")
     print(f"  Prediction accuracy  {mean_std('avg_accuracy')}")
