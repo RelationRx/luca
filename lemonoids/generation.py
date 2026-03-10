@@ -31,7 +31,7 @@ from .vocabulary import (
 
 
 DIFFICULTY_PRESETS: dict[str, dict] = {
-    # Easy — "prokaryote-like": near-linear dynamics, no feedback loops,
+    # Easy / "prokaryote-like": near-linear dynamics, no feedback loops,
     # high observability, minimal noise.
     "easy": dict(
         observability=0.8,
@@ -44,8 +44,8 @@ DIFFICULTY_PRESETS: dict[str, dict] = {
         sigmoid_steepness=0.7,
         latent_fraction=0.0,
     ),
-    # Medium — "simple eukaryote": current defaults. Nonlinear dynamics,
-    # moderate feedback, moderate observability, no latent genes.
+    # Medium / "simple eukaryote": nonlinear dynamics, moderate feedback,
+    # moderate observability, no latent genes. Default tier.
     "medium": dict(
         observability=0.6,
         intra_module_density=0.4,
@@ -57,7 +57,7 @@ DIFFICULTY_PRESETS: dict[str, dict] = {
         sigmoid_steepness=1.0,
         latent_fraction=0.0,
     ),
-    # Hard — "complex eukaryote": sharp nonlinear dynamics, dense feedback,
+    # Hard / "complex eukaryote": sharp nonlinear dynamics, dense feedback,
     # long-range inter-module edges, latent confounders, higher noise.
     "hard": dict(
         observability=0.5,
@@ -71,6 +71,11 @@ DIFFICULTY_PRESETS: dict[str, dict] = {
         latent_fraction=0.25,
     ),
 }
+
+# Biological metaphor aliases — accepted everywhere difficulty= is used
+DIFFICULTY_PRESETS["prokaryote"] = DIFFICULTY_PRESETS["easy"]
+DIFFICULTY_PRESETS["simple_eukaryote"] = DIFFICULTY_PRESETS["medium"]
+DIFFICULTY_PRESETS["complex_eukaryote"] = DIFFICULTY_PRESETS["hard"]
 
 
 def generate_organism(
@@ -92,8 +97,10 @@ def generate_organism(
 ) -> Organism:
     """Generate a synthetic organism with gene regulatory network.
 
-    difficulty: "easy" | "medium" | "hard" — sets structural and dynamic defaults
-        via DIFFICULTY_PRESETS. Individual parameters override preset values.
+    difficulty: "easy" | "medium" | "hard" (default "medium") — sets structural
+        and dynamic defaults via DIFFICULTY_PRESETS. Biological metaphor aliases
+        are also accepted: "prokaryote", "simple_eukaryote", "complex_eukaryote".
+        Individual parameters override preset values.
     """
     # Apply difficulty preset defaults for any unspecified structural parameters
     preset = DIFFICULTY_PRESETS.get(difficulty, DIFFICULTY_PRESETS["medium"])

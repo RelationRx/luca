@@ -14,6 +14,10 @@ Usage:
     # Disease mode
     python evaluate.py --model claude-opus-4-6 --disease
 
+    # Difficulty tier (easy / medium / hard, or prokaryote / simple_eukaryote / complex_eukaryote)
+    python evaluate.py --model claude-opus-4-6 --difficulty hard
+    python evaluate.py --heuristic --difficulty easy
+
     # Custom seeds
     python evaluate.py --model claude-opus-4-6 --seeds 0 1 2 3 4
     python evaluate.py --model claude-opus-4-6 --seeds 0:10
@@ -130,6 +134,7 @@ def evaluate_model(
     model_name: str,
     seeds: list[int],
     disease: bool,
+    difficulty: str,
     results_dir: Path,
     verbose: bool,
 ) -> list[dict[str, Any]]:
@@ -143,7 +148,10 @@ def evaluate_model(
     for seed in seeds:
         print(f"  seed={seed} ... ", end="", flush=True)
         try:
-            org = generate_disease_organism(seed=seed) if disease else generate_organism(seed=seed)
+            if disease:
+                org = generate_disease_organism(seed=seed, difficulty=difficulty)
+            else:
+                org = generate_organism(seed=seed, difficulty=difficulty)
             session = ExperimentSession(org, seed=seed)
 
             log_path = str(results_dir / "logs" / f"{model_name}_seed{seed:04d}.json")
@@ -158,7 +166,7 @@ def evaluate_model(
                     log_path=log_path,
                 )
 
-            record = _make_record(seed, org, summary, model_name, disease)
+            record = _make_record(seed, org, summary, model_name, disease, difficulty)
             records.append(record)
             print(f"mse={record.get('avg_mse', 'n/a')}  acc={record.get('avg_accuracy', 'n/a')}")
 
@@ -190,10 +198,11 @@ def _composite_score(record: dict, disease: bool) -> float | None:
     return round(sum(components) / len(components), 4) if components else None
 
 
-def _make_record(seed, org, summary, model_name, disease) -> dict[str, Any]:
+def _make_record(seed, org, summary, model_name, disease, difficulty) -> dict[str, Any]:
     record: dict[str, Any] = {
         "seed": seed,
         "model": model_name,
+        "difficulty": difficulty,
         "n_genes": len(org.genes),
         "n_modules": len(org.modules),
         "disease": disease,
@@ -243,7 +252,9 @@ def print_summary(model_name: str, records: list[dict], disease: bool) -> None:
 
     width = 50
     print(f"\n{'─' * width}")
-    print(f"  Model: {model_name}  |  N={n}  |  mode={'disease' if disease else 'healthy'}")
+    difficulties = list({r.get("difficulty", "medium") for r in valid})
+    diff_str = difficulties[0] if len(difficulties) == 1 else "/".join(sorted(difficulties))
+    print(f"  Model: {model_name}  |  N={n}  |  difficulty={diff_str}  |  mode={'disease' if disease else 'healthy'}")
     print(f"{'─' * width}")
     print(f"  ★ Composite score     {mean_std('composite_score')}")
     print(f"{'─' * width}")
@@ -280,6 +291,15 @@ def main() -> None:
         help="Evaluate in disease mode (default: healthy)",
     )
     parser.add_argument(
+        "--difficulty", default="medium",
+        metavar="TIER",
+        help=(
+            "Organism difficulty tier (default: medium). "
+            "Accepts: easy / medium / hard  or  "
+            "prokaryote / simple_eukaryote / complex_eukaryote"
+        ),
+    )
+    parser.add_argument(
         "--n", type=int, default=20,
         help="Number of organisms to evaluate (default: 20, uses canonical seeds 0..N-1)",
     )
@@ -306,7 +326,9 @@ def main() -> None:
 
     seeds = parse_seeds(args.seeds, args.n)
     print(f"Evaluating {len(models)} model(s) on {len(seeds)} organisms "
-          f"(seeds {seeds[0]}..{seeds[-1]}, mode={'disease' if args.disease else 'healthy'})")
+          f"(seeds {seeds[0]}..{seeds[-1]}, "
+          f"difficulty={args.difficulty}, "
+          f"mode={'disease' if args.disease else 'healthy'})")
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     results_dir = Path(args.out) / timestamp
@@ -316,7 +338,7 @@ def main() -> None:
 
     for model_name in models:
         print(f"\n[{model_name}]")
-        records = evaluate_model(model_name, seeds, args.disease, results_dir, args.verbose)
+        records = evaluate_model(model_name, seeds, args.disease, args.difficulty, results_dir, args.verbose)
         all_records.extend(records)
         print_summary(model_name, records, args.disease)
 

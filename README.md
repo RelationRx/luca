@@ -29,6 +29,7 @@ python evaluate.py --model claude-opus-4-6         # requires ANTHROPIC_API_KEY
 python evaluate.py --model gpt-5.1                 # requires OPENAI_API_KEY
 python evaluate.py --model claude-opus-4-6 --model gpt-5.1  # compare models
 python evaluate.py --model claude-opus-4-6 --disease         # disease mode
+python evaluate.py --model claude-opus-4-6 --difficulty hard # hard tier
 ```
 
 ---
@@ -112,6 +113,40 @@ plot_organism(org, save_path="org.png")      # figure
 3. **Named phenotype readouts** — non-linear summaries like `"expansion-rate"` depending on gene states. The agent sees readout names and values, not raw gene states.
 4. **JSON/YAML serialization** — organisms are fully serializable for reproducibility and offline evaluation.
 5. **Disease mode** — organisms can be given a malfunction (LOCK_HI/LOCK_LO/PERSIST) that shifts phenotypes away from healthy ranges. Agents must diagnose and rescue.
+
+---
+
+## 🎚️ Difficulty Tiers
+
+Organisms are generated at three complexity levels, inspired by evolutionary stages of cellular regulation.
+
+| Tier | Alias | Observability | Feedback loops | Latent genes | Noise |
+|------|-------|:---:|:---:|:---:|:---:|
+| `easy` | `prokaryote` | 80 % | 0 | 0 % | 0.005 |
+| `medium` | `simple_eukaryote` | 60 % | 2 | 0 % | 0.01 |
+| `hard` | `complex_eukaryote` | 50 % | 4 | 25 % | 0.03 |
+
+**`medium` is the default** and defines the canonical benchmark split (seeds 0–19).
+
+**Key axes of difficulty:**
+- **Observability** — fraction of genes visible to the agent; lower = more partial information
+- **Feedback loops** — injected recurrent edges; increases non-linearity and multi-stability
+- **Latent genes** — genes never visible or targetable; act as hidden confounders
+- **Noise** — Gaussian noise on gene states at each simulation step
+
+Both tier names are accepted wherever `difficulty=` is used:
+
+```python
+from lemonoids import generate_organism, generate_disease_organism
+
+# Keyword form
+easy_org  = generate_organism(seed=0, difficulty="easy")
+hard_org  = generate_disease_organism(seed=0, difficulty="complex_eukaryote")
+
+# Benchmark evaluation
+# python evaluate.py --heuristic --difficulty hard
+# python evaluate.py --model claude-opus-4-6 --difficulty prokaryote
+```
 
 ---
 
@@ -204,7 +239,8 @@ org = generate_organism(
     n_modules=4,
     n_signals=3,
     n_phenotypes=3,
-    observability=0.6,          # fraction of genes visible to agent
+    difficulty="medium",        # "easy"/"medium"/"hard" or biological aliases
+    observability=0.6,          # fraction of genes visible to agent (overrides preset)
     intra_module_density=0.4,   # edge probability within modules
     inter_module_density=0.08,  # edge probability between modules
     inhibition_fraction=0.3,    # fraction of edges that are inhibitory
