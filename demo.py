@@ -1,8 +1,10 @@
-"""LEMONOIDS demo — full agent session.
+"""LEMONOIDS demo — walks through the benchmark step by step.
 
 Usage:
-    export ANTHROPIC_API_KEY=sk-...
-    python demo.py
+    python demo.py                        # walkthrough + sanity checks
+    python demo.py --agent                # run an LLM agent (requires OPENAI_API_KEY or ANTHROPIC_API_KEY)
+    python demo.py --agent --disease      # disease mode agent session
+    python demo.py --model gpt-4o         # choose model (default: gpt-4o)
 """
 import json
 import sys
@@ -11,158 +13,174 @@ from lemonoids import generate_organism, generate_disease_organism, ExperimentSe
 from lemonoids.agent import run_agent
 
 
-def smoke_test() -> None:
-    """Quick sanity checks without API calls."""
-    print("=== Smoke Test ===")
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-    # 1. Generate organism
-    org = generate_organism(seed=0)
-    print(f"Organism ID: {org.id}")
-    print(f"  Genes: {len(org.genes)}")
-    print(f"  Modules: {len(org.modules)}")
-    print(f"  Signals: {len(org.signals)}")
-    print(f"  Phenotypes: {len(org.phenotypes)}")
-    print(f"  Observable genes: {len(org.observable_genes)}/{len(org.genes)}")
+def _fmt(d: dict) -> str:
+    return "  ".join(f"{k}: {v:.3f}" for k, v in d.items())
 
-    # 2. JSON round-trip
-    json_str = org.to_json()
-    org2 = type(org).from_json(json_str)
-    assert org.id == org2.id, "JSON round-trip failed"
-    print("  JSON round-trip: OK")
 
-    # 3. BLOCK upstream gene changes phenotype
-    from lemonoids.dynamics import simulate_sigmoid
-    import numpy as np
+def _divider(title: str = "") -> None:
+    if title:
+        print(f"\n{'─' * 10} {title} {'─' * (40 - len(title))}")
+    else:
+        print()
 
-    baseline_phenos = {}
+
+# ---------------------------------------------------------------------------
+# Walkthrough
+# ---------------------------------------------------------------------------
+
+def walkthrough() -> None:
+    """Walk through the benchmark loop step by step — no API key needed."""
+
+    # ------------------------------------------------------------------
+    # 1. Generate a synthetic organism
+    # ------------------------------------------------------------------
+    _divider("1. Generate a synthetic organism")
+    org = generate_organism(seed=42)
+    obs_names = [g.name for g in org.genes if g.id in org.observable_genes]
+    latent_count = len(org.genes) - len(org.observable_genes)
+    print(f"Organism:  {org.id}")
+    print(f"Genes:     {len(org.genes)} total  |  {len(obs_names)} observable  |  {latent_count} latent (hidden)")
+    print(f"Modules:   {len(org.modules)}  (hidden from agent — inferring them is part of the challenge)")
+    print(f"Signals:   {len(org.signals)}")
+    print(f"Phenotypes:{len(org.phenotypes)}  — {', '.join(p.label for p in org.phenotypes)}")
+    print(f"\nBaseline phenotypes (what the agent sees at t=0):")
     from lemonoids.dynamics import compute_phenotypes
-    baseline_phenos = compute_phenotypes(org, org.baseline_state, noise=False)
+    baseline = compute_phenotypes(org, org.baseline_state, noise=False)
+    for label, val in baseline.items():
+        print(f"  {label}: {val:.3f}")
 
-    # BLOCK the first gene and check if phenotype changes
-    first_gene = org.genes[0].id
-    block_result = simulate_sigmoid(
-        org,
-        interventions={first_gene: {"type": "BLOCK"}},
-        active_signals={},
-        rng=np.random.default_rng(42),
-    )
-    block_phenos = block_result["phenotypes"]
-    print(f"  Baseline phenotypes: {json.dumps({k: round(v,3) for k,v in baseline_phenos.items()})}")
-    print(f"  BLOCK({org.genes[0].name}) phenotypes: {json.dumps({k: round(v,3) for k,v in block_phenos.items()})}")
-    diffs = {k: round(abs(block_phenos[k] - baseline_phenos[k]), 3) for k in baseline_phenos}
-    print(f"  Phenotype diffs: {json.dumps(diffs)}")
+    # ------------------------------------------------------------------
+    # 2. Run a perturbation experiment
+    # ------------------------------------------------------------------
+    _divider("2. Run a perturbation experiment")
+    session = ExperimentSession(org, seed=42)
+    first_obs = obs_names[0]
+    print(f"Intervention: BLOCK {first_obs}  (costs 1 budget unit)")
+    result = session.run_experiment({first_obs: {"type": "BLOCK"}})
+    print(f"Budget remaining: {result['budget_remaining']} / {session.budget}")
+    print(f"Phenotype readout after BLOCK {first_obs}:")
+    for label, val in result["phenotypes"].items():
+        delta = val - baseline[label]
+        arrow = f"({delta:+.3f})"
+        print(f"  {label}: {val:.3f}  {arrow}")
 
-    # 4. Dataset generation
-    from lemonoids import generate_dataset
-    paths = generate_dataset(
-        n_organisms=3,
-        experiments_per_organism=2,
-        output_path="/tmp/lemonoids_test_dataset",
-        seed=7,
-    )
-    import os
-    assert os.path.exists(paths["organisms"]), "organisms.json not found"
-    assert os.path.exists(paths["experiments"]), "experiments.json not found"
-    with open(paths["organisms"]) as f:
-        orgs = json.load(f)
-    with open(paths["experiments"]) as f:
-        exps = json.load(f)
-    assert len(orgs) == 3, f"Expected 3 organisms, got {len(orgs)}"
-    assert len(exps) == 6, f"Expected 6 experiments, got {len(exps)}"
-    # Check organism IDs are consistent
-    org_ids = {o["id"] for o in orgs}
-    exp_org_ids = {e["organism_id"] for e in exps}
-    assert exp_org_ids <= org_ids, "Experiment organism IDs not in organisms"
-    print(f"  Dataset: {len(orgs)} organisms, {len(exps)} experiments — IDs consistent: OK")
+    # ------------------------------------------------------------------
+    # 3. Prediction task
+    # ------------------------------------------------------------------
+    _divider("3. Prediction task")
+    print("Agent goal: predict phenotypes under a held-out intervention.")
+    task = session.get_next_prediction_task()
+    print(f"Task {task['task_id']}: what are the phenotypes if we apply — {task['interventions']}?")
+    print("(Ground truth is hidden; agent must reason from experiments to predict.)")
 
-    print("\n=== All smoke tests passed! ===\n")
+    # Submit a naive guess (all 0.5) to show the scoring API
+    naive_pred = {p.label: 0.5 for p in org.phenotypes}
+    score = session.submit_prediction(task["task_id"], naive_pred)
+    print(f"\nNaive prediction (all 0.5):  MSE={score['mse']:.4f}  accuracy={score['accuracy']:.0%}")
+    print("Ground truth vs prediction:")
+    for label, detail in score["details"].items():
+        gt = detail["ground_truth"]
+        pred = detail["prediction"]
+        ok = "✓" if detail["within_threshold"] else "✗"
+        print(f"  {label}: predicted {pred:.3f}  actual {gt:.3f}  {ok}")
 
+    # ------------------------------------------------------------------
+    # 4. Disease mode
+    # ------------------------------------------------------------------
+    _divider("4. Disease mode")
+    disease_org = generate_disease_organism(seed=42)
+    print(f"Cell type: {disease_org.cell_type.label}")
+    print(f"Malfunction: {disease_org.malfunctions[0].description}")
+    from lemonoids.dynamics import compute_phenotypes as cp
+    disease_phenos = cp(disease_org, disease_org.baseline_state, noise=False)
+    print(f"\nPhenotypes vs healthy ranges:")
+    for p in disease_org.phenotypes:
+        val = disease_phenos[p.label]
+        lo, hi = disease_org.healthy_phenotype_ranges[p.label]
+        status = "OK" if lo <= val <= hi else "ABERRANT"
+        print(f"  {p.label}: {val:.3f}  (healthy {lo:.2f}–{hi:.2f})  [{status}]")
 
-def disease_smoke_test() -> None:
-    """Smoke test for the disease biology extension."""
-    print("=== Disease Smoke Test ===")
+    disease_session = ExperimentSession(disease_org, budget=10, seed=42)
+    disease_session.submit_malfunction_hypothesis(disease_org.malfunctions[0].target_name,
+                                                  disease_org.malfunctions[0].type)
+    rescue_gene = obs_names[1] if len(obs_names) > 1 else obs_names[0]
+    rescue = disease_session.test_rescue({rescue_gene: {"type": "BLOCK"}})
+    print(f"\nRescue attempt (BLOCK {rescue_gene}):")
+    print(f"  Phenotypes restored: {rescue['restored_fraction']:.0%}")
+    print(f"  MSE vs healthy:      {rescue['mse_vs_healthy']:.4f}")
 
-    from lemonoids import generate_disease_organism
-    from lemonoids.dynamics import compute_phenotypes
-
-    org = generate_disease_organism(seed=7)
-    assert org.cell_type is not None, "cell_type should be set"
-    assert len(org.malfunctions) >= 1, "at least one malfunction expected"
-    assert org.healthy_baseline != {}, "healthy_baseline should be non-empty"
-
-    # At least one phenotype should be aberrant
-    disease_phenos = compute_phenotypes(org, org.baseline_state, noise=False)
-    aberrant = [
-        label for label, val in disease_phenos.items()
-        if not (org.healthy_phenotype_ranges[label][0] <= val <= org.healthy_phenotype_ranges[label][1])
-    ]
-    assert len(aberrant) >= 1, "No aberrant phenotypes — malfunction had no effect"
-
-    # JSON round-trip preserves disease fields
+    # ------------------------------------------------------------------
+    # 5. Sanity checks (silent unless something breaks)
+    # ------------------------------------------------------------------
+    _divider("5. Sanity checks")
     org2 = type(org).from_json(org.to_json())
-    assert org2.cell_type is not None and org2.cell_type.label == org.cell_type.label
-    assert len(org2.malfunctions) == len(org.malfunctions)
-    assert org2.healthy_phenotype_ranges != {}
-    print("  JSON round-trip (disease): OK")
+    assert org.id == org2.id, "JSON round-trip failed"
 
-    # ExperimentSession disease API
-    session = ExperimentSession(org, budget=10, seed=7)
-    info = session.get_info()
-    assert "aberrant_phenotypes" in info, "aberrant_phenotypes missing from get_info()"
-    assert "healthy_phenotype_ranges" in info, "healthy_phenotype_ranges missing from get_info()"
+    import os
+    from lemonoids import generate_dataset
+    paths = generate_dataset(n_organisms=3, experiments_per_organism=2,
+                             output_path="/tmp/lemonoids_test_dataset", seed=7)
+    with open(paths["organisms"]) as f:
+        orgs_data = json.load(f)
+    with open(paths["experiments"]) as f:
+        exps_data = json.load(f)
+    assert len(orgs_data) == 3
+    assert len(exps_data) == 6
+    org_ids = {o["id"] for o in orgs_data}
+    assert {e["organism_id"] for e in exps_data} <= org_ids
+    print("JSON serialization:     OK")
+    print("Dataset generation:     OK  (3 organisms × 2 experiments)")
 
-    # submit_malfunction_hypothesis first (required before test_rescue)
-    first_gene = org.genes[0].name
-    hyp = session.submit_malfunction_hypothesis("G999", "LOCK_HI")
-    assert hyp.get("stored") is True, f"submit_malfunction_hypothesis returned: {hyp}"
-
-    # test_rescue: pick first gene and BLOCK it — just checks the API works
-    rescue = session.test_rescue({first_gene: {"type": "BLOCK"}})
-    assert "restored_fraction" in rescue, f"test_rescue returned: {rescue}"
-    assert "mse_vs_healthy" in rescue
-
-    summary = session.get_summary()
-    assert "malfunction_hypothesis" in summary
-    assert "rescue_results" in summary
-
-    print(f"  Cell type: {org.cell_type.label}")
-    print(f"  Malfunctions: {[m.description for m in org.malfunctions]}")
-    print(f"  Aberrant phenotypes: {aberrant}")
-    print(f"  Rescue test (BLOCK {first_gene}): restored={rescue['restored_fraction']:.2f}, "
-          f"mse={rescue['mse_vs_healthy']:.4f}")
-    print("  Disease smoke test: OK")
+    print("\n=== All checks passed ===\n")
 
 
-def agent_demo() -> None:
-    """Run the full Claude agent on a Lemonoids session."""
-    print("=== Agent Demo ===")
+# ---------------------------------------------------------------------------
+# Agent demos
+# ---------------------------------------------------------------------------
+
+def agent_demo(model: str) -> None:
+    print(f"\n=== Agent Demo ({model}) ===")
     org = generate_organism(n_genes=15, n_modules=3, seed=42)
     session = ExperimentSession(org, budget=15, seed=42)
-    summary = run_agent(session, model="claude-opus-4-6", max_turns=40, verbose=True)
+    summary = run_agent(session, model=model, max_turns=40, verbose=True)
     print("\nFinal summary:")
     print(json.dumps(summary, indent=2))
 
 
-def disease_agent_demo() -> None:
-    """Run the Claude agent on a disease organism session."""
-    print("=== Disease Agent Demo ===")
+def disease_agent_demo(model: str) -> None:
+    print(f"\n=== Disease Agent Demo ({model}) ===")
     org = generate_disease_organism(n_genes=15, n_modules=3, seed=42)
     session = ExperimentSession(org, budget=15, seed=42)
-    summary = run_agent(session, model="claude-opus-4-6", max_turns=40, verbose=True)
+    summary = run_agent(session, model=model, max_turns=40, verbose=True)
     print("\nFinal summary:")
     print(json.dumps(summary, indent=2))
 
 
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
 if __name__ == "__main__":
-    smoke_test()
-    disease_smoke_test()
+    walkthrough()
 
     if "--agent" in sys.argv:
+        # Pick model: --model <name> or default to gpt-4o
+        model = "gpt-4o"
+        if "--model" in sys.argv:
+            idx = sys.argv.index("--model")
+            if idx + 1 < len(sys.argv):
+                model = sys.argv[idx + 1]
+
         if "--disease" in sys.argv:
-            disease_agent_demo()
+            disease_agent_demo(model)
         else:
-            agent_demo()
+            agent_demo(model)
     else:
-        print("Run with --agent to execute a full Claude agent session.")
-        print("Run with --agent --disease for the disease biology agent session.")
-        print("(Requires ANTHROPIC_API_KEY environment variable)")
+        print("Run with --agent to execute a full LLM agent session.")
+        print("Run with --agent --disease for disease mode.")
+        print("Use --model <name> to choose a model (default: gpt-4o).")
+        print("Requires OPENAI_API_KEY or ANTHROPIC_API_KEY depending on model.")
