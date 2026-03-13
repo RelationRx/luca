@@ -124,7 +124,9 @@ TOOLS: list[dict] = [
         "name": "submit_prediction",
         "description": (
             "Submit a prediction for one of the prediction tasks. No budget cost. "
-            "Provide a map of phenotype label → predicted value (0.0 to 1.0). "
+            "You MUST provide both 'task_id' and 'prediction'. "
+            "'prediction' is a JSON object mapping each phenotype label to a float in [0.0, 1.0]. "
+            "Example: {\"task_id\": \"task_00\", \"prediction\": {\"stress-index\": 0.4, \"integrity-index\": 0.6}}. "
             "Returns MSE and accuracy (fraction within 0.15 threshold)."
         ),
         "input_schema": {
@@ -132,11 +134,15 @@ TOOLS: list[dict] = [
             "properties": {
                 "task_id": {
                     "type": "string",
-                    "description": "The task ID from the prediction tasks list (e.g. 'task_00').",
+                    "description": "The task ID from get_next_prediction_task (e.g. 'task_00').",
                 },
                 "prediction": {
                     "type": "object",
-                    "description": "Map of phenotype label → predicted float value [0.0, 1.0].",
+                    "description": (
+                        "Map of phenotype label → predicted float value [0.0, 1.0]. "
+                        "Must include ALL observable phenotypes. "
+                        "Example: {\"stress-index\": 0.4, \"integrity-index\": 0.6, \"recovery-index\": 0.5}"
+                    ),
                     "additionalProperties": {"type": "number"},
                 },
             },
@@ -192,7 +198,11 @@ then call get_next_prediction_task() again for the next task.
 Strategy tips:
 - Single-gene BLOCK/BOOST experiments first — identify which genes affect which phenotypes.
 - BLOCK and BOOST of the same gene producing opposite phenotype shifts is strong causal evidence.
-- Budget is limited — build your model before requesting prediction tasks.
+- BUDGET MANAGEMENT IS CRITICAL: Reserve at least 3 budget units for prediction tasks. \
+After 5-10 single-gene experiments you should have enough signal. Do NOT exhaust the full \
+gene list — stop experimenting when you have a working causal model.
+- Call get_next_prediction_task() early — ideally with 5+ budget remaining. \
+You can still run experiments between prediction tasks.
 - Prediction tasks involve two simultaneous cross-module interventions. Reason from \
 your model: predict each phenotype based on the combined effect of both genes.
 - Do not guess 0.5 — every prediction should be grounded in experimental evidence.
@@ -238,7 +248,9 @@ Strategy tips:
 - LOCK_LO (node locked low): BOOST of that node should restore under-active phenotypes.
 - PERSIST (signal persistently active): the signal is always on — BLOCK of its direct targets may help.
 - Aberrant phenotypes are your compass — focus experiments on genes that move them.
-- Budget is limited — prioritise experiments that maximally disambiguate the malfunction.
+- BUDGET MANAGEMENT IS CRITICAL: Reserve at least 4 budget units for rescue tests and \
+prediction tasks. After 5-8 targeted experiments you should be ready to commit your \
+malfunction hypothesis. Do NOT scan all genes exhaustively.
 - Commit to your hypothesis only when the evidence is clear — you cannot revise it.
 
 Always call get_organism_info() first."""
@@ -264,6 +276,84 @@ def _to_openai_tools(tools: list[dict]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Tool input normalisation
+# ---------------------------------------------------------------------------
+# These helpers sanitise tool call arguments before dispatch. They exist
+# primarily to handle non-standard formats produced by some models (notably
+# gpt-5.1) that deviate from the declared tool schemas. If a model is
+# well-behaved, the normalisation is a no-op.
+# To remove model-specific compat: delete _normalise_interventions and inline
+# the trivial JSON-unwrap logic back into dispatch_tool.
+
+
+def _normalise_interventions(raw: Any) -> dict[str, Any] | str:
+    """
+    Convert any intervention format a model might send into the canonical
+    ``{gene_name: {"type": "BLOCK"|"BOOST"|"DAMPEN"}}`` dict.
+
+    Handles:
+    - Correct dict format (no-op)
+    - JSON string (unwrap)
+    - List format used by some models, e.g.
+      ``[{"gene": "G010", "mode": "BOOST"}, ...]``
+      or ``[{"target": "G001", "action": "BLOCK"}]``
+
+    Returns an error string if the input cannot be parsed.
+    """
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            return f"interventions must be an object, got string: {raw!r}"
+
+    if isinstance(raw, dict):
+        return raw  # canonical format — no-op
+
+    if isinstance(raw, list):
+        # gpt-5.1 compat: list of per-gene dicts with varying key names
+        normalised: dict[str, Any] = {}
+        for item in raw:
+            target = item.get("target") or item.get("gene") or item.get("name")
+            action = (
+                item.get("action") or item.get("mode")
+                or item.get("intervention") or item.get("type")
+            )
+            if target and action and action.upper() in ("BLOCK", "BOOST", "DAMPEN"):
+                normalised[target] = {"type": action.upper()}
+        return normalised
+
+    return {}
+
+
+def _normalise_prediction(tool_input: dict) -> dict[str, float] | None:
+    """
+    Extract the prediction dict from a submit_prediction tool call.
+
+    Handles:
+    - Correct format: ``{"task_id": ..., "prediction": {label: float, ...}}``
+    - Alternative key ``"predictions"`` (some models)
+    - JSON string value
+    - Flat structure: ``{"task_id": ..., "stress-index": 0.4, ...}``
+      (gpt-5.1 compat: model flattens phenotype values into top-level keys)
+
+    Returns None if no prediction values could be found.
+    """
+    prediction = tool_input.get("prediction") or tool_input.get("predictions")
+    if isinstance(prediction, str):
+        try:
+            prediction = json.loads(prediction)
+        except json.JSONDecodeError:
+            prediction = None
+    if not prediction:
+        # gpt-5.1 compat: try flat top-level numeric values
+        prediction = {
+            k: float(v) for k, v in tool_input.items()
+            if k != "task_id" and isinstance(v, (int, float))
+        } or None
+    return prediction or None
+
+
+# ---------------------------------------------------------------------------
 # Tool dispatch
 # ---------------------------------------------------------------------------
 
@@ -275,28 +365,30 @@ def dispatch_tool(session: ExperimentSession, tool_name: str, tool_input: dict) 
     elif tool_name == "get_next_prediction_task":
         return session.get_next_prediction_task()
     elif tool_name == "run_experiment":
-        interventions = tool_input.get("interventions", {})
-        # Claude sometimes serializes the dict as a JSON string — unwrap it
+        raw = tool_input.get("interventions") or tool_input.get("gene_interventions", {})
+        interventions = _normalise_interventions(raw)
         if isinstance(interventions, str):
-            try:
-                interventions = json.loads(interventions)
-            except json.JSONDecodeError:
-                return {"error": f"interventions must be an object, got string: {interventions!r}"}
+            return {"error": interventions}
         return session.run_experiment(interventions)
     elif tool_name == "submit_prediction":
-        return session.submit_prediction(
-            tool_input["task_id"],
-            tool_input["prediction"],
-        )
+        prediction = _normalise_prediction(tool_input)
+        if prediction is None:
+            return {
+                "error": (
+                    "Missing required parameter 'prediction'. "
+                    "You MUST include a 'prediction' object with all phenotype labels. "
+                    "Example: {\"task_id\": \"task_00\", "
+                    "\"prediction\": {\"<label>\": <float>, ...}}"
+                )
+            }
+        return session.submit_prediction(tool_input["task_id"], prediction)
     elif tool_name == "submit_hypothesis":
         return session.submit_hypothesis(tool_input["text"])
     elif tool_name == "test_rescue":
-        interventions = tool_input.get("interventions", {})
+        raw = tool_input.get("interventions", {})
+        interventions = _normalise_interventions(raw)
         if isinstance(interventions, str):
-            try:
-                interventions = json.loads(interventions)
-            except json.JSONDecodeError:
-                return {"error": f"interventions must be an object, got string: {interventions!r}"}
+            return {"error": interventions}
         return session.test_rescue(interventions)
     elif tool_name == "submit_malfunction_hypothesis":
         return session.submit_malfunction_hypothesis(
@@ -459,49 +551,51 @@ def _run_agent_anthropic(
         if remaining <= 0:
             if verbose:
                 print("[agent] Budget exhausted.")
-            # Give agent one more turn to submit predictions/hypothesis
             messages.append({
                 "role": "user",
                 "content": "Budget exhausted. Please submit your predictions and hypothesis now.",
             })
-            # One final turn
-            response = client.messages.create(
-                model=model,
-                max_tokens=4096,
-                system=system_prompt,
-                tools=active_tools,
-                messages=messages,
-            )
-            messages.append({"role": "assistant", "content": response.content})
-            final_turn_log: dict[str, Any] = {
-                "turn": turn + 2,   # one past the last main turn
-                "agent_text": " ".join(
-                    b.text for b in response.content if b.type == "text"
-                ).strip() or None,
-                "tool_calls": [],
-                "note": "budget-exhausted final turn",
-            }
-            if response.stop_reason == "tool_use":
-                tool_results = []
-                for block in response.content:
-                    if block.type != "tool_use":
-                        continue
-                    result = dispatch_tool(session, block.name, block.input)
-                    if verbose:
-                        print(f"  [final] {block.name} → {json.dumps(result)[:120]}")
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": json.dumps(result),
-                    })
-                    final_turn_log["tool_calls"].append({
-                        "tool": block.name,
-                        "input": block.input,
-                        "result": result,
-                    })
-                if tool_results:
-                    messages.append({"role": "user", "content": tool_results})
-            log["turns"].append(final_turn_log)
+            # Allow up to 5 cleanup turns for free tools (submit_prediction, etc.)
+            for cleanup_turn in range(5):
+                response = client.messages.create(
+                    model=model,
+                    max_tokens=4096,
+                    system=system_prompt,
+                    tools=active_tools,
+                    messages=messages,
+                )
+                messages.append({"role": "assistant", "content": response.content})
+                final_turn_log: dict[str, Any] = {
+                    "turn": turn + 2 + cleanup_turn,
+                    "agent_text": " ".join(
+                        b.text for b in response.content if b.type == "text"
+                    ).strip() or None,
+                    "tool_calls": [],
+                    "note": "budget-exhausted cleanup turn",
+                }
+                if response.stop_reason == "tool_use":
+                    tool_results = []
+                    for block in response.content:
+                        if block.type != "tool_use":
+                            continue
+                        result = dispatch_tool(session, block.name, block.input)
+                        if verbose:
+                            print(f"  [cleanup] {block.name} → {json.dumps(result)[:120]}")
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": json.dumps(result),
+                        })
+                        final_turn_log["tool_calls"].append({
+                            "tool": block.name,
+                            "input": block.input,
+                            "result": result,
+                        })
+                    if tool_results:
+                        messages.append({"role": "user", "content": tool_results})
+                log["turns"].append(final_turn_log)
+                if response.stop_reason != "tool_use":
+                    break
             break
 
     # Embed ground truth gene→phenotype network for diagnostic reports
@@ -683,6 +777,15 @@ def _run_agent_openai(
 
         # Check budget
         remaining = session.budget - session.budget_used
+        if 0 < remaining <= 5:
+            messages.append({
+                "role": "user",
+                "content": (
+                    f"WARNING: Only {remaining} budget unit(s) remaining. "
+                    "Stop running experiments. Call get_next_prediction_task() now "
+                    "and submit your predictions, then submit_hypothesis()."
+                ),
+            })
         if remaining <= 0:
             if verbose:
                 print("[agent] Budget exhausted.")
@@ -690,19 +793,24 @@ def _run_agent_openai(
                 "role": "user",
                 "content": "Budget exhausted. Please submit your predictions and hypothesis now.",
             })
-            response = _run_turn(messages)
-            msg = response.choices[0].message
-            messages.append(msg)
-            final_turn_log: dict[str, Any] = {
-                "turn": turn + 2,
-                "agent_text": msg.content or None,
-                "tool_calls": [],
-                "note": "budget-exhausted final turn",
-            }
-            if response.choices[0].finish_reason == "tool_calls":
-                tool_result_messages = _process_tool_calls(msg, final_turn_log)
-                messages.extend(tool_result_messages)
-            log["turns"].append(final_turn_log)
+            # Allow up to 5 cleanup turns (free tools: get_next_prediction_task,
+            # submit_prediction, submit_hypothesis, submit_malfunction_hypothesis)
+            for cleanup_turn in range(5):
+                response = _run_turn(messages)
+                msg = response.choices[0].message
+                messages.append(msg)
+                final_turn_log: dict[str, Any] = {
+                    "turn": turn + 2 + cleanup_turn,
+                    "agent_text": msg.content or None,
+                    "tool_calls": [],
+                    "note": "budget-exhausted cleanup turn",
+                }
+                if response.choices[0].finish_reason == "tool_calls":
+                    tool_result_messages = _process_tool_calls(msg, final_turn_log)
+                    messages.extend(tool_result_messages)
+                log["turns"].append(final_turn_log)
+                if response.choices[0].finish_reason != "tool_calls":
+                    break
             break
 
     # Embed ground truth gene→phenotype network for diagnostic reports

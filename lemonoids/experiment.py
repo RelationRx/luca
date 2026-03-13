@@ -235,14 +235,21 @@ class ExperimentSession:
                     for gid, iv in task.interventions.items()
                 }
                 tasks_remaining = len(self._tasks) - len(submitted_ids)
+                phenotype_labels = [p.label for p in self.organism.phenotypes
+                                    if not self.organism.latent_genes or True]
+                obs_phenotypes = [p.label for p in self.organism.phenotypes]
+                example = {label: 0.5 for label in obs_phenotypes}
                 return {
                     "task_id": tid,
                     "interventions": iv_by_name,
                     "tasks_remaining": tasks_remaining,
+                    "phenotype_labels": obs_phenotypes,
                     "note": (
-                        "Submit your prediction via submit_prediction(task_id, "
-                        "{phenotype_label: value}), then call get_next_prediction_task() "
-                        "again for the next task."
+                        f"Call submit_prediction with task_id='{tid}' and a 'prediction' object "
+                        f"mapping each phenotype label to a float [0.0, 1.0]. "
+                        f"Required format: {{\"task_id\": \"{tid}\", \"prediction\": "
+                        f"{{{', '.join(repr(l) + ': <float>' for l in obs_phenotypes)}}}}}. "
+                        "Then call get_next_prediction_task() for the next task."
                     ),
                 }
 
