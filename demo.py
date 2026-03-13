@@ -156,6 +156,10 @@ def agent_demo(model: str) -> None:
     import os
     os.makedirs("logs", exist_ok=True)
     log_path = "logs/demo_agent.json"
+    print("─" * 55)
+    print("Now running a full LLM agent session on a fresh organism.")
+    print("The agent uses the same benchmark API shown above.")
+    print("─" * 55)
     print(f"\n=== Agent Demo ({model}) ===")
     org = generate_organism(n_genes=15, n_modules=3, seed=42)
     session = ExperimentSession(org, budget=15, seed=42)
@@ -170,6 +174,10 @@ def disease_agent_demo(model: str) -> None:
     import os
     os.makedirs("logs", exist_ok=True)
     log_path = "logs/demo_agent_disease.json"
+    print("─" * 55)
+    print("Now running a full LLM agent session on a fresh organism.")
+    print("The agent uses the same benchmark API shown above.")
+    print("─" * 55)
     print(f"\n=== Disease Agent Demo ({model}) ===")
     org = generate_disease_organism(n_genes=15, n_modules=3, seed=42)
     session = ExperimentSession(org, budget=15, seed=42)
