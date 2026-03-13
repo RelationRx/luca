@@ -143,21 +143,31 @@ def walkthrough() -> None:
 # ---------------------------------------------------------------------------
 
 def agent_demo(model: str) -> None:
+    import os
+    os.makedirs("logs", exist_ok=True)
+    log_path = "logs/demo_agent.json"
     print(f"\n=== Agent Demo ({model}) ===")
     org = generate_organism(n_genes=15, n_modules=3, seed=42)
     session = ExperimentSession(org, budget=15, seed=42)
-    summary = run_agent(session, model=model, max_turns=40, verbose=True)
+    summary = run_agent(session, model=model, max_turns=40, verbose=True, log_path=log_path)
     print("\nFinal summary:")
     print(json.dumps(summary, indent=2))
+    print(f"\nSession log:    {log_path}")
+    print(f"HTML report:    {log_path.replace('.json', '.html')}")
 
 
 def disease_agent_demo(model: str) -> None:
+    import os
+    os.makedirs("logs", exist_ok=True)
+    log_path = "logs/demo_agent_disease.json"
     print(f"\n=== Disease Agent Demo ({model}) ===")
     org = generate_disease_organism(n_genes=15, n_modules=3, seed=42)
     session = ExperimentSession(org, budget=15, seed=42)
-    summary = run_agent(session, model=model, max_turns=40, verbose=True)
+    summary = run_agent(session, model=model, max_turns=40, verbose=True, log_path=log_path)
     print("\nFinal summary:")
     print(json.dumps(summary, indent=2))
+    print(f"\nSession log:    {log_path}")
+    print(f"HTML report:    {log_path.replace('.json', '.html')}")
 
 
 # ---------------------------------------------------------------------------

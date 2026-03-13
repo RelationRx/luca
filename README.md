@@ -16,10 +16,12 @@ pip install -r requirements.txt
 # Smoke test
 python -c "from lemonoids import generate_organism; o = generate_organism(seed=0); print(o.id)"
 
-# Full demo (smoke tests + optional agent session)
+# Full demo (walkthrough + optional agent session)
 python demo.py
-python demo.py --agent             # requires ANTHROPIC_API_KEY
-python demo.py --agent --disease   # disease mode agent session
+python demo.py --agent                        # requires OPENAI_API_KEY (default: gpt-4o)
+python demo.py --agent --model gpt-4.1        # choose model
+python demo.py --agent --disease              # disease mode agent session
+# agent runs save logs/demo_agent.json + logs/demo_agent.html (diagnostic report)
 
 # Benchmark evaluation (no API key required)
 python evaluate.py --heuristic --n 20
