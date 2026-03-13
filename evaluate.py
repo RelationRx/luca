@@ -284,7 +284,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--heuristic", action="store_true",
-        help="Include the heuristic baseline agent (no API key required)",
+        help="Include the heuristic baseline: BLOCKs each gene once, then predicts additively. No API key required.",
     )
     parser.add_argument(
         "--disease", action="store_true",
@@ -337,7 +337,10 @@ def main() -> None:
     all_records: list[dict] = []
 
     for model_name in models:
-        print(f"\n[{model_name}]")
+        if model_name == "heuristic":
+            print(f"\n[heuristic]  (systematic baseline: BLOCK each gene once, predict additively — no LLM)")
+        else:
+            print(f"\n[{model_name}]")
         records = evaluate_model(model_name, seeds, args.disease, args.difficulty, results_dir, args.verbose)
         all_records.extend(records)
         print_summary(model_name, records, args.disease)
