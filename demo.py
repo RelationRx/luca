@@ -142,6 +142,16 @@ def walkthrough() -> None:
 # Agent demos
 # ---------------------------------------------------------------------------
 
+def _save_logs(log_path: str) -> None:
+    from lemonoids.report import export_session_html
+    html_path = log_path.replace(".json", ".html")
+    with open(log_path) as f:
+        log = json.load(f)
+    export_session_html(log, html_path)
+    print(f"Session log:    {log_path}")
+    print(f"HTML report:    {html_path}")
+
+
 def agent_demo(model: str) -> None:
     import os
     os.makedirs("logs", exist_ok=True)
@@ -152,8 +162,8 @@ def agent_demo(model: str) -> None:
     summary = run_agent(session, model=model, max_turns=40, verbose=True, log_path=log_path)
     print("\nFinal summary:")
     print(json.dumps(summary, indent=2))
-    print(f"\nSession log:    {log_path}")
-    print(f"HTML report:    {log_path.replace('.json', '.html')}")
+    print()
+    _save_logs(log_path)
 
 
 def disease_agent_demo(model: str) -> None:
@@ -166,8 +176,8 @@ def disease_agent_demo(model: str) -> None:
     summary = run_agent(session, model=model, max_turns=40, verbose=True, log_path=log_path)
     print("\nFinal summary:")
     print(json.dumps(summary, indent=2))
-    print(f"\nSession log:    {log_path}")
-    print(f"HTML report:    {log_path.replace('.json', '.html')}")
+    print()
+    _save_logs(log_path)
 
 
 # ---------------------------------------------------------------------------

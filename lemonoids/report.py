@@ -575,6 +575,9 @@ def _build_html(log: dict) -> str:
         for tc in calls:
             if tc["tool"] in ("run_experiment", "test_rescue"):
                 ivs = tc["input"].get("interventions", {})
+                # normalise list-of-dicts format (e.g. from gpt-5.1)
+                if isinstance(ivs, list):
+                    ivs = {item["gene"]: {"type": item.get("mode", "BLOCK")} for item in ivs if "gene" in item}
                 for name, val in ivs.items():
                     if isinstance(val, dict):
                         current_ivs[name] = val.get("type", "BLOCK")
