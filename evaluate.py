@@ -354,6 +354,9 @@ def main() -> None:
     else:
         active_tasks = frozenset(task_set)
 
+    if args.disease and "rescue" in active_tasks and "diagnose" not in active_tasks:
+        print("WARNING: --tasks rescue requires --tasks diagnose (rescue is gated on malfunction hypothesis submission). rescue will silently produce no results.")
+
     seeds = parse_seeds(args.seeds, args.n)
     tasks_str = ", ".join(sorted(active_tasks))
     print(f"Evaluating {len(models)} model(s) on {len(seeds)} organisms "

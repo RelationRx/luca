@@ -301,7 +301,14 @@ def _build_system_prompt(disease_mode: bool, active_tasks: frozenset[str]) -> st
         )
         step += 1
     if disease_mode and "rescue" in active_tasks:
-        lines.append(f"{step}. Test rescue interventions with test_rescue() (costs 1 budget each).")
+        if "diagnose" not in active_tasks:
+            lines.append(
+                f"{step}. NOTE: test_rescue() is available but requires a malfunction hypothesis "
+                "to be submitted first. You do not have submit_malfunction_hypothesis() in this "
+                "session — rescue will not be possible."
+            )
+        else:
+            lines.append(f"{step}. Test rescue interventions with test_rescue() (costs 1 budget each).")
         step += 1
     if "predict" in active_tasks:
         lines.append(
