@@ -7,6 +7,7 @@ Usage:
     python inspect_organism.py --seed 42 --save org.png --no-show
     python inspect_organism.py --no-plot
     python inspect_organism.py --disease --seed 7 --no-show --save /tmp/disease.png
+    python inspect_organism.py --disease --compare --seed 42 --no-show --save /tmp/compare.png
     python inspect_organism.py --replay --seed 42 --no-show --save replay.png
     python inspect_organism.py --replay --disease --seed 42 --budget 15 --no-show --save replay.png
 """
@@ -14,7 +15,7 @@ import argparse
 import os
 
 from lemonoids import generate_organism, generate_disease_organism
-from lemonoids.inspect import print_organism, plot_organism, plot_disease_organism
+from lemonoids.inspect import print_organism, plot_organism, plot_disease_organism, plot_disease_comparison
 
 
 def main() -> None:
@@ -35,6 +36,10 @@ def main() -> None:
                         help="Skip the matplotlib figure entirely")
     parser.add_argument("--disease", action="store_true",
                         help="Generate and visualise a disease organism")
+    parser.add_argument("--compare", action="store_true",
+                        help="When used with --disease, show a side-by-side healthy vs disease "
+                             "GRN comparison (plot_disease_comparison) instead of the single-panel "
+                             "disease plot")
     parser.add_argument("--replay", action="store_true",
                         help="Run an agent session and visualise the experiment replay heatmap "
                              "(requires ANTHROPIC_API_KEY)")
@@ -106,7 +111,9 @@ def main() -> None:
 
     if not args.no_plot:
         show = not args.no_show
-        if args.disease:
+        if args.disease and args.compare:
+            plot_disease_comparison(org, save_path=args.save, show=show)
+        elif args.disease:
             plot_disease_organism(org, save_path=args.save, show=show)
         else:
             plot_organism(org, save_path=args.save, show=show)
