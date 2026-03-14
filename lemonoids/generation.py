@@ -101,6 +101,12 @@ def generate_organism(
         and dynamic defaults via DIFFICULTY_PRESETS. Biological metaphor aliases
         are also accepted: "prokaryote", "simple_eukaryote", "complex_eukaryote".
         Individual parameters override preset values.
+
+    Reproducibility note: a given (seed, parameters) combination always produces
+    the same organism, but only within the same version of generation.py. Any
+    change to the generation logic will silently invalidate old seeds. If you need
+    to reproduce a specific organism for post-hoc inspection, make sure the code
+    version matches (use git tags or the organism's logged metadata).
     """
     # Apply difficulty preset defaults for any unspecified structural parameters
     preset = DIFFICULTY_PRESETS.get(difficulty, DIFFICULTY_PRESETS["medium"])
@@ -352,6 +358,12 @@ def generate_disease_organism(
     malfunction_types: list of types to choose from; None = random from MALFUNCTION_TYPES
     min_phenotype_shift: (unused, kept for API compatibility)
     **organism_kwargs: forwarded to generate_organism() (e.g. seed, n_genes, …)
+
+    Reproducibility note: a given (seed, parameters) combination always produces
+    the same organism, but only within the same version of generation.py. Any
+    change to the generation logic will silently invalidate old seeds. If you need
+    to reproduce a specific organism for post-hoc inspection, make sure the code
+    version matches (use git tags or the organism's logged metadata).
     """
     from .dynamics import compute_phenotypes, simulate_sigmoid
 
