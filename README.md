@@ -209,6 +209,8 @@ org = generate_organism(
     n_ffls=2,                   # feed-forward loops to inject
     n_feedback=2,               # feedback edges to inject
     noise_sigma=0.01,
+    sigmoid_steepness=None,     # sigmoid gain (overrides preset)
+    latent_fraction=None,       # fraction of genes never observable or targetable
     seed=42,
 )
 ```
@@ -250,11 +252,14 @@ Generates a healthy organism, assigns a `CellType`, then applies a malfunction (
 Additional fields on a disease `Organism`: `cell_type`, `healthy_baseline`, `healthy_phenotype_ranges`, `malfunctions`.
 
 ```python
-from lemonoids.inspect import plot_disease_organism
+from lemonoids.inspect import plot_disease_organism, plot_disease_comparison
 
 plot_disease_organism(org, save_path="disease.png")
-# Paired bars: grey = healthy baseline, coloured = disease state
-# Red highlights on phenotypes outside healthy range
+# Single-panel: gene activity + phenotype bars, disease state coloured,
+# healthy baseline in grey, aberrant phenotypes highlighted
+
+plot_disease_comparison(org, save_path="compare.png")
+# Side-by-side healthy vs disease GRN + bar chart; malfunction node in magenta
 ```
 
 ---
@@ -331,8 +336,8 @@ result = session.submit_malfunction_hypothesis("G007", "LOCK_HI")
 **`get_summary()`**
 ```python
 summary = session.get_summary()
-# Returns: organism_id, budget_total, budget_used, prediction_results,
-#          avg_mse, avg_accuracy, hypothesis, n_experiments
+# Returns: organism_id, budget_total, budget_used, n_experiments,
+#          prediction_results, avg_mse, avg_accuracy, hypothesis
 # Disease mode also includes: malfunction_hypothesis, rescue_results
 ```
 
