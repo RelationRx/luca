@@ -7,7 +7,18 @@ Usage:
     python demo.py --model gpt-4o         # choose model (default: gpt-4o)
 """
 import json
+import os
 import sys
+
+# Auto-load .env if present (so API keys don't need to be manually exported)
+_env_path = os.path.join(os.path.dirname(__file__), ".env")
+if os.path.exists(_env_path):
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _, _v = _line.partition("=")
+                os.environ.setdefault(_k.strip(), _v.strip())
 
 from lemonoids import generate_organism, generate_disease_organism, ExperimentSession
 from lemonoids.agent import run_agent

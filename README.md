@@ -15,86 +15,84 @@ pip install -r requirements.txt
 
 # Smoke test
 python -c "from lemonoids import generate_organism; o = generate_organism(seed=0); print(o.id)"
-
-# Full demo (walkthrough + optional agent session)
-python demo.py
-python demo.py --agent                        # requires OPENAI_API_KEY (default: gpt-4o)
-python demo.py --agent --model gpt-4.1        # choose model
-python demo.py --agent --disease              # disease mode agent session
-# saves logs/demo_agent.json + logs/demo_agent.html (diagnostic report)
-
-# Benchmark evaluation (no API key required)
-python evaluate.py --heuristic --n 20
-
-# Evaluate an LLM
-python evaluate.py --model claude-opus-4-6         # requires ANTHROPIC_API_KEY
-python evaluate.py --model gpt-5.1                 # requires OPENAI_API_KEY
-python evaluate.py --model claude-opus-4-6 --model gpt-5.1  # compare models
-python evaluate.py --model claude-opus-4-6 --disease         # disease mode
-python evaluate.py --model claude-opus-4-6 --difficulty hard # hard tier
 ```
+
+### demo.py — walkthrough & agent demo
+
+```bash
+python demo.py                          # narrative walkthrough (no API key needed)
+python demo.py --agent                  # run an agent session; saves logs/demo_agent.{json,html}
+python demo.py --agent --model gpt-4.1  # choose model
+python demo.py --agent --disease        # disease mode
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--agent` | off | Run an LLM agent session after the walkthrough |
+| `--model MODEL` | `gpt-4o` | Model to use (e.g. `gpt-4.1`, `claude-opus-4-6`) |
+| `--disease` | off | Use a disease organism |
+
+### evaluate.py — benchmark evaluation
+
+Runs the canonical benchmark: seeds 0–19, medium difficulty. Produces aggregate scores (MSE, accuracy, composite) across organisms.
+
+```bash
+python evaluate.py --heuristic                              # no API key required
+python evaluate.py --model claude-opus-4-6                  # requires ANTHROPIC_API_KEY
+python evaluate.py --model gpt-5.1                          # requires OPENAI_API_KEY
+python evaluate.py --model claude-opus-4-6 --model gpt-5.1  # compare models
+python evaluate.py --model claude-opus-4-6 --disease
+python evaluate.py --model claude-opus-4-6 --difficulty hard
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--model MODEL` | — | Model to evaluate (repeatable for comparison) |
+| `--heuristic` | off | Include the heuristic baseline (BLOCK each gene, predict additively) |
+| `--disease` | off | Evaluate in disease mode |
+| `--difficulty TIER` | `medium` | `easy` / `medium` / `hard` |
+| `--n INT` | 20 | Number of organisms (uses canonical seeds 0…N-1) |
+| `--seeds` | — | Override seeds: integers or range, e.g. `0 1 2` or `0:10` |
+| `--out DIR` | `results/` | Output directory for JSONL results and logs |
 
 ---
 
 ## 🔍 Inspector CLI
 
-Inspect organisms in the terminal or as a plot. Run agent sessions and visualise experiment replays.
+Visualise and explore individual organisms. Use `evaluate.py` for multi-seed benchmarking; use `--replay` here to run a single agent session and inspect its reasoning in detail.
 
 ```bash
-# Terminal summary + interactive graph (default seed=42, n_genes=15)
+# Terminal summary + interactive graph (default: seed=42, medium difficulty)
 python inspect_organism.py
+python inspect_organism.py --seed 7 --difficulty hard
 
-# Different organism
-python inspect_organism.py --seed 7 --n-genes 25
-
-# Save plot to file without opening a window
+# Figure only / terminal only
 python inspect_organism.py --seed 7 --save org.png --no-show
-
-# Terminal only (no matplotlib required)
 python inspect_organism.py --no-plot
 
-# Disease organism — healthy vs disease comparison figure
-python inspect_organism.py --disease --seed 7 --no-show --save disease.png
+# Disease organism: terminal comparison + optional side-by-side GRN figure
+python inspect_organism.py --disease --seed 7 --no-plot
+python inspect_organism.py --disease --compare --seed 7 --no-show --save disease.png
 
-# Run an agent session and view experiment replay heatmap (requires ANTHROPIC_API_KEY)
-python inspect_organism.py --replay --seed 42 --no-show --save replay.png
-
-# Disease mode agent replay with logging and trace output
-python inspect_organism.py --replay --disease --seed 42 --budget 15 \
-    --log logs/run.json --trace --no-show --save replay.png
-# → also auto-generates logs/run.html (self-contained diagnostic report)
+# Single-organism agent session — saves JSON + HTML trace for inspection
+# (for multi-seed evaluation use evaluate.py)
+python inspect_organism.py --replay --seed 42 --log logs/run.json
+python inspect_organism.py --replay --disease --model gpt-4o --seed 42 --log logs/run.json --trace
 ```
-
-**CLI flags:**
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--seed INT` | 42 | Organism seed |
-| `--n-genes INT` | 15 | Number of genes |
-| `--n-modules INT` | 4 | Number of modules |
+| `--difficulty TIER` | `medium` | `easy` / `medium` / `hard` |
+| `--disease` | off | Disease organism (terminal: healthy vs disease comparison) |
+| `--compare` | off | Side-by-side healthy vs disease GRN figure (with `--disease`) |
+| `--replay` | off | Run a single agent session for inspection; save JSON + HTML with `--log` |
+| `--model MODEL` | `claude-opus-4-6` | Model for `--replay` |
+| `--log PATH` | — | Save agent session log to JSON and generate HTML report |
+| `--trace` | off | Print turn-by-turn trace after replay |
 | `--save PATH` | — | Save figure to file |
 | `--no-show` | off | Skip interactive plot window |
-| `--no-terminal` | off | Skip rich terminal summary |
-| `--no-plot` | off | Skip matplotlib figure |
-| `--disease` | off | Generate a disease organism |
-| `--replay` | off | Run agent session and plot experiment heatmap |
-| `--budget INT` | 15 | Experiment budget for replay sessions |
-| `--all-genes` | off | Show all genes in replay heatmap (default: observable only) |
-| `--log PATH` | — | Save agent session log to JSON |
-| `--trace` | off | Print human-readable turn-by-turn trace after replay |
-
-The **terminal view** (via `rich`) shows:
-- 🗂️ Module membership, color-coded by functional group
-- 🧬 Baseline gene states as block bar charts, with 👁 markers for observable genes
-- 📡 Signals with mode and targets
-- 📊 Phenotype baseline values
-
-The **graph figure** (via `matplotlib` + `networkx`) shows:
-- Translucent colored blobs behind each module cluster
-- Green arrows = activating edges, red dashed = inhibiting (width = strength)
-- Yellow diamonds = signal inputs
-- White-bordered nodes = observable genes
-- Right panel: horizontal bar chart of baseline gene states + phenotype values
+| `--no-plot` | off | Skip figure entirely |
 
 **Programmatic usage:**
 ```python
@@ -431,12 +429,6 @@ export_session_html(log, "run.html")  # self-contained dark-theme HTML report
 - Color-coded tool call results (ok / warn / error)
 - Summary table at bottom
 
-**Replay heatmap** (`plot_session`) shows gene states across all experiments with turn labels (T1, T2…) and reasoning snippets when `agent_log` is provided:
-
-```python
-from lemonoids.inspect import plot_session
-plot_session(session, save_path="replay.png", agent_log=log)
-```
 
 ---
 
