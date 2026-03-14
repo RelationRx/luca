@@ -723,4 +723,101 @@ def generate_disease_organism(
         malfunction_targets = {m.target for m in malfunctions if m.type in ("LOCK_HI", "LOCK_LO")}
         org.latent_genes = [gid for gid in org.latent_genes if gid not in malfunction_targets]
 
+    # Compute diagnosis ambiguity: count how many other effective (target, type) pairs
+    # produce a disease phenotype signature within 0.1 max-abs-diff of the true one.
+    # This measures whether the phenotype signature alone uniquely identifies the malfunction,
+    # or whether perturbation experiments are needed to discriminate alternatives.
+    # Stored as org.n_diagnosis_alternatives (0 = uniquely identifiable from phenotypes).
+    org.n_diagnosis_alternatives = _count_diagnosis_alternatives(
+        org=org,
+        true_disease_phenos=compute_phenotypes(org, org.baseline_state, noise=False),
+        effective_gene_malfunctions=effective_gene_malfunctions,
+        effective_signals=effective_signals,
+        true_malfunctions=malfunctions,
+        seed=seed,
+        healthy_baseline=healthy_baseline,
+        ambiguity_threshold=0.1,
+    )
+
     return org
+
+
+def _count_diagnosis_alternatives(
+    org: "Organism",
+    true_disease_phenos: dict,
+    effective_gene_malfunctions: list,
+    effective_signals: list,
+    true_malfunctions: list,
+    seed: int,
+    healthy_baseline: dict,
+    ambiguity_threshold: float = 0.1,
+) -> int:
+    """
+    Count how many other effective (target, type) combinations produce a disease
+    phenotype signature within ambiguity_threshold max-abs-diff of the true malfunction.
+
+    Two malfunctions are considered "aliases" if for every observable phenotype,
+    their disease values differ by less than ambiguity_threshold. An agent cannot
+    distinguish aliases from phenotype observations alone — perturbation experiments
+    are required to discriminate them.
+
+    Returns the count of aliases (0 = uniquely identifiable from phenotype signature).
+    """
+    import copy as _copy
+    from .dynamics import compute_phenotypes as _compute_phenotypes, simulate_sigmoid as _simulate
+
+    phenotype_labels = [p.label for p in org.phenotypes]
+    true_targets = {(m.target, m.type) for m in true_malfunctions}
+    BIAS_SEVERITY = 20.0
+    n_alternatives = 0
+
+    # Check alternative gene malfunctions
+    for (gid, mtype) in effective_gene_malfunctions:
+        if (gid, mtype) in true_targets:
+            continue
+        rule = _copy.deepcopy(org.dynamics.rule)
+        rule[gid]["bias"] = BIAS_SEVERITY if mtype == "LOCK_HI" else -BIAS_SEVERITY
+        dyn = _copy.deepcopy(org.dynamics)
+        dyn.rule = rule
+        # Build temporary organism using healthy baseline to isolate this malfunction's effect
+        org_tmp = type(org)(
+            id=org.id, genes=org.genes, modules=org.modules, signals=org.signals,
+            relations=org.relations, phenotypes=org.phenotypes, dynamics=dyn,
+            seed=org.seed, baseline_state=healthy_baseline,
+            observable_genes=org.observable_genes,
+        )
+        result = _simulate(org_tmp, interventions={}, active_signals={},
+                           rng=np.random.default_rng(seed + 1234))
+        alt_phenos = _compute_phenotypes(org_tmp, result["final_state"], noise=False)
+        max_diff = max(
+            abs(alt_phenos.get(lbl, 0.5) - true_disease_phenos.get(lbl, 0.5))
+            for lbl in phenotype_labels
+        )
+        if max_diff < ambiguity_threshold:
+            n_alternatives += 1
+
+    # Check alternative signal malfunctions (PERSIST)
+    for sig_id in effective_signals:
+        if any(m.target == sig_id and m.type == "PERSIST" for m in true_malfunctions):
+            continue
+        orig_sig = next(s for s in org.signals if s.id == sig_id)
+        override = {sig_id: orig_sig.strength * 10.0 if orig_sig.mode == "activates"
+                    else -orig_sig.strength * 10.0}
+        # Use healthy baseline organism (no rule modifications)
+        org_tmp = type(org)(
+            id=org.id, genes=org.genes, modules=org.modules, signals=org.signals,
+            relations=org.relations, phenotypes=org.phenotypes, dynamics=org.dynamics,
+            seed=org.seed, baseline_state=healthy_baseline,
+            observable_genes=org.observable_genes,
+        )
+        result = _simulate(org_tmp, interventions={}, active_signals=override,
+                           rng=np.random.default_rng(seed + 1234))
+        alt_phenos = _compute_phenotypes(org_tmp, result["final_state"], noise=False)
+        max_diff = max(
+            abs(alt_phenos.get(lbl, 0.5) - true_disease_phenos.get(lbl, 0.5))
+            for lbl in phenotype_labels
+        )
+        if max_diff < ambiguity_threshold:
+            n_alternatives += 1
+
+    return n_alternatives

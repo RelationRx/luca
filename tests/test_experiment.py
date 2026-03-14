@@ -152,6 +152,30 @@ def test_resolve_interventions_error_on_latent():
         assert isinstance(result, dict) and "error" in result
 
 
+def test_prediction_tasks_non_trivial():
+    """Every prediction task must shift at least one phenotype by >= 0.1 from baseline."""
+    for seed in range(5):
+        org = generate_organism(seed=seed, n_genes=15, n_modules=4)
+        session = ExperimentSession(org, seed=seed)
+        baseline = session._compute_baseline_phenotypes()
+        for tid, task in session._tasks.items():
+            max_shift = max(
+                abs(task.ground_truth[lbl] - baseline[lbl]) for lbl in baseline
+            )
+            assert max_shift >= 0.1, (
+                f"seed={seed} {tid}: max phenotype shift {max_shift:.3f} < 0.1 threshold"
+            )
+
+
+def test_n_diagnosis_alternatives_in_summary():
+    """n_diagnosis_alternatives must appear in disease session summary."""
+    org = generate_disease_organism(seed=0)
+    session = ExperimentSession(org, budget=5)
+    summary = session.get_summary()
+    assert "n_diagnosis_alternatives" in summary
+    assert isinstance(summary["n_diagnosis_alternatives"], int)
+
+
 def test_n_prediction_tasks_configurable():
     """n_prediction_tasks parameter should control the number of tasks generated."""
     org = generate_organism(seed=0)
