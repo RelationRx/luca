@@ -8,6 +8,25 @@ The world is **unknowable via retrieval** — gene names, module labels, signals
 
 ---
 
+## ⚙️ How It Works
+
+1. **Made-up vocabulary** — gene IDs e.g `G001`, modules labeled `"charge-flow-regulator"`, signals e.g`"substrate-X"`. No real gene or pathway names. Distinguishes causal reasoning from retrieval.
+2. **Organism dynamics and complexity** — gene states follow `x_i(t+1) = σ(bias_i + Σ W_ij·x_j + signal_terms + ε)`, values in [0, 1] ([Mjolsness, Sharp & Reinitz, 1991](https://doi.org/10.1016/S0022-5193(05)80391-1); [Karlebach & Shamir, 2008](https://doi.org/10.1038/nrm2503)). Complexity is controlled along four axes:
+
+   | Tier | Alias | Observability | Feedback loops | Latent genes | Noise |
+   |------|-------|:---:|:---:|:---:|:---:|
+   | `easy` | `prokaryote` | 80 % | 0 | 0 % | 0.005 |
+   | `medium` | `simple_eukaryote` | 60 % | 2 | 0 % | 0.01 |
+   | `hard` | `complex_eukaryote` | 50 % | 4 | 25 % | 0.03 |
+
+   **`medium` is the default** and defines the canonical benchmark split (seeds 0–19). Observability = fraction of genes visible to the agent; feedback loops = injected recurrent edges; latent genes = hidden confounders never visible or targetable.
+
+3. **Named phenotype readouts** — non-linear summaries of an organism state e.g `"expansion-rate"` depending on gene states. The agent sees readout names and values, not raw gene states.
+4. **JSON/YAML serialization** — organisms are fully serializable for reproducibility and offline evaluation.
+5. **Disease mode** — organisms can be given a malfunction (LOCK_HI/LOCK_LO/PERSIST) that shifts phenotypes away from healthy ranges. Agents must diagnose and rescue.
+
+---
+
 ## ⚡ Quick Start
 
 ```bash
@@ -102,50 +121,6 @@ from lemonoids.inspect import print_organism, plot_organism
 org = generate_organism(seed=42)
 print_organism(org)                          # terminal
 plot_organism(org, save_path="org.png")      # figure
-```
-
----
-
-## 🧬 Design Principles
-
-1. **Made-up vocabulary** — gene IDs e.g `G001`, modules labeled `"charge-flow-regulator"`, signals e.g`"substrate-X"`. No real gene or pathway names. Distinguishes causal reasoning from retrieval.
-2. **Continuous sigmoid dynamics** — `x_i(t+1) = σ(bias_i + Σ W_ij·x_j + signal_terms + ε)`. Values in [0, 1]. Follows the connectionist GRN model of [Mjolsness, Sharp & Reinitz (1991)](https://doi.org/10.1016/S0022-5193(05)80391-1); for a review of continuous vs Boolean GRN modelling see [Karlebach & Shamir (2008)](https://doi.org/10.1038/nrm2503).
-3. **Named phenotype readouts** — non-linear summaries of an orgamism state e.g `"expansion-rate"` depending on gene states. The agent sees readout names and values, not raw gene states.
-4. **JSON/YAML serialization** — organisms are fully serializable for reproducibility and offline evaluation.
-5. **Disease mode** — organisms can be given a malfunction (LOCK_HI/LOCK_LO/PERSIST) that shifts phenotypes away from healthy ranges. Agents must diagnose and rescue.
-
----
-
-## 🎚️ Difficulty Tiers
-
-Organisms are generated at three complexity levels, inspired by evolutionary stages of cellular regulation.
-
-| Tier | Alias | Observability | Feedback loops | Latent genes | Noise |
-|------|-------|:---:|:---:|:---:|:---:|
-| `easy` | `prokaryote` | 80 % | 0 | 0 % | 0.005 |
-| `medium` | `simple_eukaryote` | 60 % | 2 | 0 % | 0.01 |
-| `hard` | `complex_eukaryote` | 50 % | 4 | 25 % | 0.03 |
-
-**`medium` is the default** and defines the canonical benchmark split (seeds 0–19).
-
-**Key axes of difficulty:**
-- **Observability** — fraction of genes visible to the agent; lower = more partial information
-- **Feedback loops** — injected recurrent edges; increases non-linearity and multi-stability
-- **Latent genes** — genes never visible or targetable; act as hidden confounders
-- **Noise** — Gaussian noise on gene states at each simulation step
-
-Both tier names are accepted wherever `difficulty=` is used:
-
-```python
-from lemonoids import generate_organism, generate_disease_organism
-
-# Keyword form
-easy_org  = generate_organism(seed=0, difficulty="easy")
-hard_org  = generate_disease_organism(seed=0, difficulty="complex_eukaryote")
-
-# Benchmark evaluation
-# python evaluate.py --heuristic --difficulty hard
-# python evaluate.py --model claude-opus-4-6 --difficulty prokaryote
 ```
 
 ---
