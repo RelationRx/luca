@@ -150,3 +150,91 @@ def test_resolve_interventions_error_on_latent():
         latent_name = next(g.name for g in org.genes if g.id == latent_id)
         result = session._resolve_interventions({latent_name: {"type": "BLOCK"}})
         assert isinstance(result, dict) and "error" in result
+
+
+def test_n_prediction_tasks_configurable():
+    """n_prediction_tasks parameter should control the number of tasks generated."""
+    org = generate_organism(seed=0)
+    s0 = ExperimentSession(org, n_prediction_tasks=0)
+    assert len(s0._tasks) == 0
+    s4 = ExperimentSession(org, n_prediction_tasks=4)
+    assert len(s4._tasks) == 4
+
+
+def test_active_tasks_predict_excluded():
+    """When predict is excluded no tasks are generated and get_next_prediction_task returns done."""
+    org = generate_organism(seed=0)
+    session = ExperimentSession(org, active_tasks=frozenset({"diagnose", "rescue"}))
+    assert len(session._tasks) == 0
+    result = session.get_next_prediction_task()
+    assert result.get("done") is True
+
+
+def test_active_tasks_in_summary():
+    """active_tasks should appear in get_summary()."""
+    org = generate_organism(seed=0)
+    tasks = frozenset({"predict"})
+    session = ExperimentSession(org, active_tasks=tasks)
+    summary = session.get_summary()
+    assert "active_tasks" in summary
+    assert set(summary["active_tasks"]) == tasks
+
+
+def test_disease_end_to_end():
+    """Full disease session: diagnose → rescue → predict → summarise."""
+    org = generate_disease_organism(seed=3)
+    session = ExperimentSession(org, budget=30, seed=0)
+
+    info = session.get_info()
+    assert info["aberrant_phenotypes"]
+
+    # Run a few experiments
+    gene = info["gene_names"][0]
+    session.run_experiment({gene: {"type": "BLOCK"}})
+
+    # Submit (likely wrong) malfunction hypothesis
+    result = session.submit_malfunction_hypothesis(gene, "LOCK_HI")
+    assert result.get("stored") is True
+    assert session._hypothesis_locked
+
+    # Rescue attempt
+    rescue = session.test_rescue({gene: {"type": "BLOCK"}})
+    assert "restored_fraction" in rescue
+
+    # Prediction tasks
+    phenotype_labels = info["observable_phenotypes"]
+    while True:
+        task = session.get_next_prediction_task()
+        if task.get("done"):
+            break
+        prediction = {lbl: 0.5 for lbl in phenotype_labels}
+        session.submit_prediction(task["task_id"], prediction)
+
+    session.submit_hypothesis("Test hypothesis.")
+    summary = session.get_summary()
+    assert summary["malfunction_hypothesis"] is not None
+    assert len(summary["rescue_results"]) >= 1
+    assert summary["avg_accuracy"] is not None
+
+
+def test_malfunction_hypothesis_scoring():
+    """Scoring rubric: 1.0 exact, 0.5 right target wrong type, 0.0 wrong."""
+    org = generate_disease_organism(seed=1)
+    m = org.malfunctions[0]
+
+    # Exact match
+    s_exact = ExperimentSession(org, budget=5)
+    s_exact.submit_malfunction_hypothesis(m.target_name, m.type)
+    assert s_exact._malfunction_guess["score"] == 1.0
+
+    # Right target, wrong type
+    wrong_type = "LOCK_LO" if m.type == "LOCK_HI" else "LOCK_HI"
+    s_partial = ExperimentSession(org, budget=5)
+    s_partial.submit_malfunction_hypothesis(m.target_name, wrong_type)
+    assert s_partial._malfunction_guess["score"] == 0.5
+
+    # Wrong target entirely
+    other_gene = next(g.name for g in org.genes if g.name != m.target_name)
+    s_wrong = ExperimentSession(org, budget=5)
+    s_wrong.submit_malfunction_hypothesis(other_gene, m.type)
+    assert s_wrong._malfunction_guess["score"] == 0.0

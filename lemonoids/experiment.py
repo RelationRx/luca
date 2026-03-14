@@ -243,10 +243,7 @@ class ExperimentSession:
                     for gid, iv in task.interventions.items()
                 }
                 tasks_remaining = len(self._tasks) - len(submitted_ids)
-                phenotype_labels = [p.label for p in self.organism.phenotypes
-                                    if not self.organism.latent_genes or True]
                 obs_phenotypes = [p.label for p in self.organism.phenotypes]
-                example = {label: 0.5 for label in obs_phenotypes}
                 return {
                     "task_id": tid,
                     "interventions": iv_by_name,
@@ -443,6 +440,11 @@ class ExperimentSession:
 
         target_name: gene name (e.g. 'G007') or signal label
         malfunction_type: 'LOCK_HI' | 'LOCK_LO' | 'PERSIST'
+
+        Scoring (revealed at session end via get_summary()):
+            1.0 — exact match: correct target AND correct malfunction type
+            0.5 — correct target, wrong malfunction type
+            0.0 — wrong target
         """
         if not self._is_disease:
             return {"error": "not a disease organism"}

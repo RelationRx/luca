@@ -108,6 +108,11 @@ def generate_organism(
     to reproduce a specific organism for post-hoc inspection, make sure the code
     version matches (use git tags or the organism's logged metadata).
     """
+    if n_genes < 2:
+        raise ValueError(f"n_genes must be at least 2, got {n_genes}")
+    if n_modules < 1:
+        raise ValueError(f"n_modules must be at least 1, got {n_modules}")
+
     # Apply difficulty preset defaults for any unspecified structural parameters
     preset = DIFFICULTY_PRESETS.get(difficulty, DIFFICULTY_PRESETS["medium"])
     if observability is None:
@@ -689,24 +694,18 @@ def generate_disease_organism(
                     malfunctions, disease_baseline, perturbed_dynamics, chronic_signal_overrides,
                 )
 
-        # Could not satisfy both conditions — return best aberrant result or last attempt
-        import warnings
+        # Could not satisfy both conditions — raise rather than silently break the guarantee
         if last_aberrant_result is not None:
-            warnings.warn(
-                "generate_disease_organism: Found aberrant phenotypes but could not verify "
-                "a rescuable single-intervention after max_attempts. Detectability guarantee "
-                "may not hold. Consider using a different seed or organism configuration.",
-                UserWarning,
-                stacklevel=3,
+            raise RuntimeError(
+                "generate_disease_organism: could not find a rescuable malfunction after "
+                f"{max_attempts} attempts. Found aberrant phenotypes but no single corrective "
+                "intervention restores them. Try a different seed or organism configuration."
             )
-            return last_aberrant_result
-        warnings.warn(
-            "generate_disease_organism: No aberrant phenotypes produced after max_attempts. "
-            "Returning last attempt. The malfunction may be too weak for this network.",
-            UserWarning,
-            stacklevel=3,
+        raise RuntimeError(
+            "generate_disease_organism: no malfunctions produced aberrant phenotypes after "
+            f"{max_attempts} attempts. The network may be too stable for the chosen malfunction "
+            "types. Try a different seed or organism configuration."
         )
-        return malfunctions, disease_baseline, perturbed_dynamics, chronic_signal_overrides
 
     malfunctions, disease_baseline, perturbed_dynamics, _ = _apply_malfunctions(n_malfunctions)
 
