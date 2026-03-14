@@ -108,9 +108,9 @@ plot_organism(org, save_path="org.png")      # figure
 
 ## 🧬 Design Principles
 
-1. **Made-up vocabulary** — gene IDs like `G001`, modules labeled `"charge-flow-regulator"`, signals like `"substrate-X"`. No real gene or pathway names. Distinguishes causal reasoning from retrieval.
+1. **Made-up vocabulary** — gene IDs e.g `G001`, modules labeled `"charge-flow-regulator"`, signals e.g`"substrate-X"`. No real gene or pathway names. Distinguishes causal reasoning from retrieval.
 2. **Continuous sigmoid dynamics** — `x_i(t+1) = σ(bias_i + Σ W_ij·x_j + signal_terms + ε)`. Values in [0, 1]. Follows the connectionist GRN model of [Mjolsness, Sharp & Reinitz (1991)](https://doi.org/10.1016/S0022-5193(05)80391-1); for a review of continuous vs Boolean GRN modelling see [Karlebach & Shamir (2008)](https://doi.org/10.1038/nrm2503).
-3. **Named phenotype readouts** — non-linear summaries like `"expansion-rate"` depending on gene states. The agent sees readout names and values, not raw gene states.
+3. **Named phenotype readouts** — non-linear summaries of an orgamism state e.g `"expansion-rate"` depending on gene states. The agent sees readout names and values, not raw gene states.
 4. **JSON/YAML serialization** — organisms are fully serializable for reproducibility and offline evaluation.
 5. **Disease mode** — organisms can be given a malfunction (LOCK_HI/LOCK_LO/PERSIST) that shifts phenotypes away from healthy ranges. Agents must diagnose and rescue.
 
