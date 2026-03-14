@@ -202,91 +202,153 @@ def _active_tool_list(
 
 
 # ---------------------------------------------------------------------------
-# System prompt
+# System prompt (built dynamically to match active_tasks)
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """You are a computational biologist studying a *de novo* synthetic organism.
-
+_CRITICAL_BLOCK = """\
 CRITICAL: All gene names (e.g. G001, G042), signal labels (e.g. "nutrient-X"), and phenotype \
 names (e.g. "growth-rate") are INVENTED VOCABULARY. They do NOT correspond to any real \
 biological system. Prior biological knowledge is IRRELEVANT and may mislead you. \
 The only valid path to understanding this organism is systematic causal reasoning \
-from perturbation experiments.
+from perturbation experiments."""
 
-PRIMARY GOALS (in order of importance):
-1. Phenotype prediction — accurately predict phenotype outcomes under novel multi-gene \
-interventions. This requires building a real causal model, not guessing.
-2. Causal hypothesis — submit a concise, evidence-based hypothesis naming which genes \
-regulate which phenotypes and how.
-
-WORKFLOW:
-1. Call get_organism_info() to understand the gene set, signals, phenotypes, and baseline.
-2. Run perturbation experiments (BLOCK, BOOST, DAMPEN, signal activations) to map gene→phenotype \
-causal relationships. Focus on genes that move phenotypes; note direction and magnitude.
-3. When you have a working causal model, call get_next_prediction_task() to receive \
-one prediction task at a time. Submit your prediction via submit_prediction(), \
-then call get_next_prediction_task() again for the next task.
-4. Submit your final causal hypothesis via submit_hypothesis().
-
+_EXPERIMENT_TIPS = """\
 Strategy tips:
 - Single-gene BLOCK/BOOST experiments first — identify which genes affect which phenotypes.
 - BLOCK and BOOST of the same gene producing opposite phenotype shifts is strong causal evidence.
-- BUDGET MANAGEMENT IS CRITICAL: Reserve at least 3 budget units for prediction tasks. \
-After 5-10 single-gene experiments you should have enough signal. Do NOT exhaust the full \
-gene list — stop experimenting when you have a working causal model.
-- Call get_next_prediction_task() early — ideally with 5+ budget remaining. \
-You can still run experiments between prediction tasks.
-- Prediction tasks involve two simultaneous cross-module interventions. Reason from \
-your model: predict each phenotype based on the combined effect of both genes.
-- Do not guess 0.5 — every prediction should be grounded in experimental evidence.
+- Do not exhaust the full gene list — stop experimenting when you have a working causal model.
 
 Always call get_organism_info() first."""
 
-DISEASE_SYSTEM_PROMPT = """You are a computational biologist studying a *de novo* synthetic organism \
-that is exhibiting a diseased state.
 
-CRITICAL: All gene names (e.g. G001, G042), signal labels (e.g. "nutrient-X"), and phenotype \
-names (e.g. "growth-rate") are INVENTED VOCABULARY. They do NOT correspond to any real \
-biological system. Prior biological knowledge is IRRELEVANT and may mislead you. \
-The only valid path to understanding this organism is systematic causal reasoning \
-from perturbation experiments.
+def _build_system_prompt(disease_mode: bool, active_tasks: frozenset[str]) -> str:
+    """Build a system prompt tailored to the active task components."""
+    lines: list[str] = []
 
-DISEASE CONTEXT: This cell exhibits aberrant phenotypes compared to its healthy baseline ranges. \
-The regulatory network has a single malfunction — either a node locked high (LOCK_HI), a node \
-locked low (LOCK_LO), or a persistently active external signal (PERSIST). Your job is to identify \
-it and restore healthy phenotypes.
+    if disease_mode:
+        lines.append(
+            "You are a computational biologist studying a *de novo* synthetic organism "
+            "that is exhibiting a diseased state."
+        )
+    else:
+        lines.append(
+            "You are a computational biologist studying a *de novo* synthetic organism."
+        )
 
-PRIMARY GOALS (in order of importance):
-1. Malfunction diagnosis — identify which gene or signal is broken and how \
-(LOCK_HI / LOCK_LO / PERSIST). Submit via submit_malfunction_hypothesis().
-2. Rescue — design an intervention that restores aberrant phenotypes to healthy ranges. \
-Test it via test_rescue().
-3. Phenotype prediction — accurately predict phenotype outcomes under novel multi-gene \
-interventions. Call get_next_prediction_task() when ready, one task at a time.
-4. Causal hypothesis — submit a concise explanation of the malfunction and regulatory logic.
+    lines.append("")
+    lines.append(_CRITICAL_BLOCK)
 
-WORKFLOW:
-1. Call get_organism_info() to see which phenotypes are aberrant and their healthy ranges.
-2. Run experiments targeting genes that affect the aberrant phenotypes to localise the fault.
-3. When confident, submit your malfunction hypothesis via submit_malfunction_hypothesis(). \
-This is a one-time, irreversible commitment — it locks immediately and unlocks test_rescue(). \
-Score is revealed at session end, not now.
-4. Test rescue interventions with test_rescue() (costs 1 budget each).
-5. Call get_next_prediction_task() for prediction tasks — one at a time; submit each \
-via submit_prediction() before the next unlocks.
-6. Submit a final hypothesis via submit_hypothesis().
+    if disease_mode:
+        lines.append("")
+        lines.append(
+            "DISEASE CONTEXT: This cell exhibits aberrant phenotypes compared to its healthy "
+            "baseline ranges. The regulatory network has a single malfunction — either a node "
+            "locked high (LOCK_HI), a node locked low (LOCK_LO), or a persistently active "
+            "external signal (PERSIST). Your job is to identify it and restore healthy phenotypes."
+        )
 
-Strategy tips:
-- LOCK_HI (node locked high): BLOCK or DAMPEN of that node should reduce the overactive phenotypes.
-- LOCK_LO (node locked low): BOOST of that node should restore under-active phenotypes.
-- PERSIST (signal persistently active): the signal is always on — BLOCK of its direct targets may help.
-- Aberrant phenotypes are your compass — focus experiments on genes that move them.
-- BUDGET MANAGEMENT IS CRITICAL: Reserve at least 4 budget units for rescue tests and \
-prediction tasks. After 5-8 targeted experiments you should be ready to commit your \
-malfunction hypothesis. Do NOT scan all genes exhaustively.
-- Commit to your hypothesis only when the evidence is clear — you cannot revise it.
+    # PRIMARY GOALS — only list what's active
+    goals: list[str] = []
+    if disease_mode:
+        if "diagnose" in active_tasks:
+            goals.append(
+                "Malfunction diagnosis — identify which gene or signal is broken and how "
+                "(LOCK_HI / LOCK_LO / PERSIST). Submit via submit_malfunction_hypothesis()."
+            )
+        if "rescue" in active_tasks:
+            goals.append(
+                "Rescue — design an intervention that restores aberrant phenotypes to healthy "
+                "ranges. Test it via test_rescue()."
+            )
+    if "predict" in active_tasks:
+        goals.append(
+            "Phenotype prediction — accurately predict phenotype outcomes under novel "
+            "multi-gene interventions. This requires building a real causal model, not guessing."
+        )
+    goals.append(
+        "Causal hypothesis — submit a concise, evidence-based hypothesis naming which genes "
+        "regulate which phenotypes and how."
+    )
 
-Always call get_organism_info() first."""
+    lines.append("")
+    lines.append("PRIMARY GOALS (in order of importance):")
+    for i, g in enumerate(goals, 1):
+        lines.append(f"{i}. {g}")
+
+    # WORKFLOW
+    lines.append("")
+    lines.append("WORKFLOW:")
+    step = 1
+    lines.append(f"{step}. Call get_organism_info() to understand the gene set, signals, phenotypes, and baseline.")
+    step += 1
+    if disease_mode:
+        lines.append(
+            f"{step}. Run perturbation experiments targeting genes that affect the aberrant "
+            "phenotypes to localise the fault."
+        )
+    else:
+        lines.append(
+            f"{step}. Run perturbation experiments (BLOCK, BOOST, DAMPEN, signal activations) "
+            "to map gene→phenotype causal relationships. Focus on genes that move phenotypes; "
+            "note direction and magnitude."
+        )
+    step += 1
+    if disease_mode and "diagnose" in active_tasks:
+        lines.append(
+            f"{step}. When confident, submit your malfunction hypothesis via "
+            "submit_malfunction_hypothesis(). This is a one-time, irreversible commitment — "
+            "it locks immediately and unlocks test_rescue(). Score is revealed at session end."
+        )
+        step += 1
+    if disease_mode and "rescue" in active_tasks:
+        lines.append(f"{step}. Test rescue interventions with test_rescue() (costs 1 budget each).")
+        step += 1
+    if "predict" in active_tasks:
+        lines.append(
+            f"{step}. When you have a working causal model, call get_next_prediction_task() to "
+            "receive one prediction task at a time. Submit your prediction via submit_prediction(), "
+            "then call get_next_prediction_task() again for the next task."
+        )
+        step += 1
+    lines.append(f"{step}. Submit your final causal hypothesis via submit_hypothesis().")
+
+    # Strategy tips
+    lines.append("")
+    if disease_mode:
+        lines.append(
+            "Strategy tips:\n"
+            "- LOCK_HI (node locked high): BLOCK or DAMPEN of that node should reduce overactive phenotypes.\n"
+            "- LOCK_LO (node locked low): BOOST of that node should restore under-active phenotypes.\n"
+            "- PERSIST (signal persistently active): the signal is always on — BLOCK of its direct targets may help.\n"
+            "- Aberrant phenotypes are your compass — focus experiments on genes that move them.\n"
+            "- BUDGET MANAGEMENT IS CRITICAL: Reserve at least 4 budget units for rescue tests"
+            + (" and prediction tasks" if "predict" in active_tasks else "")
+            + ". After 5-8 targeted experiments you should be ready to commit your malfunction hypothesis.\n"
+            "- Commit to your hypothesis only when the evidence is clear — you cannot revise it."
+        )
+    else:
+        budget_tip = (
+            "- BUDGET MANAGEMENT IS CRITICAL: Reserve at least 3 budget units for prediction tasks. "
+            "After 5-10 single-gene experiments you should have enough signal.\n"
+            "- Call get_next_prediction_task() early — ideally with 5+ budget remaining.\n"
+            "- Prediction tasks involve two simultaneous cross-module interventions. Reason from "
+            "your model: predict each phenotype based on the combined effect of both genes.\n"
+            "- Do not guess 0.5 — every prediction should be grounded in experimental evidence."
+        ) if "predict" in active_tasks else (
+            "- BUDGET MANAGEMENT IS CRITICAL: After 5-10 single-gene experiments you should "
+            "have enough signal to submit a strong causal hypothesis."
+        )
+        lines.append(
+            "Strategy tips:\n"
+            "- Single-gene BLOCK/BOOST experiments first — identify which genes affect which phenotypes.\n"
+            "- BLOCK and BOOST of the same gene producing opposite phenotype shifts is strong causal evidence.\n"
+            + budget_tip
+        )
+
+    lines.append("")
+    lines.append("Always call get_organism_info() first.")
+
+    return "\n".join(lines)
 
 # ---------------------------------------------------------------------------
 # OpenAI tool schema conversion
@@ -472,7 +534,7 @@ def _run_agent_anthropic(
         active_tasks = frozenset({"predict", "diagnose", "rescue"})
 
     active_tools = _active_tool_list(disease_mode, active_tasks)
-    system_prompt = DISEASE_SYSTEM_PROMPT if disease_mode else SYSTEM_PROMPT
+    system_prompt = _build_system_prompt(disease_mode, active_tasks)
 
     # ── Log initialisation ────────────────────────────────────────────────
     log: dict[str, Any] = {
@@ -707,7 +769,7 @@ def _run_agent_openai(
         active_tasks = frozenset({"predict", "diagnose", "rescue"})
 
     active_tools = _to_openai_tools(_active_tool_list(disease_mode, active_tasks))
-    system_prompt = DISEASE_SYSTEM_PROMPT if disease_mode else SYSTEM_PROMPT
+    system_prompt = _build_system_prompt(disease_mode, active_tasks)
 
     # ── Log initialisation ────────────────────────────────────────────────
     log: dict[str, Any] = {
