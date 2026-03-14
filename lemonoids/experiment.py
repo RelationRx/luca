@@ -54,12 +54,18 @@ class ExperimentSession:
         budget: int | None = None,
         seed: int | None = None,
         n_prediction_tasks: int = 2,
+        active_tasks: frozenset[str] | None = None,
     ):
         self.organism = organism
         self.budget = budget if budget is not None else recommended_budget(organism)
         self.budget_used = 0
         self._rng = np.random.default_rng(seed)
         self._rng_py = random.Random(seed)
+
+        self._active_tasks: frozenset[str] = (
+            active_tasks if active_tasks is not None
+            else frozenset({"predict", "diagnose", "rescue"})
+        )
 
         self._prediction_results: list[PredictionResult] = []
         self._hypothesis: str | None = None
@@ -71,9 +77,10 @@ class ExperimentSession:
         self._hypothesis_locked: bool = False   # True after first hypothesis submission
         self._rescue_results: list[dict] = []
 
-        # Generate prediction tasks on init
+        # Generate prediction tasks on init (skipped if predict task is not active)
         self._tasks: dict[str, PredictionTask] = {}
-        self._generate_tasks(n=n_prediction_tasks)
+        if "predict" in self._active_tasks:
+            self._generate_tasks(n=n_prediction_tasks)
 
     # ------------------------------------------------------------------
     # Task generation (hidden ground truth)

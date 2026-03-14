@@ -83,10 +83,20 @@ session = ExperimentSession(
     seed=0,
     budget=None,            # defaults to recommended_budget(org)
     n_prediction_tasks=2,   # number of held-out prediction tasks
+    active_tasks=None,      # frozenset of task components (default: all)
 )
 ```
 
-On init, 2 `PredictionTask`s are generated with hidden ground-truth phenotype values. Tasks use cross-module double-gene interventions that are unlikely to have been directly measured.
+On init, prediction tasks are generated (unless `"predict"` is excluded from `active_tasks`). Tasks use cross-module double-gene interventions that are unlikely to have been directly measured.
+
+**`active_tasks`** controls which task components are active in a session:
+
+| Value | Effect |
+|-------|--------|
+| `frozenset({"predict", "diagnose", "rescue"})` | All tasks (default) |
+| `frozenset({"predict"})` | Prediction only — no diagnosis or rescue tools |
+| `frozenset({"diagnose", "rescue"})` | Disease tasks only — no prediction tasks generated |
+| `frozenset({"diagnose"})` | Diagnosis only |
 
 ### Methods
 
@@ -169,6 +179,7 @@ summary = run_agent(
     verbose=True,
     disease_mode=None,         # None = auto-detect from session
     log_path="logs/run.json",  # optional: save structured JSON log
+    active_tasks=None,         # frozenset of task components (default: all)
 )
 ```
 
