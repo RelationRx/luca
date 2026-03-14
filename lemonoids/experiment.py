@@ -496,6 +496,7 @@ class ExperimentSession:
             "organism_id": self.organism.id,
             "budget_total": self.budget,
             "budget_used": self.budget_used,
+            "active_tasks": sorted(self._active_tasks),
             "prediction_results": pred_summary,
             "avg_mse": round(avg_mse, 4) if avg_mse is not None else None,
             "avg_accuracy": round(avg_acc, 4) if avg_acc is not None else None,

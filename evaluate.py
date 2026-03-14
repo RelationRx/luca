@@ -48,12 +48,13 @@ DEFAULT_N_MODULES = 4
 # ---------------------------------------------------------------------------
 
 
-def run_heuristic(session) -> dict[str, Any]:
+def run_heuristic(session, active_tasks: frozenset[str] | None = None) -> dict[str, Any]:
     """
     Systematic heuristic agent: BLOCK all observable genes one by one,
     then make additive predictions. No API calls required.
     """
-    from lemonoids.experiment import recommended_budget
+    if active_tasks is None:
+        active_tasks = frozenset({"predict", "diagnose", "rescue"})
 
     info = session.get_info()
     gene_names = info["gene_names"]
@@ -73,19 +74,20 @@ def run_heuristic(session) -> dict[str, Any]:
             }
 
     # Phase 2: submit predictions using additive model
-    while True:
-        task = session.get_next_prediction_task()
-        if task.get("done"):
-            break
-        prediction: dict[str, float] = {}
-        for label in phenotype_labels:
-            pred = baseline[label]
-            for gene, iv in task["interventions"].items():
-                if gene in effects:
-                    sign = -1.0 if iv.get("type") == "BLOCK" else 1.0
-                    pred += sign * effects[gene].get(label, 0.0)
-            prediction[label] = max(0.0, min(1.0, pred))
-        session.submit_prediction(task["task_id"], prediction)
+    if "predict" in active_tasks:
+        while True:
+            task = session.get_next_prediction_task()
+            if task.get("done"):
+                break
+            prediction: dict[str, float] = {}
+            for label in phenotype_labels:
+                pred = baseline[label]
+                for gene, iv in task["interventions"].items():
+                    if gene in effects:
+                        sign = -1.0 if iv.get("type") == "BLOCK" else 1.0
+                        pred += sign * effects[gene].get(label, 0.0)
+                prediction[label] = max(0.0, min(1.0, pred))
+            session.submit_prediction(task["task_id"], prediction)
 
     # Disease mode: naive hypothesis + rescue attempt
     if session.is_disease:
@@ -99,8 +101,10 @@ def run_heuristic(session) -> dict[str, Any]:
             if score > best_score:
                 best_score = score
                 best_gene = gene
-        session.submit_malfunction_hypothesis(best_gene, "LOCK_HI")
-        session.test_rescue({best_gene: {"type": "BLOCK"}})
+        if "diagnose" in active_tasks:
+            session.submit_malfunction_hypothesis(best_gene, "LOCK_HI")
+        if "rescue" in active_tasks and session._hypothesis_locked:
+            session.test_rescue({best_gene: {"type": "BLOCK"}})
 
     session.submit_hypothesis("Heuristic systematic sweep — no causal model.")
     return session.get_summary()
@@ -158,7 +162,7 @@ def evaluate_model(
             log_path = str(results_dir / "logs" / f"{model_name}_seed{seed:04d}.json")
 
             if model_name == "heuristic":
-                summary = run_heuristic(session)
+                summary = run_heuristic(session, active_tasks=active_tasks)
             else:
                 summary = run_agent(
                     session,
@@ -168,7 +172,7 @@ def evaluate_model(
                     active_tasks=active_tasks,
                 )
 
-            record = _make_record(seed, org, summary, model_name, disease, difficulty)
+            record = _make_record(seed, org, summary, model_name, disease, difficulty, active_tasks)
             records.append(record)
             print(f"mse={record.get('avg_mse', 'n/a')}  acc={record.get('avg_accuracy', 'n/a')}")
 
@@ -179,28 +183,34 @@ def evaluate_model(
     return records
 
 
-def _composite_score(record: dict, disease: bool) -> float | None:
+def _composite_score(record: dict, disease: bool, active_tasks: frozenset[str]) -> float | None:
     """
     Composite benchmark score (0–1, higher is better).
 
-    Healthy track:  accuracy
-    Disease track:  mean(accuracy, diagnosis_score, rescue_fraction)
+    Only averages over components that were active in the session:
+      predict  → avg_accuracy
+      diagnose → diagnosis_score  (disease only)
+      rescue   → rescue_fraction  (disease only)
 
-    Prediction accuracy is the shared component across both tracks.
     MSE is reported separately as a secondary metric.
     """
-    acc = record.get("avg_accuracy")
-    if acc is None:
-        return None
-    if not disease:
-        return round(acc, 4)
-    diag = record.get("diagnosis_score")
-    rescue = record.get("rescue_fraction")
-    components = [v for v in [acc, diag, rescue] if v is not None]
+    components: list[float] = []
+    if "predict" in active_tasks:
+        acc = record.get("avg_accuracy")
+        if acc is not None:
+            components.append(acc)
+    if disease and "diagnose" in active_tasks:
+        diag = record.get("diagnosis_score")
+        if diag is not None:
+            components.append(diag)
+    if disease and "rescue" in active_tasks:
+        rescue = record.get("rescue_fraction")
+        if rescue is not None:
+            components.append(rescue)
     return round(sum(components) / len(components), 4) if components else None
 
 
-def _make_record(seed, org, summary, model_name, disease, difficulty) -> dict[str, Any]:
+def _make_record(seed, org, summary, model_name, disease, difficulty, active_tasks: frozenset[str]) -> dict[str, Any]:
     record: dict[str, Any] = {
         "seed": seed,
         "model": model_name,
@@ -208,6 +218,7 @@ def _make_record(seed, org, summary, model_name, disease, difficulty) -> dict[st
         "n_genes": len(org.genes),
         "n_modules": len(org.modules),
         "disease": disease,
+        "active_tasks": sorted(active_tasks),
         "avg_mse": summary.get("avg_mse"),
         "avg_accuracy": summary.get("avg_accuracy"),
         "budget_used": summary.get("budget_used"),
@@ -221,7 +232,7 @@ def _make_record(seed, org, summary, model_name, disease, difficulty) -> dict[st
         )
         record["diagnosis_score"] = hyp.get("score")
         record["rescue_fraction"] = best_rescue
-    record["composite_score"] = _composite_score(record, disease)
+    record["composite_score"] = _composite_score(record, disease, active_tasks)
     return record
 
 
@@ -342,6 +353,9 @@ def main() -> None:
         active_tasks: frozenset[str] = frozenset({"predict", "diagnose", "rescue"})
     else:
         active_tasks = frozenset(task_set)
+
+    if args.disease and "rescue" in active_tasks and "diagnose" not in active_tasks:
+        print("WARNING: --tasks rescue requires --tasks diagnose (rescue is gated on malfunction hypothesis submission). rescue will silently produce no results.")
 
     seeds = parse_seeds(args.seeds, args.n)
     tasks_str = ", ".join(sorted(active_tasks))
