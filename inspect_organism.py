@@ -6,15 +6,18 @@ Usage:
     python inspect_organism.py --seed 7 --n-genes 25
     python inspect_organism.py --seed 42 --save org.png --no-show
     python inspect_organism.py --no-plot
+    python inspect_organism.py --difficulty hard --seed 3
     python inspect_organism.py --disease --seed 7 --no-show --save /tmp/disease.png
+    python inspect_organism.py --disease --compare --seed 42 --no-show --save /tmp/compare.png
     python inspect_organism.py --replay --seed 42 --no-show --save replay.png
+    python inspect_organism.py --replay --model gpt-4o --seed 42 --no-show --save replay.png
     python inspect_organism.py --replay --disease --seed 42 --budget 15 --no-show --save replay.png
 """
 import argparse
 import os
 
 from lemonoids import generate_organism, generate_disease_organism
-from lemonoids.inspect import print_organism, plot_organism, plot_disease_organism
+from lemonoids.inspect import print_organism, print_disease_organism, plot_organism, plot_disease_organism, plot_disease_comparison
 
 
 def main() -> None:
@@ -35,9 +38,20 @@ def main() -> None:
                         help="Skip the matplotlib figure entirely")
     parser.add_argument("--disease", action="store_true",
                         help="Generate and visualise a disease organism")
+    parser.add_argument("--compare", action="store_true",
+                        help="When used with --disease, show a side-by-side healthy vs disease "
+                             "GRN comparison (plot_disease_comparison) instead of the single-panel "
+                             "disease plot")
+    parser.add_argument("--difficulty", default="medium",
+                        metavar="TIER",
+                        help="Organism difficulty tier: easy / medium / hard "
+                             "(or prokaryote / simple_eukaryote / complex_eukaryote)")
     parser.add_argument("--replay", action="store_true",
                         help="Run an agent session and visualise the experiment replay heatmap "
-                             "(requires ANTHROPIC_API_KEY)")
+                             "(requires API key)")
+    parser.add_argument("--model", type=str, default="claude-opus-4-6",
+                        metavar="MODEL",
+                        help="Model to use for --replay sessions (default: claude-opus-4-6)")
     parser.add_argument("--budget", type=int, default=None,
                         help="Experiment budget for --replay sessions "
                              "(default: auto = n_genes + n_signals + 8)")
@@ -55,12 +69,14 @@ def main() -> None:
             n_genes=args.n_genes,
             n_modules=args.n_modules,
             seed=args.seed,
+            difficulty=args.difficulty,
         )
     else:
         org = generate_organism(
             n_genes=args.n_genes,
             n_modules=args.n_modules,
             seed=args.seed,
+            difficulty=args.difficulty,
         )
 
     # ── Replay mode ──────────────────────────────────────────────────────────
@@ -76,7 +92,7 @@ def main() -> None:
         budget = args.budget if args.budget is not None else recommended_budget(org)
         session = ExperimentSession(org, budget=budget, seed=args.seed)
         print(f"Running agent session (budget={budget}, disease={args.disease})…")
-        run_agent(session, model="claude-opus-4-6", max_turns=50, verbose=True,
+        run_agent(session, model=args.model, max_turns=50, verbose=True,
                   log_path=args.log)
 
         # Load log for diagnostics (only if saved)
@@ -102,11 +118,16 @@ def main() -> None:
 
     # ── Standard inspect mode ────────────────────────────────────────────────
     if not args.no_terminal:
-        print_organism(org)
+        if args.disease:
+            print_disease_organism(org)
+        else:
+            print_organism(org)
 
     if not args.no_plot:
         show = not args.no_show
-        if args.disease:
+        if args.disease and args.compare:
+            plot_disease_comparison(org, save_path=args.save, show=show)
+        elif args.disease:
             plot_disease_organism(org, save_path=args.save, show=show)
         else:
             plot_organism(org, save_path=args.save, show=show)
