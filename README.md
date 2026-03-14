@@ -27,6 +27,44 @@ The world is **unknowable via retrieval** — gene names, module labels, signals
 
 ---
 
+## 🎯 The Task
+
+LEMONOIDS is a benchmark for causal reasoning under a fixed experimental budget. Each session presents an agent with a freshly generated organism it has never seen — no prior knowledge applies. The agent must design perturbation experiments, build a causal model from the results, and make accurate predictions.
+
+**The agent is given:**
+- A set of observable genes and their baseline states
+- Named phenotype readouts (not raw gene states)
+- A budget of perturbation experiments
+
+**The agent must:**
+1. **Explore** — run experiments: BLOCK, BOOST, or DAMPEN genes, or activate signals. Each costs 1 budget unit.
+
+   | Intervention | Effect |
+   |---|---|
+   | `BLOCK` | Suppress gene to 0.0 |
+   | `BOOST` | Saturate gene to 1.0 |
+   | `DAMPEN` | Clamp gene to ≤ 0.15 |
+   | signal `"activate"` | Amplify signal input to targets |
+
+2. **Predict** — submit phenotype values for 2 held-out intervention combinations not directly measured.
+3. **Hypothesise** — submit a free-text causal summary of the network.
+
+**In disease mode**, the agent also:
+4. **Diagnose** — identify the malfunctioning gene or signal and its type.
+5. **Rescue** — test an intervention that restores phenotypes to healthy ranges.
+
+**Scoring:**
+
+| Component | Metric | Mode |
+|-----------|--------|------|
+| Prediction accuracy | MSE + fraction within ±0.15 threshold | Both |
+| Diagnosis | 1.0 exact · 0.5 right target wrong type · 0.0 wrong | Disease |
+| Rescue | Fraction of aberrant phenotypes restored to healthy range | Disease |
+
+> Modules are **hidden from the agent** — inferring functional groupings is part of the challenge.
+
+---
+
 ## ⚡ Quick Start
 
 ```bash
@@ -150,58 +188,6 @@ requirements.txt
 
 ---
 
-## 🔬 Core Concepts
-
-### Organism
-
-An `Organism` contains:
-- 🧬 **Genes** — `G001`…`GNNN`, each with an internal ID (`g_001`) and display name (`G001`)
-- 🗂️ **Modules** — hidden groupings of genes by functional role (e.g. `"polarity-oscillator"`)
-- 📡 **Signals** — external inputs that activate or inhibit target genes (e.g. `"substrate-X"`)
-- 🔗 **Relations** — signed weighted edges between genes (`activates` / `inhibits`)
-- 📊 **Phenotypes** — named readouts computed as sigmoid of weighted gene sums (e.g. `"expansion-rate"`)
-- ⚙️ **Dynamics config** — per-gene bias, input weights, noise sigma
-
-> Modules are **hidden from the agent** — inferring them is part of the challenge.
-
-### Disease Organisms
-
-A disease organism is a healthy organism with one or more **malfunctions** applied:
-
-| Malfunction type | Description |
-|-----------------|-------------|
-| `LOCK_HI` | Node locked high — bias forced high; activity saturates |
-| `LOCK_LO` | Node locked low — bias forced low; activity silenced |
-| `PERSIST` | A signal permanently active at amplified strength |
-
-Additional fields on a disease `Organism`:
-- `cell_type` — a `CellType` with label and description
-- `healthy_baseline` — pre-malfunction gene steady states
-- `healthy_phenotype_ranges` — `{label: (lo, hi)}` defining normal phenotype ranges
-- `malfunctions` — list of `Malfunction` objects (target, type, severity, description)
-- `baseline_state` — the **disease** steady state (what the agent observes)
-
-### Dynamics
-
-Each timestep:
-```
-z_i = bias_i + Σ_j W_ij · x_j(t) + signal_inputs_i
-x_i(t+1) = σ(z_i) + ε_i       ε_i ~ N(0, σ_noise)
-```
-
-Convergence is detected on the deterministic trajectory (`||Δx||∞ < 1e-3`), with noise added on top for the returned state. Max 500 steps.
-
-### Interventions
-
-| Type | Effect |
-|------|--------|
-| `BLOCK` | Force node to 0.0 each step (suppress to zero) |
-| `BOOST` | Force node to 1.0 each step (saturate to max) |
-| `DAMPEN` | Clamp node to ≤ 0.15 after each step (reduce to low) |
-| signal `"activate"` | Add `+signal_strength` to target node's input |
-
----
-
 ## 📖 API Reference
 
 ### `generate_organism()`
@@ -253,6 +239,14 @@ org = generate_disease_organism(
 ```
 
 Generates a healthy organism, assigns a `CellType`, then applies a malfunction (randomly LOCK_HI, LOCK_LO, or PERSIST on a gene or signal that demonstrably shifts at least one phenotype outside its healthy range). Returns a disease `Organism` whose `baseline_state` is the post-malfunction steady state.
+
+| Malfunction type | Description |
+|-----------------|-------------|
+| `LOCK_HI` | Node locked high — bias forced high; activity saturates |
+| `LOCK_LO` | Node locked low — bias forced low; activity silenced |
+| `PERSIST` | A signal permanently active at amplified strength |
+
+Additional fields on a disease `Organism`: `cell_type`, `healthy_baseline`, `healthy_phenotype_ranges`, `malfunctions`.
 
 ```python
 from lemonoids.inspect import plot_disease_organism
