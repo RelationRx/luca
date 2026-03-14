@@ -38,8 +38,8 @@ DIFFICULTY_PRESETS: dict[str, dict] = {
         intra_module_density=0.25,
         inter_module_density=0.04,
         inhibition_fraction=0.2,
-        n_ffls=1,
-        n_feedback=0,
+        ffl_fraction=0.07,       # ~1 ffl per 15 genes
+        feedback_fraction=0.0,
         noise_sigma=0.005,
         sigmoid_steepness=0.7,
         latent_fraction=0.0,
@@ -51,8 +51,8 @@ DIFFICULTY_PRESETS: dict[str, dict] = {
         intra_module_density=0.4,
         inter_module_density=0.08,
         inhibition_fraction=0.3,
-        n_ffls=2,
-        n_feedback=2,
+        ffl_fraction=0.13,       # ~2 ffls per 15 genes
+        feedback_fraction=0.13,  # ~2 feedback loops per 15 genes
         noise_sigma=0.01,
         sigmoid_steepness=1.0,
         latent_fraction=0.0,
@@ -64,8 +64,8 @@ DIFFICULTY_PRESETS: dict[str, dict] = {
         intra_module_density=0.5,
         inter_module_density=0.15,
         inhibition_fraction=0.4,
-        n_ffls=3,
-        n_feedback=4,
+        ffl_fraction=0.20,       # ~3 ffls per 15 genes
+        feedback_fraction=0.27,  # ~4 feedback loops per 15 genes
         noise_sigma=0.03,
         sigmoid_steepness=2.0,
         latent_fraction=0.25,
@@ -119,9 +119,9 @@ def generate_organism(
     if inhibition_fraction is None:
         inhibition_fraction = preset["inhibition_fraction"]
     if n_ffls is None:
-        n_ffls = preset["n_ffls"]
+        n_ffls = max(0, round(preset["ffl_fraction"] * n_genes))
     if n_feedback is None:
-        n_feedback = preset["n_feedback"]
+        n_feedback = max(0, round(preset["feedback_fraction"] * n_genes))
     if noise_sigma is None:
         noise_sigma = preset["noise_sigma"]
     if sigmoid_steepness is None:

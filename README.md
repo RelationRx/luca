@@ -13,13 +13,13 @@ The world is **unknowable via retrieval** — gene names, module labels, signals
 1. **Made-up vocabulary** — gene IDs e.g `G001`, modules labeled `"charge-flow-regulator"`, signals e.g`"substrate-X"`. No real gene or pathway names. Distinguishes causal reasoning from retrieval.
 2. **Organism dynamics and complexity** — gene states follow `x_i(t+1) = σ(bias_i + Σ W_ij·x_j + signal_terms + ε)`, values in [0, 1] ([Mjolsness, Sharp & Reinitz, 1991](https://doi.org/10.1016/S0022-5193(05)80391-1); [Karlebach & Shamir, 2008](https://doi.org/10.1038/nrm2503)). Complexity is controlled along four axes:
 
-   | Tier | Alias | Observability | Feedback loops | Latent genes | Noise |
-   |------|-------|:---:|:---:|:---:|:---:|
-   | `easy` | `prokaryote` | 80 % | 0 | 0 % | 0.005 |
-   | `medium` | `simple_eukaryote` | 60 % | 2 | 0 % | 0.01 |
-   | `hard` | `complex_eukaryote` | 50 % | 4 | 25 % | 0.03 |
+   | Tier | Alias | Observability | FFL density | Feedback density | Latent genes | Noise |
+   |------|-------|:---:|:---:|:---:|:---:|:---:|
+   | `easy` | `prokaryote` | 80 % | 7 % | 0 % | 0 % | 0.005 |
+   | `medium` | `simple_eukaryote` | 60 % | 13 % | 13 % | 0 % | 0.01 |
+   | `hard` | `complex_eukaryote` | 50 % | 20 % | 27 % | 25 % | 0.03 |
 
-   **`medium` is the default** and defines the canonical benchmark split (seeds 0–19). Observability = fraction of genes visible to the agent; feedback loops = injected recurrent edges; latent genes = hidden confounders never visible or targetable.
+   **`medium` is the default** and defines the canonical benchmark split (seeds 0–19). FFL and feedback densities are fractions of `n_genes`, so complexity scales with organism size. Latent genes = hidden confounders never visible or targetable.
 
 3. **Named phenotype readouts** — non-linear summaries of an organism state e.g `"expansion-rate"` depending on gene states. The agent sees readout names and values, not raw gene states.
 4. **JSON/YAML serialization** — organisms are fully serializable for reproducibility and offline evaluation.
