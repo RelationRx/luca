@@ -101,6 +101,8 @@ python evaluate.py --model gpt-5.1                          # requires OPENAI_AP
 python evaluate.py --model claude-opus-4-6 --model gpt-5.1  # compare models
 python evaluate.py --model claude-opus-4-6 --disease
 python evaluate.py --model claude-opus-4-6 --difficulty hard
+python evaluate.py --model claude-opus-4-6 --tasks predict            # prediction only
+python evaluate.py --model claude-opus-4-6 --tasks diagnose rescue --disease  # disease tasks only
 ```
 
 | Flag | Default | Description |
@@ -109,6 +111,7 @@ python evaluate.py --model claude-opus-4-6 --difficulty hard
 | `--heuristic` | off | Include the heuristic baseline (BLOCK each gene, predict additively) |
 | `--disease` | off | Evaluate in disease mode |
 | `--difficulty TIER` | `medium` | `easy` / `medium` / `hard` |
+| `--tasks TASK [...]` | `all` | Task components: `predict` `diagnose` `rescue` (or `all`) |
 | `--n INT` | 20 | Number of organisms (uses canonical seeds 0…N-1) |
 | `--seeds` | — | Override seeds: integers or range, e.g. `0 1 2` or `0:10` |
 | `--out DIR` | `results/` | Output directory for JSONL results and logs |

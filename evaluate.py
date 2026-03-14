@@ -137,6 +137,7 @@ def evaluate_model(
     difficulty: str,
     results_dir: Path,
     verbose: bool,
+    active_tasks: frozenset[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Run one model across all seeds. Returns list of per-organism records."""
     from lemonoids import (
@@ -152,7 +153,7 @@ def evaluate_model(
                 org = generate_disease_organism(seed=seed, difficulty=difficulty)
             else:
                 org = generate_organism(seed=seed, difficulty=difficulty)
-            session = ExperimentSession(org, seed=seed)
+            session = ExperimentSession(org, seed=seed, active_tasks=active_tasks)
 
             log_path = str(results_dir / "logs" / f"{model_name}_seed{seed:04d}.json")
 
@@ -164,6 +165,7 @@ def evaluate_model(
                     model=model_name,
                     verbose=verbose,
                     log_path=log_path,
+                    active_tasks=active_tasks,
                 )
 
             record = _make_record(seed, org, summary, model_name, disease, difficulty)
@@ -308,6 +310,17 @@ def main() -> None:
         help="Override canonical seeds. Integers or range (e.g. 0:10 or 0 1 2 3)",
     )
     parser.add_argument(
+        "--tasks", nargs="+",
+        choices=["predict", "diagnose", "rescue", "all"],
+        default=["all"],
+        metavar="TASK",
+        help=(
+            "Task components to evaluate (default: all). "
+            "One or more of: predict diagnose rescue. "
+            "E.g. --tasks predict  or  --tasks diagnose rescue"
+        ),
+    )
+    parser.add_argument(
         "--verbose", action="store_true",
         help="Print per-turn agent output",
     )
@@ -324,11 +337,19 @@ def main() -> None:
     if not models:
         parser.error("Specify at least one --model or use --heuristic")
 
+    task_set = set(args.tasks)
+    if "all" in task_set:
+        active_tasks: frozenset[str] = frozenset({"predict", "diagnose", "rescue"})
+    else:
+        active_tasks = frozenset(task_set)
+
     seeds = parse_seeds(args.seeds, args.n)
+    tasks_str = ", ".join(sorted(active_tasks))
     print(f"Evaluating {len(models)} model(s) on {len(seeds)} organisms "
           f"(seeds {seeds[0]}..{seeds[-1]}, "
           f"difficulty={args.difficulty}, "
-          f"mode={'disease' if args.disease else 'healthy'})")
+          f"mode={'disease' if args.disease else 'healthy'}, "
+          f"tasks={tasks_str})")
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     results_dir = Path(args.out) / timestamp
@@ -341,7 +362,7 @@ def main() -> None:
             print(f"\n[heuristic]  (systematic baseline: BLOCK each gene once, predict additively — no LLM)")
         else:
             print(f"\n[{model_name}]")
-        records = evaluate_model(model_name, seeds, args.disease, args.difficulty, results_dir, args.verbose)
+        records = evaluate_model(model_name, seeds, args.disease, args.difficulty, results_dir, args.verbose, active_tasks)
         all_records.extend(records)
         print_summary(model_name, records, args.disease)
 

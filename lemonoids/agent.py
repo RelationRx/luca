@@ -169,6 +169,39 @@ TOOLS: list[dict] = [
 ]
 
 # ---------------------------------------------------------------------------
+# Task-based tool filtering
+# ---------------------------------------------------------------------------
+
+_PREDICT_TOOLS = {"get_next_prediction_task", "submit_prediction"}
+_DIAGNOSE_TOOLS = {"submit_malfunction_hypothesis"}
+_RESCUE_TOOLS = {"test_rescue"}
+
+
+def _active_tool_list(
+    disease_mode: bool,
+    active_tasks: frozenset[str],
+) -> list[dict]:
+    """
+    Build the tool list for an agent session given which task components are active.
+
+    Always included: get_organism_info, run_experiment, submit_hypothesis.
+    Conditionally included:
+      predict  → get_next_prediction_task, submit_prediction
+      diagnose → submit_malfunction_hypothesis  (disease only)
+      rescue   → test_rescue                   (disease only)
+    """
+    result = [t for t in TOOLS if t["name"] not in _PREDICT_TOOLS]
+    if "predict" in active_tasks:
+        result += [t for t in TOOLS if t["name"] in _PREDICT_TOOLS]
+    if disease_mode:
+        if "diagnose" in active_tasks:
+            result += [t for t in DISEASE_TOOLS if t["name"] in _DIAGNOSE_TOOLS]
+        if "rescue" in active_tasks:
+            result += [t for t in DISEASE_TOOLS if t["name"] in _RESCUE_TOOLS]
+    return result
+
+
+# ---------------------------------------------------------------------------
 # System prompt
 # ---------------------------------------------------------------------------
 
@@ -420,12 +453,14 @@ def _run_agent_anthropic(
     verbose: bool = True,
     disease_mode: bool | None = None,
     log_path: str | None = None,
+    active_tasks: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     """
     Run an Anthropic Claude model on a Lemonoids ExperimentSession.
 
     disease_mode: if None, auto-detected from session.is_disease.
     log_path: if provided, write a structured JSON log to this path.
+    active_tasks: subset of {"predict", "diagnose", "rescue"} (default: all).
     Returns the session summary after the agent finishes or budget is exhausted.
     """
     import datetime, os
@@ -433,8 +468,10 @@ def _run_agent_anthropic(
 
     if disease_mode is None:
         disease_mode = session.is_disease
+    if active_tasks is None:
+        active_tasks = frozenset({"predict", "diagnose", "rescue"})
 
-    active_tools = TOOLS + DISEASE_TOOLS if disease_mode else TOOLS
+    active_tools = _active_tool_list(disease_mode, active_tasks)
     system_prompt = DISEASE_SYSTEM_PROMPT if disease_mode else SYSTEM_PROMPT
 
     # ── Log initialisation ────────────────────────────────────────────────
@@ -446,6 +483,7 @@ def _run_agent_anthropic(
             "seed": session.organism.seed,
             "budget": session.budget,
             "disease_mode": disease_mode,
+            "active_tasks": sorted(active_tasks),
         },
         "turns": [],
         "summary": None,
@@ -647,6 +685,7 @@ def _run_agent_openai(
     verbose: bool = True,
     disease_mode: bool | None = None,
     log_path: str | None = None,
+    active_tasks: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     """
     Run an OpenAI model on a Lemonoids ExperimentSession.
@@ -654,6 +693,7 @@ def _run_agent_openai(
     Requires OPENAI_API_KEY in the environment.
     disease_mode: if None, auto-detected from session.is_disease.
     log_path: if provided, write a structured JSON log to this path.
+    active_tasks: subset of {"predict", "diagnose", "rescue"} (default: all).
     Returns the session summary after the agent finishes or budget is exhausted.
     """
     import datetime, os
@@ -663,8 +703,10 @@ def _run_agent_openai(
 
     if disease_mode is None:
         disease_mode = session.is_disease
+    if active_tasks is None:
+        active_tasks = frozenset({"predict", "diagnose", "rescue"})
 
-    active_tools = _to_openai_tools(TOOLS + DISEASE_TOOLS if disease_mode else TOOLS)
+    active_tools = _to_openai_tools(_active_tool_list(disease_mode, active_tasks))
     system_prompt = DISEASE_SYSTEM_PROMPT if disease_mode else SYSTEM_PROMPT
 
     # ── Log initialisation ────────────────────────────────────────────────
@@ -676,6 +718,7 @@ def _run_agent_openai(
             "seed": session.organism.seed,
             "budget": session.budget,
             "disease_mode": disease_mode,
+            "active_tasks": sorted(active_tasks),
         },
         "turns": [],
         "summary": None,
@@ -860,6 +903,7 @@ def run_agent(
     verbose: bool = True,
     disease_mode: bool | None = None,
     log_path: str | None = None,
+    active_tasks: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     """
     Run an LLM agent on a Lemonoids ExperimentSession.
@@ -875,14 +919,18 @@ def run_agent(
         verbose:      Print turn-by-turn progress to stdout.
         disease_mode: Override disease mode detection (default: auto).
         log_path:     Optional path to write a structured JSON session log.
+        active_tasks: Subset of {"predict", "diagnose", "rescue"} controlling
+                      which task components the agent is asked to complete
+                      (default: all three). E.g. frozenset({"predict"}) for
+                      predict-only runs.
 
     Returns:
         Session summary dict from ExperimentSession.get_summary().
     """
     if any(model.startswith(p) for p in _ANTHROPIC_PREFIXES):
-        return _run_agent_anthropic(session, model, max_turns, verbose, disease_mode, log_path)
+        return _run_agent_anthropic(session, model, max_turns, verbose, disease_mode, log_path, active_tasks)
     if any(model.startswith(p) for p in _OPENAI_PREFIXES):
-        return _run_agent_openai(session, model, max_turns, verbose, disease_mode, log_path)
+        return _run_agent_openai(session, model, max_turns, verbose, disease_mode, log_path, active_tasks)
     raise ValueError(
         f"Cannot infer provider from model name {model!r}. "
         "Use a model name starting with 'claude-' (Anthropic) or 'gpt-'/'o1'/'o3' (OpenAI)."
