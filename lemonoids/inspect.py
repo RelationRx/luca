@@ -167,6 +167,174 @@ def _print_plain(org: "Organism") -> None:
     print()
 
 
+def print_disease_organism(org: "Organism") -> None:
+    """Rich terminal inspector for disease organisms. Shows malfunction + healthy/disease comparison."""
+    try:
+        from rich.console import Console
+        from rich.table import Table
+        from rich.panel import Panel
+        from rich import box
+        _print_disease_rich(org, Console())
+    except ImportError:
+        _print_disease_plain(org)
+
+
+def _print_disease_rich(org: "Organism", console) -> None:
+    from rich.table import Table
+    from rich.panel import Panel
+    from rich import box
+
+    from .dynamics import compute_phenotypes
+
+    observable_set = set(org.observable_genes)
+    gene_id_to_mod: dict[str, int] = {}
+    for k, mod in enumerate(org.modules):
+        for gid in mod.gene_ids:
+            gene_id_to_mod[gid] = k
+    gene_id_to_name = {g.id: g.name for g in org.genes}
+
+    malfunction_targets = {m.target for m in org.malfunctions}
+
+    # ── Header ───────────────────────────────────────────────────────────────
+    ct_label = org.cell_type.label if org.cell_type else "unknown"
+    ct_desc = org.cell_type.description if org.cell_type else ""
+    mal_lines = "\n".join(
+        f"  [bold magenta]⚠[/bold magenta]  [magenta]{m.target_name}[/magenta]  "
+        f"[dim]{m.type}[/dim]  severity=[yellow]{m.severity:.2f}[/yellow]  {m.description}"
+        for m in org.malfunctions
+    )
+    console.print(Panel(
+        f"[bold yellow]🍋 LEMONOIDS — DISEASE ORGANISM[/bold yellow]  [dim white]{org.id}[/dim white]\n"
+        f"  seed [cyan]{org.seed}[/cyan]  ·  "
+        f"[bold green]{len(org.genes)}[/bold green] genes  ·  "
+        f"[bold blue]{len(org.modules)}[/bold blue] modules  ·  "
+        f"[bold yellow]{len(org.signals)}[/bold yellow] signals  ·  "
+        f"[bold magenta]{len(org.phenotypes)}[/bold magenta] phenotypes\n"
+        f"  Cell type: [bold cyan]{ct_label}[/bold cyan]  [dim]{ct_desc}[/dim]\n"
+        + (f"\n  Malfunction(s):\n{mal_lines}" if mal_lines else ""),
+        border_style="magenta",
+        expand=False,
+        padding=(0, 2),
+    ))
+
+    # ── Gene states: healthy vs disease ─────────────────────────────────────
+    gt = Table(
+        title="🧬 Gene States — Healthy vs Disease",
+        box=box.ROUNDED, border_style="dim white",
+        title_style="bold white", show_header=True, header_style="dim",
+    )
+    gt.add_column("Gene", width=8)
+    gt.add_column("Module", min_width=22)
+    gt.add_column("Healthy", min_width=18)
+    gt.add_column("Disease", min_width=18)
+    gt.add_column("Δ", width=7, justify="right")
+    gt.add_column("", width=3, justify="center")
+
+    for g in org.genes:
+        healthy_val = org.healthy_baseline.get(g.id, org.baseline_state.get(g.id, 0.0))
+        disease_val = org.baseline_state.get(g.id, 0.0)
+        delta = disease_val - healthy_val
+        k = gene_id_to_mod.get(g.id, 0)
+        c = MODULE_COLORS[k % len(MODULE_COLORS)]
+        mod_label = org.modules[k].label if k < len(org.modules) else "?"
+
+        def bar_col(v): return "green" if v > 0.5 else "red"
+
+        delta_str = (
+            f"[bold magenta]{delta:+.2f}[/bold magenta]" if g.id in malfunction_targets
+            else (f"[red]{delta:+.2f}[/red]" if abs(delta) > 0.05 else f"[dim]{delta:+.2f}[/dim]")
+        )
+        flag = "⚠" if g.id in malfunction_targets else ("👁" if g.id in observable_set else "[dim]·[/dim]")
+        gt.add_row(
+            f"[bold]{g.name}[/bold]",
+            f"[{c}]{mod_label}[/{c}]",
+            f"[{bar_col(healthy_val)}]{_bar(healthy_val)}[/{bar_col(healthy_val)}]  {healthy_val:.2f}",
+            f"[{bar_col(disease_val)}]{_bar(disease_val)}[/{bar_col(disease_val)}]  {disease_val:.2f}",
+            delta_str,
+            flag,
+        )
+    console.print(gt)
+
+    # ── Phenotypes: healthy range vs disease readout ─────────────────────────
+    disease_phenos = compute_phenotypes(org, org.baseline_state, noise=False)
+
+    # Compute aberrant: outside healthy_phenotype_ranges
+    aberrant = {
+        label
+        for label, (lo, hi) in org.healthy_phenotype_ranges.items()
+        if not (lo <= disease_phenos.get(label, 0.0) <= hi)
+    }
+
+    pt = Table(
+        title="📊 Phenotypes — Healthy Range vs Disease",
+        box=box.ROUNDED, border_style="dim white",
+        title_style="bold white", show_header=True, header_style="dim",
+    )
+    pt.add_column("Label", min_width=18)
+    pt.add_column("Healthy range", min_width=14, justify="center")
+    pt.add_column("Disease value", min_width=18)
+    pt.add_column("", width=10)
+
+    for ph in org.phenotypes:
+        val = disease_phenos.get(ph.label, 0.0)
+        bar_color = "green" if val > 0.5 else "red"
+        is_aberrant = ph.label in aberrant
+        if ph.label in org.healthy_phenotype_ranges:
+            lo, hi = org.healthy_phenotype_ranges[ph.label]
+            range_str = f"{lo:.2f} – {hi:.2f}"
+        else:
+            range_str = "[dim]n/a[/dim]"
+        status = "[bold red]✕ ABERRANT[/bold red]" if is_aberrant else "[dim green]✓ normal[/dim green]"
+        pt.add_row(
+            f"[bold {'red' if is_aberrant else 'magenta'}]{ph.label}[/bold {'red' if is_aberrant else 'magenta'}]",
+            range_str,
+            f"[{bar_color}]{_bar(val)}[/{bar_color}]  [white]{val:.2f}[/white]",
+            status,
+        )
+    console.print(pt)
+
+
+def _print_disease_plain(org: "Organism") -> None:
+    from .dynamics import compute_phenotypes
+
+    observable_set = set(org.observable_genes)
+    malfunction_targets = {m.target for m in org.malfunctions}
+    ct_label = org.cell_type.label if org.cell_type else "unknown"
+
+    print(f"\n🍋 LEMONOIDS — DISEASE ORGANISM  {org.id}  seed={org.seed}")
+    print(f"  Cell type: {ct_label}")
+    for m in org.malfunctions:
+        print(f"  ⚠ MALFUNCTION: {m.target_name}  {m.type}  severity={m.severity:.2f}  {m.description}")
+
+    print("\nGene States — Healthy vs Disease:")
+    for g in org.genes:
+        healthy_val = org.healthy_baseline.get(g.id, org.baseline_state.get(g.id, 0.0))
+        disease_val = org.baseline_state.get(g.id, 0.0)
+        delta = disease_val - healthy_val
+        eye = "⚠" if g.id in malfunction_targets else ("👁" if g.id in observable_set else " ")
+        print(f"  {g.name}  healthy={_bar(healthy_val)} {healthy_val:.2f}  "
+              f"disease={_bar(disease_val)} {disease_val:.2f}  Δ={delta:+.2f}  {eye}")
+
+    disease_phenos = compute_phenotypes(org, org.baseline_state, noise=False)
+    aberrant = {
+        label
+        for label, (lo, hi) in org.healthy_phenotype_ranges.items()
+        if not (lo <= disease_phenos.get(label, 0.0) <= hi)
+    }
+
+    print("\nPhenotypes — Healthy Range vs Disease:")
+    for ph in org.phenotypes:
+        val = disease_phenos.get(ph.label, 0.0)
+        if ph.label in org.healthy_phenotype_ranges:
+            lo, hi = org.healthy_phenotype_ranges[ph.label]
+            range_str = f"[{lo:.2f}-{hi:.2f}]"
+        else:
+            range_str = "[n/a]"
+        status = " ✕ ABERRANT" if ph.label in aberrant else ""
+        print(f"  {ph.label:<20} {range_str:<14} {_bar(val)} {val:.2f}{status}")
+    print()
+
+
 # ---------------------------------------------------------------------------
 # Matplotlib graph
 # ---------------------------------------------------------------------------

@@ -15,7 +15,7 @@ import argparse
 import os
 
 from lemonoids import generate_organism, generate_disease_organism
-from lemonoids.inspect import print_organism, plot_organism, plot_disease_organism, plot_disease_comparison
+from lemonoids.inspect import print_organism, print_disease_organism, plot_organism, plot_disease_organism, plot_disease_comparison
 
 
 def main() -> None:
@@ -107,7 +107,10 @@ def main() -> None:
 
     # ── Standard inspect mode ────────────────────────────────────────────────
     if not args.no_terminal:
-        print_organism(org)
+        if args.disease:
+            print_disease_organism(org)
+        else:
+            print_organism(org)
 
     if not args.no_plot:
         show = not args.no_show
