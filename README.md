@@ -15,21 +15,45 @@ pip install -r requirements.txt
 
 # Smoke test
 python -c "from lemonoids import generate_organism; o = generate_organism(seed=0); print(o.id)"
-
-# Full demo (walkthrough + optional agent session)
-python demo.py
-python demo.py --agent                        # requires OPENAI_API_KEY; saves logs/demo_agent.{json,html}
-python demo.py --agent --model gpt-4.1        # choose model
-python demo.py --agent --disease              # disease mode
-
-# Benchmark evaluation — canonical split: seeds 0–19, medium difficulty
-python evaluate.py --heuristic                     # heuristic baseline (no API key required)
-python evaluate.py --model claude-opus-4-6         # requires ANTHROPIC_API_KEY
-python evaluate.py --model gpt-5.1                 # requires OPENAI_API_KEY
-python evaluate.py --model claude-opus-4-6 --model gpt-5.1  # compare models
-python evaluate.py --model claude-opus-4-6 --disease         # disease mode
-python evaluate.py --model claude-opus-4-6 --difficulty hard # hard tier
 ```
+
+### demo.py — walkthrough & agent demo
+
+```bash
+python demo.py                          # narrative walkthrough (no API key needed)
+python demo.py --agent                  # run an agent session; saves logs/demo_agent.{json,html}
+python demo.py --agent --model gpt-4.1  # choose model
+python demo.py --agent --disease        # disease mode
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--agent` | off | Run an LLM agent session after the walkthrough |
+| `--model MODEL` | `gpt-4o` | Model to use (e.g. `gpt-4.1`, `claude-opus-4-6`) |
+| `--disease` | off | Use a disease organism |
+
+### evaluate.py — benchmark evaluation
+
+Runs the canonical benchmark: seeds 0–19, medium difficulty. Produces aggregate scores (MSE, accuracy, composite) across organisms.
+
+```bash
+python evaluate.py --heuristic                              # no API key required
+python evaluate.py --model claude-opus-4-6                  # requires ANTHROPIC_API_KEY
+python evaluate.py --model gpt-5.1                          # requires OPENAI_API_KEY
+python evaluate.py --model claude-opus-4-6 --model gpt-5.1  # compare models
+python evaluate.py --model claude-opus-4-6 --disease
+python evaluate.py --model claude-opus-4-6 --difficulty hard
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--model MODEL` | — | Model to evaluate (repeatable for comparison) |
+| `--heuristic` | off | Include the heuristic baseline (BLOCK each gene, predict additively) |
+| `--disease` | off | Evaluate in disease mode |
+| `--difficulty TIER` | `medium` | `easy` / `medium` / `hard` |
+| `--n INT` | 20 | Number of organisms (uses canonical seeds 0…N-1) |
+| `--seeds` | — | Override seeds: integers or range, e.g. `0 1 2` or `0:10` |
+| `--out DIR` | `results/` | Output directory for JSONL results and logs |
 
 ---
 
@@ -55,8 +79,6 @@ python inspect_organism.py --disease --compare --seed 7 --no-show --save disease
 python inspect_organism.py --replay --seed 42 --log logs/run.json
 python inspect_organism.py --replay --disease --model gpt-4o --seed 42 --log logs/run.json --trace
 ```
-
-**Key flags:**
 
 | Flag | Default | Description |
 |------|---------|-------------|
