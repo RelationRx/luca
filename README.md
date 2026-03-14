@@ -38,14 +38,15 @@ python evaluate.py --model claude-opus-4-6 --difficulty hard # hard tier
 
 ## 🔍 Inspector CLI
 
-Inspect organisms in the terminal or as a plot. Run agent sessions and visualise experiment replays.
+Inspect organisms in the terminal or as a plot. Run agent sessions and save HTML diagnostic reports.
 
 ```bash
 # Terminal summary + interactive graph (default seed=42, n_genes=15)
 python inspect_organism.py
 
-# Different organism
+# Different organism or difficulty tier
 python inspect_organism.py --seed 7 --n-genes 25
+python inspect_organism.py --difficulty hard --seed 3
 
 # Save plot to file without opening a window
 python inspect_organism.py --seed 7 --save org.png --no-show
@@ -53,16 +54,19 @@ python inspect_organism.py --seed 7 --save org.png --no-show
 # Terminal only (no matplotlib required)
 python inspect_organism.py --no-plot
 
-# Disease organism — healthy vs disease comparison figure
-python inspect_organism.py --disease --seed 7 --no-show --save disease.png
+# Disease organism — terminal shows healthy vs disease comparison
+python inspect_organism.py --disease --seed 7 --no-plot
 
-# Run an agent session and view experiment replay heatmap (requires ANTHROPIC_API_KEY)
-python inspect_organism.py --replay --seed 42 --no-show --save replay.png
+# Disease organism — side-by-side GRN comparison figure
+python inspect_organism.py --disease --compare --seed 7 --no-show --save disease.png
 
-# Disease mode agent replay with logging and trace output
-python inspect_organism.py --replay --disease --seed 42 --budget 15 \
-    --log logs/run.json --trace --no-show --save replay.png
-# → also auto-generates logs/run.html (self-contained diagnostic report)
+# Run an agent session and save an HTML report
+python inspect_organism.py --replay --seed 42 --log logs/run.json
+# → saves logs/run.json + logs/run.html (self-contained diagnostic report)
+
+# Disease mode replay with a different model and trace output
+python inspect_organism.py --replay --disease --model gpt-4o --seed 42 \
+    --budget 15 --log logs/run.json --trace
 ```
 
 **CLI flags:**
@@ -72,22 +76,30 @@ python inspect_organism.py --replay --disease --seed 42 --budget 15 \
 | `--seed INT` | 42 | Organism seed |
 | `--n-genes INT` | 15 | Number of genes |
 | `--n-modules INT` | 4 | Number of modules |
+| `--difficulty TIER` | medium | Difficulty: `easy` / `medium` / `hard` |
 | `--save PATH` | — | Save figure to file |
 | `--no-show` | off | Skip interactive plot window |
 | `--no-terminal` | off | Skip rich terminal summary |
 | `--no-plot` | off | Skip matplotlib figure |
 | `--disease` | off | Generate a disease organism |
-| `--replay` | off | Run agent session and plot experiment heatmap |
-| `--budget INT` | 15 | Experiment budget for replay sessions |
-| `--all-genes` | off | Show all genes in replay heatmap (default: observable only) |
-| `--log PATH` | — | Save agent session log to JSON |
+| `--compare` | off | Side-by-side healthy vs disease GRN figure (use with `--disease`) |
+| `--replay` | off | Run an agent session and save an HTML report |
+| `--model MODEL` | `claude-opus-4-6` | Model for `--replay` sessions |
+| `--budget INT` | auto | Experiment budget for replay sessions |
+| `--log PATH` | — | Save agent session log to JSON and generate HTML report alongside it |
 | `--trace` | off | Print human-readable turn-by-turn trace after replay |
 
 The **terminal view** (via `rich`) shows:
 - 🗂️ Module membership, color-coded by functional group
-- 🧬 Baseline gene states as block bar charts, with 👁 markers for observable genes
+- 🧬 Gene states as block bar charts, with 👁 markers for observable genes
 - 📡 Signals with mode and targets
-- 📊 Phenotype baseline values
+- 📊 Phenotype values
+
+For **disease organisms**, the terminal view also shows:
+- Cell type and description
+- Malfunction(s) with type, severity, and description (⚠ target highlighted in Signals table)
+- Healthy vs disease gene state comparison with Δ column
+- Phenotype healthy ranges with ABERRANT / normal status
 
 The **graph figure** (via `matplotlib` + `networkx`) shows:
 - Translucent colored blobs behind each module cluster
@@ -431,12 +443,6 @@ export_session_html(log, "run.html")  # self-contained dark-theme HTML report
 - Color-coded tool call results (ok / warn / error)
 - Summary table at bottom
 
-**Replay heatmap** (`plot_session`) shows gene states across all experiments with turn labels (T1, T2…) and reasoning snippets when `agent_log` is provided:
-
-```python
-from lemonoids.inspect import plot_session
-plot_session(session, save_path="replay.png", agent_log=log)
-```
 
 ---
 
