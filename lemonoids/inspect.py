@@ -203,19 +203,38 @@ def _print_disease_rich(org: "Organism", console) -> None:
         f"[dim]{m.type}[/dim]  severity=[yellow]{m.severity:.2f}[/yellow]  {m.description}"
         for m in org.malfunctions
     )
+    n_edges = len(org.relations)
     console.print(Panel(
         f"[bold yellow]🍋 LEMONOIDS — DISEASE ORGANISM[/bold yellow]  [dim white]{org.id}[/dim white]\n"
         f"  seed [cyan]{org.seed}[/cyan]  ·  "
         f"[bold green]{len(org.genes)}[/bold green] genes  ·  "
         f"[bold blue]{len(org.modules)}[/bold blue] modules  ·  "
+        f"[bold white]{n_edges}[/bold white] edges  ·  "
         f"[bold yellow]{len(org.signals)}[/bold yellow] signals  ·  "
-        f"[bold magenta]{len(org.phenotypes)}[/bold magenta] phenotypes\n"
+        f"[bold magenta]{len(org.phenotypes)}[/bold magenta] phenotypes  ·  "
+        f"[dim]{len(observable_set)}/{len(org.genes)} observable[/dim]\n"
         f"  Cell type: [bold cyan]{ct_label}[/bold cyan]  [dim]{ct_desc}[/dim]\n"
         + (f"\n  Malfunction(s):\n{mal_lines}" if mal_lines else ""),
         border_style="magenta",
         expand=False,
         padding=(0, 2),
     ))
+
+    # ── Modules ──────────────────────────────────────────────────────────────
+    mt = Table(title="🗂️  Modules", box=box.ROUNDED, border_style="dim white",
+               title_style="bold white", show_header=True, header_style="dim")
+    mt.add_column("ID", style="dim", width=6)
+    mt.add_column("Label", min_width=26)
+    mt.add_column("Genes")
+    for k, mod in enumerate(org.modules):
+        c = MODULE_COLORS[k % len(MODULE_COLORS)]
+        names = [g.name for g in org.genes if g.id in mod.gene_ids]
+        mt.add_row(
+            mod.id,
+            f"[{c}]{mod.label}[/{c}]",
+            "  ".join(f"[{c}]{n}[/{c}]" for n in names),
+        )
+    console.print(mt)
 
     # ── Gene states: healthy vs disease ─────────────────────────────────────
     gt = Table(
@@ -255,6 +274,23 @@ def _print_disease_rich(org: "Organism", console) -> None:
         )
     console.print(gt)
 
+    # ── Signals ──────────────────────────────────────────────────────────────
+    st = Table(title="📡 Signals", box=box.ROUNDED, border_style="dim white",
+               title_style="bold white", show_header=True, header_style="dim")
+    st.add_column("Label", min_width=20)
+    st.add_column("Mode", width=11)
+    st.add_column("Targets")
+    st.add_column("Strength", width=9, justify="right")
+    st.add_column("", width=3, justify="center")
+    for sig in org.signals:
+        mode_str = "[green]activates[/green]" if sig.mode == "activates" else "[red]inhibits[/red]"
+        targets = ", ".join(gene_id_to_name.get(t, t) for t in sig.targets)
+        is_mal = sig.id in malfunction_targets or sig.label in malfunction_targets
+        label_str = f"[bold magenta]{sig.label}[/bold magenta]" if is_mal else f"[yellow]{sig.label}[/yellow]"
+        flag = "⚠" if is_mal else ""
+        st.add_row(label_str, mode_str, targets, f"{sig.strength:.3f}", flag)
+    console.print(st)
+
     # ── Phenotypes: healthy range vs disease readout ─────────────────────────
     disease_phenos = compute_phenotypes(org, org.baseline_state, noise=False)
 
@@ -274,6 +310,7 @@ def _print_disease_rich(org: "Organism", console) -> None:
     pt.add_column("Healthy range", min_width=14, justify="center")
     pt.add_column("Disease value", min_width=18)
     pt.add_column("", width=10)
+    pt.add_column("Depends on", min_width=16)
 
     for ph in org.phenotypes:
         val = disease_phenos.get(ph.label, 0.0)
@@ -285,11 +322,13 @@ def _print_disease_rich(org: "Organism", console) -> None:
         else:
             range_str = "[dim]n/a[/dim]"
         status = "[bold red]✕ ABERRANT[/bold red]" if is_aberrant else "[dim green]✓ normal[/dim green]"
+        dep_names = [gene_id_to_name.get(g, g) for g in ph.readout.depends_on]
         pt.add_row(
             f"[bold {'red' if is_aberrant else 'magenta'}]{ph.label}[/bold {'red' if is_aberrant else 'magenta'}]",
             range_str,
             f"[{bar_color}]{_bar(val)}[/{bar_color}]  [white]{val:.2f}[/white]",
             status,
+            "  ".join(dep_names),
         )
     console.print(pt)
 
@@ -299,12 +338,22 @@ def _print_disease_plain(org: "Organism") -> None:
 
     observable_set = set(org.observable_genes)
     malfunction_targets = {m.target for m in org.malfunctions}
+    gene_id_to_name = {g.id: g.name for g in org.genes}
     ct_label = org.cell_type.label if org.cell_type else "unknown"
 
     print(f"\n🍋 LEMONOIDS — DISEASE ORGANISM  {org.id}  seed={org.seed}")
+    print(f"  {len(org.genes)} genes · {len(org.modules)} modules · "
+          f"{len(org.relations)} edges · {len(org.signals)} signals · "
+          f"{len(org.phenotypes)} phenotypes · "
+          f"{len(observable_set)}/{len(org.genes)} observable")
     print(f"  Cell type: {ct_label}")
     for m in org.malfunctions:
         print(f"  ⚠ MALFUNCTION: {m.target_name}  {m.type}  severity={m.severity:.2f}  {m.description}")
+
+    print("\nModules:")
+    for k, mod in enumerate(org.modules):
+        names = [g.name for g in org.genes if g.id in mod.gene_ids]
+        print(f"  {mod.id}  {mod.label:<28}  {' '.join(names)}")
 
     print("\nGene States — Healthy vs Disease:")
     for g in org.genes:
@@ -314,6 +363,13 @@ def _print_disease_plain(org: "Organism") -> None:
         eye = "⚠" if g.id in malfunction_targets else ("👁" if g.id in observable_set else " ")
         print(f"  {g.name}  healthy={_bar(healthy_val)} {healthy_val:.2f}  "
               f"disease={_bar(disease_val)} {disease_val:.2f}  Δ={delta:+.2f}  {eye}")
+
+    print("\nSignals:")
+    for sig in org.signals:
+        targets = ", ".join(gene_id_to_name.get(t, t) for t in sig.targets)
+        is_mal = sig.id in malfunction_targets or sig.label in malfunction_targets
+        flag = " ⚠" if is_mal else ""
+        print(f"  {sig.label:<22} {sig.mode:<10} → {targets}  str={sig.strength:.2f}{flag}")
 
     disease_phenos = compute_phenotypes(org, org.baseline_state, noise=False)
     aberrant = {
@@ -331,7 +387,8 @@ def _print_disease_plain(org: "Organism") -> None:
         else:
             range_str = "[n/a]"
         status = " ✕ ABERRANT" if ph.label in aberrant else ""
-        print(f"  {ph.label:<20} {range_str:<14} {_bar(val)} {val:.2f}{status}")
+        dep_names = " ".join(gene_id_to_name.get(g, g) for g in ph.readout.depends_on)
+        print(f"  {ph.label:<20} {range_str:<14} {_bar(val)} {val:.2f}{status}  ({dep_names})")
     print()
 
 
