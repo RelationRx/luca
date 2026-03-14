@@ -48,10 +48,8 @@ LEMONOIDS is a benchmark for causal reasoning under a fixed experimental budget.
 
 2. **Predict** — submit phenotype values for 2 held-out intervention combinations not directly measured.
 3. **Hypothesise** — submit a free-text causal summary of the network.
-
-**In disease mode**, the agent also:
-4. **Diagnose** — identify the malfunctioning gene or signal and its type.
-5. **Rescue** — test an intervention that restores phenotypes to healthy ranges.
+4. **Diagnose** *(disease mode)* — identify the malfunctioning gene or signal and its type.
+5. **Rescue** *(disease mode)* — test an intervention that restores phenotypes to healthy ranges.
 
 **Scoring:**
 
