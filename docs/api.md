@@ -15,8 +15,8 @@ org = generate_organism(
     intra_module_density=0.4,   # edge probability within modules
     inter_module_density=0.08,  # edge probability between modules
     inhibition_fraction=0.3,    # fraction of edges that are inhibitory
-    n_ffls=2,                   # feed-forward loops to inject
-    n_feedback=2,               # feedback edges to inject
+    n_ffls=2,                   # feed-forward loops to inject (overrides preset fraction)
+    n_feedback=2,               # feedback loops to inject (overrides preset fraction)
     noise_sigma=0.01,
     sigmoid_steepness=None,     # sigmoid gain (overrides preset)
     latent_fraction=None,       # fraction of genes never observable or targetable
@@ -78,7 +78,12 @@ plot_disease_comparison(org, save_path="compare.png")
 ```python
 from lemonoids import ExperimentSession
 
-session = ExperimentSession(org, seed=0)  # budget defaults to recommended_budget(org)
+session = ExperimentSession(
+    org,
+    seed=0,
+    budget=None,            # defaults to recommended_budget(org)
+    n_prediction_tasks=2,   # number of held-out prediction tasks
+)
 ```
 
 On init, 2 `PredictionTask`s are generated with hidden ground-truth phenotype values. Tasks use cross-module double-gene interventions that are unlikely to have been directly measured.

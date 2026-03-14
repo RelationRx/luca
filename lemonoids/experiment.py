@@ -53,6 +53,7 @@ class ExperimentSession:
         organism: Organism,
         budget: int | None = None,
         seed: int | None = None,
+        n_prediction_tasks: int = 2,
     ):
         self.organism = organism
         self.budget = budget if budget is not None else recommended_budget(organism)
@@ -72,7 +73,7 @@ class ExperimentSession:
 
         # Generate prediction tasks on init
         self._tasks: dict[str, PredictionTask] = {}
-        self._generate_tasks(n=2)
+        self._generate_tasks(n=n_prediction_tasks)
 
     # ------------------------------------------------------------------
     # Task generation (hidden ground truth)
