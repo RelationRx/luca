@@ -86,13 +86,19 @@ class ExperimentSession:
     # Task generation (hidden ground truth)
     # ------------------------------------------------------------------
 
-    def _generate_tasks(self, n: int = 2) -> None:
+    def _generate_tasks(self, n: int = 2, min_shift: float = 0.1, max_retries: int = 20) -> None:
         """
         Generate n prediction tasks using cross-module double-gene interventions.
 
         Each task targets one gene from each of two different modules, so the
         agent cannot solve it by directly looking up a single-gene experiment.
         Only observable (non-latent) genes are targeted.
+
+        Non-triviality guarantee: each task retries up to max_retries times to find
+        interventions where at least one phenotype shifts by ≥ min_shift from baseline.
+        This ensures prediction tasks require genuine causal reasoning rather than
+        "predict baseline and score well". If no non-trivial task is found after
+        max_retries, the attempt with the largest shift is used.
         """
         iv_types = ["BLOCK", "BOOST", "DAMPEN"]
         latent_ids = set(self.organism.latent_genes)
@@ -101,34 +107,49 @@ class ExperimentSession:
             if any(gid not in latent_ids for gid in m.gene_ids)
         ]
         gene_ids = [g.id for g in self.organism.genes if g.id not in latent_ids]
+        baseline = self._compute_baseline_phenotypes()
 
         for i in range(n):
-            if len(modules_with_genes) >= 2:
-                # Cross-module: one observable gene from each of two different modules
-                mod_a, mod_b = self._rng_py.sample(modules_with_genes, 2)
-                target_ids = [
-                    self._rng_py.choice([g for g in mod_a.gene_ids if g not in latent_ids]),
-                    self._rng_py.choice([g for g in mod_b.gene_ids if g not in latent_ids]),
-                ]
-            else:
-                # Fallback: any 2 distinct genes
-                target_ids = self._rng_py.sample(gene_ids, min(2, len(gene_ids)))
+            best_interventions = None
+            best_result = None
+            best_shift = -1.0
 
-            interventions = {
-                gid: {"type": self._rng_py.choice(iv_types)}
-                for gid in target_ids
-            }
-            result = simulate_sigmoid(
-                self.organism,
-                interventions=interventions,
-                active_signals={},
-                rng=np.random.default_rng(int(self._rng.integers(0, 2**31))),
-            )
+            for _attempt in range(max_retries):
+                if len(modules_with_genes) >= 2:
+                    mod_a, mod_b = self._rng_py.sample(modules_with_genes, 2)
+                    target_ids = [
+                        self._rng_py.choice([g for g in mod_a.gene_ids if g not in latent_ids]),
+                        self._rng_py.choice([g for g in mod_b.gene_ids if g not in latent_ids]),
+                    ]
+                else:
+                    target_ids = self._rng_py.sample(gene_ids, min(2, len(gene_ids)))
+
+                interventions = {
+                    gid: {"type": self._rng_py.choice(iv_types)}
+                    for gid in target_ids
+                }
+                result = simulate_sigmoid(
+                    self.organism,
+                    interventions=interventions,
+                    active_signals={},
+                    rng=np.random.default_rng(int(self._rng.integers(0, 2**31))),
+                )
+                max_shift = max(
+                    abs(result["phenotypes"].get(lbl, 0.5) - baseline.get(lbl, 0.5))
+                    for lbl in baseline
+                )
+                if max_shift > best_shift:
+                    best_shift = max_shift
+                    best_interventions = interventions
+                    best_result = result
+                if max_shift >= min_shift:
+                    break  # non-trivial task found
+
             task_id = f"task_{i:02d}"
             self._tasks[task_id] = PredictionTask(
                 id=task_id,
-                interventions=interventions,
-                ground_truth=result["phenotypes"],
+                interventions=best_interventions,
+                ground_truth=best_result["phenotypes"],
             )
 
     # ------------------------------------------------------------------
@@ -509,6 +530,7 @@ class ExperimentSession:
         if self._is_disease:
             summary["malfunction_hypothesis"] = self._malfunction_guess
             summary["rescue_results"] = self._rescue_results
+            summary["n_diagnosis_alternatives"] = self.organism.n_diagnosis_alternatives
 
         return summary
 

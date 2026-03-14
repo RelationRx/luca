@@ -100,6 +100,11 @@ class Organism:
     # Difficulty extension
     difficulty: str = "medium"
     latent_genes: list[str] = field(default_factory=list)  # hidden/untargetable genes
+    # Diagnosis ambiguity: number of other effective (gene/signal, type) pairs whose
+    # disease phenotype signature is within 0.1 max-abs-diff of the true malfunction.
+    # 0 = uniquely identifiable from phenotype signature alone.
+    # >0 = ambiguous; perturbation experiments needed to discriminate.
+    n_diagnosis_alternatives: int = 0
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -160,6 +165,7 @@ class Organism:
             malfunctions=malfunctions,
             difficulty=d.get("difficulty", "medium"),
             latent_genes=d.get("latent_genes", []),
+            n_diagnosis_alternatives=d.get("n_diagnosis_alternatives", 0),
         )
 
     @classmethod

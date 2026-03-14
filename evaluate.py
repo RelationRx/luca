@@ -232,6 +232,7 @@ def _make_record(seed, org, summary, model_name, disease, difficulty, active_tas
         )
         record["diagnosis_score"] = hyp.get("score")
         record["rescue_fraction"] = best_rescue
+        record["n_diagnosis_alternatives"] = summary.get("n_diagnosis_alternatives", 0)
     record["composite_score"] = _composite_score(record, disease, active_tasks)
     return record
 

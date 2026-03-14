@@ -112,6 +112,21 @@ def test_canonical_benchmark_stability():
         assert len(org_a.genes) == len(org_b.genes), f"seed={seed}: gene count changed"
 
 
+def test_diagnosis_ambiguity_is_non_negative():
+    """n_diagnosis_alternatives must always be >= 0 and present on disease organisms."""
+    for seed in range(5):
+        org = generate_disease_organism(seed=seed)
+        assert hasattr(org, "n_diagnosis_alternatives")
+        assert org.n_diagnosis_alternatives >= 0
+
+
+def test_diagnosis_ambiguity_serializes():
+    """n_diagnosis_alternatives must survive JSON round-trip."""
+    org = generate_disease_organism(seed=2)
+    org2 = type(org).from_json(org.to_json())
+    assert org2.n_diagnosis_alternatives == org.n_diagnosis_alternatives
+
+
 def test_disease_detectability_guarantee():
     """Every disease organism must have ≥1 aberrant phenotype AND a rescuable malfunction."""
     from lemonoids.dynamics import compute_phenotypes, simulate_sigmoid
