@@ -18,15 +18,12 @@ python -c "from lemonoids import generate_organism; o = generate_organism(seed=0
 
 # Full demo (walkthrough + optional agent session)
 python demo.py
-python demo.py --agent                        # requires OPENAI_API_KEY (default: gpt-4o)
+python demo.py --agent                        # requires OPENAI_API_KEY; saves logs/demo_agent.{json,html}
 python demo.py --agent --model gpt-4.1        # choose model
-python demo.py --agent --disease              # disease mode agent session
-# saves logs/demo_agent.json + logs/demo_agent.html (diagnostic report)
+python demo.py --agent --disease              # disease mode
 
-# Benchmark evaluation (no API key required)
-python evaluate.py --heuristic --n 20
-
-# Evaluate an LLM
+# Benchmark evaluation — canonical split: seeds 0–19, medium difficulty
+python evaluate.py --heuristic                     # heuristic baseline (no API key required)
 python evaluate.py --model claude-opus-4-6         # requires ANTHROPIC_API_KEY
 python evaluate.py --model gpt-5.1                 # requires OPENAI_API_KEY
 python evaluate.py --model claude-opus-4-6 --model gpt-5.1  # compare models
@@ -38,75 +35,42 @@ python evaluate.py --model claude-opus-4-6 --difficulty hard # hard tier
 
 ## 🔍 Inspector CLI
 
-Inspect organisms in the terminal or as a plot. Run agent sessions and save HTML diagnostic reports.
+Visualise and explore individual organisms. Use `evaluate.py` for multi-seed benchmarking; use `--replay` here to run a single agent session and inspect its reasoning in detail.
 
 ```bash
-# Terminal summary + interactive graph (default seed=42, n_genes=15)
+# Terminal summary + interactive graph (default: seed=42, medium difficulty)
 python inspect_organism.py
+python inspect_organism.py --seed 7 --difficulty hard
 
-# Different organism or difficulty tier
-python inspect_organism.py --seed 7 --n-genes 25
-python inspect_organism.py --difficulty hard --seed 3
-
-# Save plot to file without opening a window
+# Figure only / terminal only
 python inspect_organism.py --seed 7 --save org.png --no-show
-
-# Terminal only (no matplotlib required)
 python inspect_organism.py --no-plot
 
-# Disease organism — terminal shows healthy vs disease comparison
+# Disease organism: terminal comparison + optional side-by-side GRN figure
 python inspect_organism.py --disease --seed 7 --no-plot
-
-# Disease organism — side-by-side GRN comparison figure
 python inspect_organism.py --disease --compare --seed 7 --no-show --save disease.png
 
-# Run an agent session and save an HTML report
+# Single-organism agent session — saves JSON + HTML trace for inspection
+# (for multi-seed evaluation use evaluate.py)
 python inspect_organism.py --replay --seed 42 --log logs/run.json
-# → saves logs/run.json + logs/run.html (self-contained diagnostic report)
-
-# Disease mode replay with a different model and trace output
-python inspect_organism.py --replay --disease --model gpt-4o --seed 42 \
-    --budget 15 --log logs/run.json --trace
+python inspect_organism.py --replay --disease --model gpt-4o --seed 42 --log logs/run.json --trace
 ```
 
-**CLI flags:**
+**Key flags:**
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--seed INT` | 42 | Organism seed |
-| `--n-genes INT` | 15 | Number of genes |
-| `--n-modules INT` | 4 | Number of modules |
-| `--difficulty TIER` | medium | Difficulty: `easy` / `medium` / `hard` |
+| `--difficulty TIER` | `medium` | `easy` / `medium` / `hard` |
+| `--disease` | off | Disease organism (terminal: healthy vs disease comparison) |
+| `--compare` | off | Side-by-side healthy vs disease GRN figure (with `--disease`) |
+| `--replay` | off | Run a single agent session for inspection; save JSON + HTML with `--log` |
+| `--model MODEL` | `claude-opus-4-6` | Model for `--replay` |
+| `--log PATH` | — | Save agent session log to JSON and generate HTML report |
+| `--trace` | off | Print turn-by-turn trace after replay |
 | `--save PATH` | — | Save figure to file |
 | `--no-show` | off | Skip interactive plot window |
-| `--no-terminal` | off | Skip rich terminal summary |
-| `--no-plot` | off | Skip matplotlib figure |
-| `--disease` | off | Generate a disease organism |
-| `--compare` | off | Side-by-side healthy vs disease GRN figure (use with `--disease`) |
-| `--replay` | off | Run an agent session and save an HTML report |
-| `--model MODEL` | `claude-opus-4-6` | Model for `--replay` sessions |
-| `--budget INT` | auto | Experiment budget for replay sessions |
-| `--log PATH` | — | Save agent session log to JSON and generate HTML report alongside it |
-| `--trace` | off | Print human-readable turn-by-turn trace after replay |
-
-The **terminal view** (via `rich`) shows:
-- 🗂️ Module membership, color-coded by functional group
-- 🧬 Gene states as block bar charts, with 👁 markers for observable genes
-- 📡 Signals with mode and targets
-- 📊 Phenotype values
-
-For **disease organisms**, the terminal view also shows:
-- Cell type and description
-- Malfunction(s) with type, severity, and description (⚠ target highlighted in Signals table)
-- Healthy vs disease gene state comparison with Δ column
-- Phenotype healthy ranges with ABERRANT / normal status
-
-The **graph figure** (via `matplotlib` + `networkx`) shows:
-- Translucent colored blobs behind each module cluster
-- Green arrows = activating edges, red dashed = inhibiting (width = strength)
-- Yellow diamonds = signal inputs
-- White-bordered nodes = observable genes
-- Right panel: horizontal bar chart of baseline gene states + phenotype values
+| `--no-plot` | off | Skip figure entirely |
 
 **Programmatic usage:**
 ```python
