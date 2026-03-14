@@ -58,8 +58,11 @@ LEMONOIDS is a benchmark for causal reasoning under a fixed experimental budget.
 | Component | Metric | Mode |
 |-----------|--------|------|
 | Prediction accuracy | MSE + fraction within ±0.15 threshold | Both |
+| Causal hypothesis | Stored free text — qualitative review | Both |
 | Diagnosis | 1.0 exact · 0.5 right target wrong type · 0.0 wrong | Disease |
 | Rescue | Fraction of aberrant phenotypes restored to healthy range | Disease |
+
+> Prediction tasks are revealed one at a time — the next task only unlocks after the current one is submitted, preventing direct-measurement gaming. **Random baseline:** prediction MSE ≈ 0.08.
 
 > Modules are **hidden from the agent** — inferring functional groupings is part of the challenge.
 
@@ -418,30 +421,6 @@ paths = generate_dataset(
 
 - 🧬 `organisms.json` — serialized organisms including hidden ground-truth modules
 - 🧪 `experiments.json` — `{organism_id, experiment_id, interventions, result}` records
-
----
-
-## 🏆 Benchmark Outcomes
-
-Agent sessions are evaluated on the following outcomes:
-
-**Healthy mode:**
-
-| Outcome | Metric | Notes |
-|---------|--------|-------|
-| 🎯 Phenotype prediction | MSE, accuracy (±0.15 threshold) | 2 cross-module double-gene tasks, revealed one at a time |
-| 💬 Causal hypothesis | Stored free text | Qualitative review |
-
-**Disease mode (additional):**
-
-| Outcome | Metric | Notes |
-|---------|--------|-------|
-| 🩺 Malfunction diagnosis | Score 0 / 0.5 / 1.0 | 1.0 = exact target + type, 0.5 = right target wrong type; one submission, locked on commit |
-| 💊 Rescue quality | Restored fraction, MSE vs healthy | Best rescue result across all `test_rescue` calls |
-
-> **Prediction tasks** are revealed one at a time via `get_next_prediction_task()`. The next task only unlocks after the current prediction is submitted, preventing direct-measurement gaming.
-
-> **Random baseline:** prediction MSE ≈ 0.08.
 
 ---
 
