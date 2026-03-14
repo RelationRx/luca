@@ -46,7 +46,7 @@ LEMONOIDS is a benchmark for causal reasoning under a fixed experimental budget.
    | `DAMPEN` | Clamp gene to ≤ 0.15 |
    | signal `"activate"` | Amplify signal input to targets |
 
-2. **Predict** — submit phenotype values for 2 held-out intervention combinations not directly measured.
+2. **Predict** — answer **2 held-out prediction tasks** (configurable via `n_prediction_tasks`). Each task asks: *"what would the phenotypes be if gene X is blocked and gene Y is boosted simultaneously?"* — a combination the agent was not able to run directly. The agent must submit predicted phenotype values from its causal model.
 3. **Hypothesise** — submit a free-text causal summary of the network.
 4. **Diagnose** *(disease mode)* — identify the malfunctioning gene or signal and its type.
 5. **Rescue** *(disease mode)* — test an intervention that restores phenotypes to healthy ranges.

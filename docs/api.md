@@ -78,7 +78,12 @@ plot_disease_comparison(org, save_path="compare.png")
 ```python
 from lemonoids import ExperimentSession
 
-session = ExperimentSession(org, seed=0)  # budget defaults to recommended_budget(org)
+session = ExperimentSession(
+    org,
+    seed=0,
+    budget=None,            # defaults to recommended_budget(org)
+    n_prediction_tasks=2,   # number of held-out prediction tasks
+)
 ```
 
 On init, 2 `PredictionTask`s are generated with hidden ground-truth phenotype values. Tasks use cross-module double-gene interventions that are unlikely to have been directly measured.
