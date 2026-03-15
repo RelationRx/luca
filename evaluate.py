@@ -144,6 +144,9 @@ def evaluate_model(
     active_tasks: frozenset[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Run one model across all seeds. Returns list of per-organism records."""
+    if active_tasks is None:
+        active_tasks = frozenset({"predict", "diagnose", "rescue"})
+
     from lemonoids import (
         generate_organism, generate_disease_organism, ExperimentSession, run_agent
     )
