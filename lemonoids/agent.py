@@ -900,6 +900,18 @@ def _run_agent_openai(
                 print("[agent] Agent finished naturally.")
             break
 
+        if finish_reason == "length":
+            # Context window hit — inject a recovery message and keep going
+            print(f"[agent] finish_reason=length on turn {turn + 1}, injecting recovery prompt.")
+            messages.append({
+                "role": "user",
+                "content": (
+                    "Your last response was cut off due to length. "
+                    "Please continue: submit any remaining predictions and your hypothesis now."
+                ),
+            })
+            continue
+
         if finish_reason != "tool_calls":
             if verbose:
                 print(f"[agent] Unexpected finish_reason: {finish_reason}. Stopping.")
