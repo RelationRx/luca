@@ -26,8 +26,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import threading
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -42,6 +44,19 @@ from evaluate import evaluate_model, print_summary, run_heuristic, parse_seeds  
 
 
 _write_lock = threading.Lock()
+
+
+def notify_slack(text: str) -> None:
+    """Post a message to Slack if SLACK_WEBHOOK_URL is set in the environment."""
+    url = os.environ.get("SLACK_WEBHOOK_URL")
+    if not url:
+        return
+    try:
+        payload = json.dumps({"text": text}).encode()
+        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=10)
+    except Exception:
+        pass  # never let a notification failure break an experiment run
 
 
 def _run_one_model(
@@ -127,6 +142,33 @@ def run_sweep(
             f.write(json.dumps(r) + "\n")
 
     print(f"\nResults → {results_dir}/")
+    _notify_sweep_done(sweep_name, all_records, disease)
+
+
+def _notify_sweep_done(sweep_name: str, records: list[dict], disease: bool) -> None:
+    valid = [r for r in records if "error" not in r]
+    errors = [r for r in records if "error" in r]
+
+    lines = [f"✅ *{sweep_name}* complete — {len(valid)} OK, {len(errors)} errors"]
+
+    # Per-model composite summary
+    models = sorted({r["model"] for r in valid})
+    for model in models:
+        mrs = [r for r in valid if r["model"] == model]
+        scores = [r["composite_score"] for r in mrs if r.get("composite_score") is not None]
+        nones = sum(1 for r in mrs if r.get("composite_score") is None)
+        if scores:
+            mu = sum(scores) / len(scores)
+            line = f"  • {model}: composite={mu:.3f} (n={len(scores)})"
+            if nones:
+                line += f", {nones} no-score"
+            lines.append(line)
+
+    if errors:
+        seeds = [r["seed"] for r in errors]
+        lines.append(f"  ⚠️ errors on seeds: {seeds}")
+
+    notify_slack("\n".join(lines))
 
 
 def main() -> None:
