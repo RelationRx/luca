@@ -2,9 +2,31 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 import anthropic
+
+# ---------------------------------------------------------------------------
+# API call helper
+# ---------------------------------------------------------------------------
+
+_API_TIMEOUT = 120.0   # seconds per request
+_API_RETRIES = 3       # attempts before giving up
+_API_RETRY_WAIT = 10   # seconds between retries
+
+
+def _with_retry(fn, retryable_exc: tuple, *args, **kwargs):
+    """Call fn(*args, **kwargs) up to _API_RETRIES times on retryable_exc errors."""
+    for attempt in range(_API_RETRIES):
+        try:
+            return fn(*args, **kwargs)
+        except retryable_exc as exc:
+            if attempt == _API_RETRIES - 1:
+                raise
+            print(f"\n[agent] API error ({exc.__class__.__name__}), retrying in {_API_RETRY_WAIT}s "
+                  f"(attempt {attempt + 1}/{_API_RETRIES})...")
+            time.sleep(_API_RETRY_WAIT)
 
 from .experiment import ExperimentSession
 
@@ -533,7 +555,8 @@ def _run_agent_anthropic(
     Returns the session summary after the agent finishes or budget is exhausted.
     """
     import datetime, os
-    client = anthropic.Anthropic()
+    client = anthropic.Anthropic(timeout=_API_TIMEOUT)
+    _anthropic_retryable = (anthropic.APITimeoutError, anthropic.APIConnectionError)
 
     if disease_mode is None:
         disease_mode = session.is_disease
@@ -586,7 +609,8 @@ def _run_agent_anthropic(
         if verbose:
             print(f"\n[turn {turn + 1}/{max_turns}] Calling {model}...")
 
-        response = client.messages.create(
+        response = _with_retry(
+            client.messages.create, _anthropic_retryable,
             model=model,
             max_tokens=4096,
             system=system_prompt,
@@ -664,7 +688,8 @@ def _run_agent_anthropic(
             })
             # Allow up to 5 cleanup turns for free tools (submit_prediction, etc.)
             for cleanup_turn in range(5):
-                response = client.messages.create(
+                response = _with_retry(
+                    client.messages.create, _anthropic_retryable,
                     model=model,
                     max_tokens=4096,
                     system=system_prompt,
@@ -766,9 +791,10 @@ def _run_agent_openai(
     Returns the session summary after the agent finishes or budget is exhausted.
     """
     import datetime, os
-    from openai import OpenAI
+    from openai import OpenAI, APITimeoutError as OAITimeoutError, APIConnectionError as OAIConnectionError
 
-    client = OpenAI()
+    client = OpenAI(timeout=_API_TIMEOUT)
+    _openai_retryable = (OAITimeoutError, OAIConnectionError)
 
     if disease_mode is None:
         disease_mode = session.is_disease
@@ -818,7 +844,8 @@ def _run_agent_openai(
         })
 
     def _run_turn(msgs: list[dict]) -> Any:
-        return client.chat.completions.create(
+        return _with_retry(
+            client.chat.completions.create, _openai_retryable,
             model=model,
             tools=active_tools,
             tool_choice="auto",

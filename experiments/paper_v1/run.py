@@ -26,7 +26,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import threading
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 # Make sure repo root is on the path
@@ -36,17 +40,72 @@ sys.path.insert(0, str(REPO_ROOT))
 from experiments.paper_v1.config import MODELS, SEEDS, SWEEPS
 
 # Import evaluate helpers directly — avoids subprocess overhead and keeps logs tidy
-from evaluate import evaluate_model, print_summary, run_heuristic   # noqa: E402
+from evaluate import evaluate_model, print_summary, run_heuristic, parse_seeds   # noqa: E402
+
+
+_write_lock = threading.Lock()
+
+
+def notify_slack(text: str) -> None:
+    """Post a message to Slack if SLACK_WEBHOOK_URL is set in the environment."""
+    url = os.environ.get("SLACK_WEBHOOK_URL")
+    if not url:
+        return
+    try:
+        payload = json.dumps({"text": text}).encode()
+        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=10)
+    except Exception:
+        pass  # never let a notification failure break an experiment run
+
+
+def _run_one_model(
+    model_name: str,
+    seeds: list[int],
+    disease: bool,
+    difficulty: str,
+    results_dir: Path,
+    logs_dir: Path,
+    verbose: bool,
+) -> tuple[str, list[dict]]:
+    """Run a single model and save its JSONL. Returns (model_name, records)."""
+    print(f"\n[{model_name}]")
+    records = evaluate_model(
+        model_name=model_name,
+        seeds=seeds,
+        disease=disease,
+        difficulty=difficulty,
+        results_dir=logs_dir,
+        verbose=verbose,
+        active_tasks=None,
+    )
+    print_summary(model_name, records, disease)
+
+    # Merge with any existing records (e.g. from a partial run) — lock for thread safety
+    model_file = results_dir / f"{model_name.replace('/', '_')}.jsonl"
+    with _write_lock:
+        if model_file.exists():
+            existing = [json.loads(l) for l in model_file.read_text().splitlines() if l.strip()]
+            new_seeds = {r["seed"] for r in records}
+            merged = [r for r in existing if r["seed"] not in new_seeds] + records
+            records = sorted(merged, key=lambda r: r["seed"])
+        with open(model_file, "w") as f:
+            for r in records:
+                f.write(json.dumps(r) + "\n")
+
+    return model_name, records
 
 
 def run_sweep(
     sweep_name: str,
     models: list[str],
     n: int | None = None,
+    seeds_override: list[int] | None = None,
+    parallel: bool = True,
     verbose: bool = False,
 ) -> None:
     cfg = SWEEPS[sweep_name]
-    seeds = SEEDS[:n] if n else SEEDS
+    seeds = seeds_override if seeds_override is not None else (SEEDS[:n] if n else SEEDS)
     difficulty = cfg["difficulty"]
     disease = cfg["disease"]
 
@@ -57,38 +116,59 @@ def run_sweep(
 
     print(f"\n{'='*60}")
     print(f"Sweep: {sweep_name}  |  difficulty={difficulty}  |  disease={disease}")
-    print(f"Seeds: {seeds[0]}–{seeds[-1]} ({len(seeds)} total)  |  models: {models}")
+    print(f"Seeds: {seeds[0]}–{seeds[-1]} ({len(seeds)} total)  |  models: {models}  |  parallel={parallel}")
     print(f"{'='*60}")
 
     all_records: list[dict] = []
 
-    for model_name in models:
-        print(f"\n[{model_name}]")
-        records = evaluate_model(
-            model_name=model_name,
-            seeds=seeds,
-            disease=disease,
-            difficulty=difficulty,
-            results_dir=logs_dir,
-            verbose=verbose,
-            active_tasks=None,  # all tasks
-        )
-        all_records.extend(records)
-        print_summary(model_name, records, disease)
+    if parallel and len(models) > 1:
+        with ThreadPoolExecutor(max_workers=len(models)) as executor:
+            futures = {
+                executor.submit(_run_one_model, m, seeds, disease, difficulty, results_dir, logs_dir, verbose): m
+                for m in models
+            }
+            for future in as_completed(futures):
+                _, records = future.result()
+                all_records.extend(records)
+    else:
+        for model_name in models:
+            _, records = _run_one_model(model_name, seeds, disease, difficulty, results_dir, logs_dir, verbose)
+            all_records.extend(records)
 
-        # Save per-model JSONL
-        model_file = results_dir / f"{model_name.replace('/', '_')}.jsonl"
-        with open(model_file, "w") as f:
-            for r in records:
-                f.write(json.dumps(r) + "\n")
-
-    # Write / append concatenated results for easy cross-model analysis
+    # Rewrite concatenated results
     all_file = results_dir / "all.jsonl"
     with open(all_file, "w") as f:
-        for r in all_records:
+        for r in sorted(all_records, key=lambda r: (r["model"], r["seed"])):
             f.write(json.dumps(r) + "\n")
 
     print(f"\nResults → {results_dir}/")
+    _notify_sweep_done(sweep_name, all_records, disease)
+
+
+def _notify_sweep_done(sweep_name: str, records: list[dict], disease: bool) -> None:
+    valid = [r for r in records if "error" not in r]
+    errors = [r for r in records if "error" in r]
+
+    lines = [f"✅ *{sweep_name}* complete — {len(valid)} OK, {len(errors)} errors"]
+
+    # Per-model composite summary
+    models = sorted({r["model"] for r in valid})
+    for model in models:
+        mrs = [r for r in valid if r["model"] == model]
+        scores = [r["composite_score"] for r in mrs if r.get("composite_score") is not None]
+        nones = sum(1 for r in mrs if r.get("composite_score") is None)
+        if scores:
+            mu = sum(scores) / len(scores)
+            line = f"  • {model}: composite={mu:.3f} (n={len(scores)})"
+            if nones:
+                line += f", {nones} no-score"
+            lines.append(line)
+
+    if errors:
+        seeds = [r["seed"] for r in errors]
+        lines.append(f"  ⚠️ errors on seeds: {seeds}")
+
+    notify_slack("\n".join(lines))
 
 
 def main() -> None:
@@ -117,13 +197,23 @@ def main() -> None:
         "--verbose", action="store_true",
         help="Print per-turn agent output.",
     )
+    parser.add_argument(
+        "--seeds", nargs="+", metavar="SEED",
+        help="Override seeds. Integers or range e.g. 10:20 or 0 1 2 3. Default: all 20.",
+    )
+    parser.add_argument(
+        "--no-parallel", action="store_true",
+        help="Run models sequentially instead of in parallel (default: parallel).",
+    )
     args = parser.parse_args()
 
     models = args.models or ["heuristic"]
     sweeps = args.sweeps or list(SWEEPS.keys())
+    seeds_override = parse_seeds(args.seeds, 20) if args.seeds else None
+    parallel = not args.no_parallel
 
     for sweep_name in sweeps:
-        run_sweep(sweep_name, models, n=args.n, verbose=args.verbose)
+        run_sweep(sweep_name, models, n=args.n, seeds_override=seeds_override, parallel=parallel, verbose=args.verbose)
 
 
 if __name__ == "__main__":
