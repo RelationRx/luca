@@ -37,10 +37,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from experiments.paper_v1.config import MODELS, SEEDS, SWEEPS
+from experiments.paper_v1.config import MODELS, SWEEPS
 
 # Import evaluate helpers directly — avoids subprocess overhead and keeps logs tidy
-from evaluate import evaluate_model, print_summary, run_heuristic, parse_seeds   # noqa: E402
+from evaluate import evaluate_model, print_summary, run_heuristic, run_random, parse_seeds   # noqa: E402
 
 
 _write_lock = threading.Lock()
@@ -108,7 +108,8 @@ def run_sweep(
     max_tokens_per_turn: int | None = None,
 ) -> None:
     cfg = SWEEPS[sweep_name]
-    seeds = seeds_override if seeds_override is not None else (SEEDS[:n] if n else SEEDS)
+    default_seeds = cfg["seeds"]
+    seeds = seeds_override if seeds_override is not None else (default_seeds[:n] if n else default_seeds)
     difficulty = cfg["difficulty"]
     disease = cfg["disease"]
 
@@ -216,7 +217,7 @@ def main() -> None:
 
     models = args.models or ["heuristic"]
     sweeps = args.sweeps or list(SWEEPS.keys())
-    seeds_override = parse_seeds(args.seeds, 20) if args.seeds else None
+    seeds_override = parse_seeds(args.seeds, len(SWEEPS[list(SWEEPS.keys())[0]]["seeds"])) if args.seeds else None
     parallel = not args.no_parallel
 
     for sweep_name in sweeps:
