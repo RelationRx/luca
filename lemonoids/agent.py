@@ -188,6 +188,45 @@ TOOLS: list[dict] = [
             "required": ["text"],
         },
     },
+    {
+        "name": "submit_network",
+        "description": (
+            "Submit your reconstructed gene→phenotype network as a list of edges inferred "
+            "from your experiments. No budget cost. Can be called once. "
+            "Precision/recall/F1 against ground truth are revealed at session end via get_summary(). "
+            "Include all gene→phenotype relationships you are confident about. "
+            "Direction ('activates' or 'inhibits') is optional but scored if provided."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "edges": {
+                    "type": "array",
+                    "description": "List of inferred gene→phenotype edges.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "gene": {
+                                "type": "string",
+                                "description": "Gene name, e.g. 'G007'.",
+                            },
+                            "phenotype": {
+                                "type": "string",
+                                "description": "Phenotype label, e.g. 'adaptation-score'.",
+                            },
+                            "direction": {
+                                "type": "string",
+                                "enum": ["activates", "inhibits"],
+                                "description": "Optional: whether this gene activates or inhibits the phenotype.",
+                            },
+                        },
+                        "required": ["gene", "phenotype"],
+                    },
+                },
+            },
+            "required": ["edges"],
+        },
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -206,7 +245,7 @@ def _active_tool_list(
     """
     Build the tool list for an agent session given which task components are active.
 
-    Always included: get_organism_info, run_experiment, submit_hypothesis.
+    Always included: get_organism_info, run_experiment, submit_hypothesis, submit_network.
     Conditionally included:
       predict  → get_next_prediction_task, submit_prediction
       diagnose → submit_malfunction_hypothesis  (disease only)
@@ -340,6 +379,12 @@ def _build_system_prompt(disease_mode: bool, active_tasks: frozenset[str]) -> st
         )
         step += 1
     lines.append(f"{step}. Submit your final causal hypothesis via submit_hypothesis().")
+    step += 1
+    lines.append(
+        f"{step}. Submit your reconstructed gene→phenotype network via submit_network(). "
+        "List every gene→phenotype edge you are confident about, with direction if known. "
+        "This is scored against ground truth at session end."
+    )
 
     # Strategy tips
     lines.append("")
@@ -508,6 +553,8 @@ def dispatch_tool(session: ExperimentSession, tool_name: str, tool_input: dict) 
         return session.submit_prediction(tool_input["task_id"], prediction)
     elif tool_name == "submit_hypothesis":
         return session.submit_hypothesis(tool_input["text"])
+    elif tool_name == "submit_network":
+        return session.submit_network(tool_input.get("edges", []))
     elif tool_name == "test_rescue":
         raw = tool_input.get("interventions", {})
         interventions = _normalise_interventions(raw)
