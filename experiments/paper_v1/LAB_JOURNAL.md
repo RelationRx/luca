@@ -5,11 +5,10 @@ Not a polished results doc — write freely, entries in reverse chronological or
 
 ---
 
-Last updated: 2026-03-16. All 4 sweeps complete. gpt-5.1 disease re-runs attempted with max_completion_tokens caps (4096, 16384) — see §6 below.
+Last updated: 2026-03-16. Experiment plan finalised (§9). Generation code frozen at `v1-generation-freeze` (commit `7bdbb28`). Ready for Part 1 re-runs.
 
-> **Note (2026-03-16):** Generation fixes merged in PR #21. All experiment results below were
-> produced with the old generation code and are **invalidated** — organisms for the same seeds
-> now differ. A full re-run (all sweeps × all models × 20 seeds) is required before paper submission.
+> **Note (2026-03-16):** All results in §1–6 were produced with the old generation code and are
+> **invalidated** by PR #21. The canonical benchmark re-run uses the plan in §9.
 
 ---
 
@@ -254,6 +253,35 @@ diagnose + rescue) independent of organism topology. Running disease on hard wou
 difficulty axes. The clean design: vary organism complexity on healthy (easy/medium/hard), vary
 task complexity on medium (healthy vs disease). Hard disease would also worsen GPT context
 exhaustion further.
+
+### Organism reproducibility
+
+Organisms are **re-generated on the fly** — not saved to disk. `generate_organism(seed,
+difficulty)` is fully deterministic: seed + parameters → organism. The seed list in
+`selected_seeds.json` *is* the dataset definition.
+
+The risk is generation code changes invalidating results (as happened with PR #21). Guard:
+
+- Generation code frozen at git tag **`v1-generation-freeze`** (commit `7bdbb28`, 2026-03-16).
+- All Part 1 runs must use this tag or a later commit that does not touch `lemonoids/generation.py`
+  or `lemonoids/experiment.py`.
+- Each results JSONL records the git commit hash at run time (via `run.py` metadata).
+- If generation code must change before paper submission, re-run all sweeps and update the tag.
+
+No organism serialisation is needed. If reviewers want to inspect specific organisms, they can
+re-generate from seed + difficulty using the tagged code.
+
+### Assumptions
+
+| Assumption | Value | Rationale |
+|---|---|---|
+| n_genes | 20 | Tractable budget (31); discrimination confirmed |
+| n_seeds (initial) | 10 | Sufficient for large Claude/GPT gap; extend to 20 if CIs too wide on hard/disease |
+| Seed selection | `selected_seeds.json` | Pre-screened: healthy verified + disease stable |
+| Disease tier | medium only | Isolates task complexity from organism complexity |
+| Budget formula | n_genes + n_signals + 8 | Scales with organism; see §5 of benchmark_design.md |
+| Noise | σ per tier (0.005/0.01/0.03) | Agent sees noisy measurements; scoring uses noiseless ground truth |
+| Baselines | random + heuristic | random=floor, heuristic=non-LLM ceiling |
 
 ### Sweeps
 
