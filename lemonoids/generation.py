@@ -80,8 +80,8 @@ DIFFICULTY_PRESETS["complex_eukaryote"] = DIFFICULTY_PRESETS["hard"]
 
 def generate_organism(
     n_genes: int = 20,
-    n_modules: int = 4,
-    n_signals: int = 3,
+    n_modules: int | None = None,
+    n_signals: int | None = None,
     n_phenotypes: int = 3,
     difficulty: str = "medium",
     observability: float | None = None,
@@ -110,6 +110,17 @@ def generate_organism(
     """
     if n_genes < 2:
         raise ValueError(f"n_genes must be at least 2, got {n_genes}")
+
+    # Scale n_modules and n_signals with n_genes if not explicitly provided.
+    # Formulas keep structural density roughly constant across network sizes:
+    #   n_modules ~ n_genes / 5  → ~5 genes per module at any scale
+    #   n_signals ~ n_genes / 7  → each signal covers ~1/7 of the network
+    # Minimums (4 modules, 3 signals) match the canonical n=20 design point.
+    if n_modules is None:
+        n_modules = max(4, round(n_genes / 5))
+    if n_signals is None:
+        n_signals = max(3, round(n_genes / 7))
+
     if n_modules < 1:
         raise ValueError(f"n_modules must be at least 1, got {n_modules}")
 
@@ -149,7 +160,13 @@ def generate_organism(
     gene_ids = [g.id for g in genes]
 
     # 2. Assign genes to modules (planted partition)
-    module_labels = rng_py.sample(MODULE_LABELS, min(n_modules, len(MODULE_LABELS)))
+    # Sample without replacement up to the pool size; cycle with a numeric
+    # suffix if n_modules exceeds the vocabulary (e.g. large scaling runs).
+    _mod_pool = rng_py.sample(MODULE_LABELS, min(n_modules, len(MODULE_LABELS)))
+    module_labels = [
+        _mod_pool[k] if k < len(_mod_pool) else f"{_mod_pool[k % len(_mod_pool)]}-{k // len(_mod_pool) + 2}"
+        for k in range(n_modules)
+    ]
     module_assignments: dict[str, int] = {}  # gene_id -> module_index
     # Distribute genes evenly
     for i, gid in enumerate(gene_ids):
@@ -221,10 +238,15 @@ def generate_organism(
                 relations.append(Relation(src=src, dst=dst, type="activates", strength=strength))
 
     # 6. Assign signals
-    signal_label_pool = rng_py.sample(SIGNAL_LABELS, min(n_signals, len(SIGNAL_LABELS)))
+    _sig_pool = rng_py.sample(SIGNAL_LABELS, min(n_signals, len(SIGNAL_LABELS)))
+    signal_label_pool = [
+        _sig_pool[k] if k < len(_sig_pool) else f"{_sig_pool[k % len(_sig_pool)]}-{k // len(_sig_pool) + 2}"
+        for k in range(n_signals)
+    ]
     signals: list[Signal] = []
+    signal_max_targets = max(3, round(n_genes / 7))
     for k in range(n_signals):
-        n_targets = rng_py.randint(1, min(3, n_genes))
+        n_targets = rng_py.randint(1, min(signal_max_targets, n_genes))
         targets = rng_py.sample(gene_ids, n_targets)
         mode = rng_py.choice(["activates", "inhibits"])
         strength = float(rng_np.uniform(0.3, 0.8))

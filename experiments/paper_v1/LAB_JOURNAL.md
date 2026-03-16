@@ -1,6 +1,15 @@
-# Paper v1 — Results Summary
+# Paper v1 — Lab Journal
+
+A running record of experiments, fixes, observations, and decisions.
+Not a polished results doc — write freely, entries in reverse chronological order within each section.
+
+---
 
 Last updated: 2026-03-16. All 4 sweeps complete. gpt-5.1 disease re-runs attempted with max_completion_tokens caps (4096, 16384) — see §6 below.
+
+> **Note (2026-03-16):** Generation fixes merged in PR #21. All experiment results below were
+> produced with the old generation code and are **invalidated** — organisms for the same seeds
+> now differ. A full re-run (all sweeps × all models × 20 seeds) is required before paper submission.
 
 ---
 
@@ -118,13 +127,118 @@ than as a noisy data point.
 
 ---
 
+## 7. Organism Generation Quality (PR #21, 2026-03-16)
+
+Four artefacts identified and fixed in `lemonoids/generation.py` and `lemonoids/experiment.py`.
+
+### Pipeline overview (post-fix)
+
+| Step | What happens |
+|------|--------------|
+| 1–7  | Gene names, module partition, GRN edges (Erdős–Rényi + FFLs + feedback), signals, gene biases |
+| 8    | Observable gene selection — at least one per module, `ceil(observability × 20)` total |
+| 9    | Latent gene candidates — drawn from non-observable pool (hard only: 5/20 genes) |
+| 10   | Dynamics rule compiled; GRN simulated to steady state → `baseline_state` |
+| 11   | Phenotype readouts built from observable genes only, round-robin across 3 phenotypes |
+| 12   | Latent gene relevance check — each probed by BLOCK simulation; irrelevant genes added directly to a readout |
+| 13   | Phenotype bias re-centering — `bias = −Σ(w_i × baseline_expr_i)` so every phenotype starts at 0.5 |
+
+### Fixes and root causes
+
+**Fix 1 — Observable-first readout construction**
+Root cause: readouts were sampled from all 20 genes before observable genes were selected.
+~60% of observable genes were absent from any readout → zero phenotype effect when blocked.
+Fix: select observable genes in step 8, build readouts from them only in step 11.
+
+**Fix 2 — Round-robin coverage guarantee**
+Root cause: random readout sampling left some observable genes without any readout entry.
+Fix: `obs[i] → phenotype[i % 3]` — every observable gene in exactly one readout. Weight
+floor |w| ≥ 0.5 prevents nominally-present but silent connections.
+
+**Fix 3 — Shared-readout task pairs** (`experiment.py`)
+Root cause: random cross-module gene pairs were often from different readouts → tasks trivially
+additive (sum of independent single-gene effects predicted the combined outcome within ±0.15).
+Fix: `_generate_tasks` now prefers two genes from the same phenotype readout; sigmoid nonlinearity
+between co-readout genes makes the combined effect non-additive.
+
+**Fix 4 — Latent gene relevance guarantee**
+Root cause: latent genes had no guaranteed path to phenotypes. A GRN edge to an observable gene
+isn't sufficient — the sigmoid chain can wash out the signal entirely.
+Fix: functional probe (BLOCK simulation); if |phenotype shift| ≤ 0.05, add the latent gene
+directly to a readout as a hidden confounder with weight ∈ [0.7, 1.5].
+
+**Fix 5 — Phenotype bias re-centering**
+Root cause: GRN dynamics converging to extreme gene expressions saturated the readout sigmoid
+at 0 or 1. At saturation, individual knockouts are invisible → tasks appear additive, coverage low.
+Fix: after all readout structure is finalised, set `bias = −Σ(w_i × baseline_expr_i)` so the
+baseline phenotype = sigmoid(0) = 0.5. GRN dynamics unchanged.
+
+### Verification results (`verify_organisms.py`, seeds 0–19)
+
+| Tier | Before fixes | After fixes |
+|------|-------------|-------------|
+| Easy | 14/20 additive | 3/20 additive (near-linear dynamics — expected) |
+| Medium | 7/20 additive | 1/20 |
+| Hard | 4/20 additive + 5/20 latent-irrelevant | **0/20 flagged** |
+
+Hard tier: all 20 seeds pass, latent gene relevance 1–5/5, gene coverage 0.60–1.00.
+
+---
+
+## 8. New Organism Stats (post PR #21, 2026-03-16)
+
+Seeds 0–19 across all tiers. Computed from fixed generation code.
+
+### Structure (constant by design)
+
+| | Easy | Medium | Hard |
+|---|---|---|---|
+| Genes | 20 | 20 | 20 |
+| Observable | 16 (80%) | 12 (60%) | 10 (50%) |
+| Latent | 0 | 0 | 5 (25%) |
+| Phenotypes | 3 | 3 | 3 |
+
+### GRN complexity (varies by seed)
+
+| | Easy | Medium | Hard |
+|---|---|---|---|
+| Relations | 26–42 (mean 34) | 57–75 (mean 67) | 87–121 (mean 102) |
+| Gene coverage | 0.60–0.85 (mean 0.76) | 0.60–0.85 (mean 0.70) | 0.60–1.00 (mean 0.91) |
+
+Edge count roughly triples easy → hard, reflecting higher intra/inter-module densities, more FFLs
+and feedback loops.
+
+### Task difficulty
+
+| | Easy | Medium | Hard |
+|---|---|---|---|
+| Additive tasks (mean) | 0.8/2 | 0.3/2 | 0.0/2 |
+| Mean max additive error | 0.167 ± 0.036 | 0.230 ± 0.056 | 0.330 ± 0.077 |
+| Pass rate (verify_organisms) | 17/20 | 19/20 | 20/20 |
+
+Additive error = gap between best linear prediction and ground truth — a proxy for nonlinearity.
+Hard tier: zero additively solvable tasks, highest errors. Easy residual flags (3/20) are inherent
+to near-linear sigmoid dynamics, not generation artefacts.
+
+### Baseline phenotypes
+
+All 180 phenotype values (20 seeds × 3 tiers × 3 phenotypes) = **exactly 0.500**.
+Bias re-centering (step 13) is exact and deterministic: `bias = −Σ(w_i × baseline_expr_i)`.
+
+### Hard tier: latent gene relevance
+
+4–5/5 latent genes relevant per seed (mean 5.0/5). One borderline case (seed 13, 4/5) where one
+gene's shift is just under the 0.05 threshold but it contributes at the readout level.
+
+---
+
 ## Open Questions / Next Steps
 
-- **gpt-5.1 disease**: only 4 valid seeds — consider a targeted re-run with `max_tokens`
-  cap per response to prevent context exhaustion. Would make the disease comparison fairer.
-- **Hard organism characterisation**: seeds that consistently fail across model families
-  (e.g. hard seeds 3, 8, 10) — characterise topology (feedback density, latent gene fraction).
+- **Full re-run required**: all results above are invalidated by PR #21. Need to re-run all
+  4 sweeps (easy/medium/hard healthy + medium disease) × all 5 models × 20 seeds.
+- **gpt-5.1 disease**: context exhaustion unfixable with output caps — report as failure mode
+  or exclude from primary table (see §6).
 - **Dataset statistics table**: compute per-tier n_genes, n_phenotypes, n_prediction_tasks,
-  n_diagnosis_alternatives distribution from JSONL results for §2.4.
+  n_diagnosis_alternatives for §2.4 — now valid to run against new generation.
 - **Budget utilisation analysis**: do models that use more budget score higher? Claude vs GPT
   budget efficiency on hard organisms.
