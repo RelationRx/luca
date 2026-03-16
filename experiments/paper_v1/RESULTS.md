@@ -1,6 +1,6 @@
 # Paper v1 — Results Summary
 
-Last updated: 2026-03-15. All 4 sweeps complete.
+Last updated: 2026-03-16. All 4 sweeps complete. gpt-5.1 disease re-runs attempted with max_completion_tokens caps (4096, 16384) — see §6 below.
 
 ---
 
@@ -13,7 +13,7 @@ Last updated: 2026-03-15. All 4 sweeps complete.
 | claude-opus-4-6 | 1.000±0.000 | 0.983±0.050 | 0.908±0.111 | 0.907±0.134 | 20/20/20/18 |
 | gpt-4o | 0.975±0.060 | 0.843±0.090 | 0.833±0.132 | 0.478±0.138 | 20/17/19/18 |
 | gpt-4.1 | 0.941±0.098 | 0.833±0.136 | 0.756±0.159 | 0.567±0.215 | 17/18/15/**10** |
-| gpt-5.1 | 0.975±0.079 | 0.895±0.135 | 0.794±0.157 | 0.694±0.182 | 20/19/17/**4** |
+| gpt-5.1 | 0.975±0.079 | 0.895±0.135 | 0.794±0.157 | 0.597±0.163 † | 20/19/17/**6** |
 
 > Seed 14 excluded from disease sweeps across all models — organism is too stable, no malfunction
 > produces aberrant phenotypes after 10 generation attempts (consistent `RuntimeError`).
@@ -81,6 +81,40 @@ Easy → Hard drop:
 
 The gap between Claude and GPT widens with difficulty, consistent with the hypothesis
 that hard organisms require genuine causal modelling rather than pattern matching.
+
+> † gpt-5.1 disease: only 6/20 valid seeds after all re-run attempts — see §6.
+
+---
+
+## 6. gpt-5.1 Disease: Re-run Attempts and Decision
+
+### What we tried
+Three re-runs after fixing the `finish_reason=length` recovery message:
+1. **No cap** (original): 4/20 valid. Context window exhausted silently.
+2. **max_completion_tokens=4096**: 5/20 valid. Too aggressive — model cut off mid-reasoning,
+   diagnosis=0.000 on all, budget used only 29%. Cap truncates output per turn but doesn't
+   help with accumulated input context.
+3. **max_completion_tokens=16384**: 6/20 valid. Marginal improvement. Same root cause.
+
+### Root cause
+`max_completion_tokens` caps *output* per turn; it does not limit the *input* context that
+accumulates as tool results pile up. gpt-5.1 batches 5–10 tool calls per turn, each
+returning a full steady-state result. By mid-session the message history is 50k+ tokens.
+No per-turn output cap prevents this.
+
+### Decision: stop re-running, treat as a finding
+Further re-runs are unlikely to help without architectural changes (e.g. history
+summarisation, truncating tool results). The failure mode is real and reproducible.
+
+**For the paper — two options:**
+- **Option A**: Report gpt-5.1 disease as 6/20, composite 0.597±0.163, with a prominent
+  caveat that N is too small for reliable comparison. Include in table with a dagger (†).
+- **Option B**: Exclude gpt-5.1 from the disease results table entirely; move it to a
+  failure-modes subsection as a case study of context exhaustion.
+
+Leaning toward **Option B**: the 6 valid seeds are likely the easiest organisms (selection
+bias), making the 0.597 score unrepresentative. The story is more honest as a failure mode
+than as a noisy data point.
 
 ---
 
