@@ -232,13 +232,108 @@ gene's shift is just under the 0.05 threshold but it contributes at the readout 
 
 ---
 
+## 9. Canonical Benchmark Plan (Part 1)
+
+### Design decisions
+
+**n_genes = 20** — canonical design point. Tractable (budget=31 gives room for systematic
+exploration + targeted follow-up) and discriminative (Claude vs GPT gaps confirmed at this size).
+Scaling to larger networks is Part 2.
+
+**Seeds** — selected via `select_seeds.py` (PR #25), which iterates from seed 0 and collects
+the first N passing seeds per tier. Passing = no verification flags (structural, additivity,
+latent relevance) + disease stability for medium. Selected seeds in `selected_seeds.json`.
+
+**Two-step seed strategy**: run 10 seeds first. Extend to 20 if confidence intervals on hard or
+disease are too wide. At std≈0.125, SE(n=10)=0.040 — sufficient to detect the ~0.15 Claude/GPT
+gap on hard. Within-family comparisons (Sonnet vs Opus, ~0.04 gap) require n≈60; report those
+with appropriate caveats.
+
+**Disease tier = medium only** — disease mode adds task complexity (3 sub-tasks: predict +
+diagnose + rescue) independent of organism topology. Running disease on hard would confound two
+difficulty axes. The clean design: vary organism complexity on healthy (easy/medium/hard), vary
+task complexity on medium (healthy vs disease). Hard disease would also worsen GPT context
+exhaustion further.
+
+### Sweeps
+
+| Sweep | Difficulty | Mode | Seeds | Status |
+|---|---|---|---|---|
+| A | medium | healthy | medium seeds from selected_seeds.json | pending |
+| B | easy | healthy | easy seeds from selected_seeds.json | pending |
+| C | hard | healthy | hard seeds from selected_seeds.json | pending |
+| D | medium | disease | medium seeds from selected_seeds.json | pending |
+
+### Models
+
+| Model | Type | Notes |
+|---|---|---|
+| random | baseline | No experiments, predict 0.5 everywhere. Zero API cost. |
+| heuristic | baseline | BLOCK sweep + additive prediction. Zero API cost. |
+| claude-sonnet-4-6 | LLM | Run before Opus — cheaper, faster, catches bugs |
+| claude-opus-4-6 | LLM | |
+| gpt-4o | LLM | Most robust GPT model (18/20 valid in old disease sweep) |
+| gpt-4.1 | LLM | |
+| gpt-5.1 | LLM | Disease sweep: treat context failures as a finding (see §6) |
+
+### Execution order
+
+1. Run `random` + `heuristic` on all 4 sweeps — zero API cost, smoke-tests the pipeline.
+2. Run `claude-sonnet-4-6` on all 4 sweeps.
+3. Run `claude-opus-4-6` on all 4 sweeps.
+4. Run GPT models (gpt-4o first as most stable, then gpt-4.1, then gpt-5.1).
+5. If step-1 CIs look tight enough, stop at 10 seeds. Otherwise extend to 20.
+
+### Metrics
+
+Primary: composite score (mean ± std), valid N per sweep.
+Secondary: prediction accuracy, MSE, budget utilisation fraction.
+New (PR #23): network reconstruction F1 (undirected + directed gene→phenotype edges).
+Disease breakdown: diagnosis score, rescue fraction, n_diagnosis_alternatives.
+
+---
+
+## 10. Scaling and Failure Mode Study (Part 2) — sketch
+
+**Goal**: find where models collapse and characterise how they fail.
+
+### Study 2a — n_genes scaling (new sweep)
+
+Vary network size at fixed medium difficulty. Models: sonnet, heuristic, random (+ opus/gpt-4o
+at n=80/160 for cross-family comparison). Seeds: 5–10 per n value.
+
+| n_genes | Budget | Modules | Signals |
+|---|---|---|---|
+| 20 | 31 | 4 | 3 |
+| 40 | 54 | 8 | 6 |
+| 80 | 99 | 16 | 11 |
+| 160 | 191 | 32 | 23 |
+
+Expected: three regimes (ceiling / discriminative / collapse). Hypothesis: models reduce budget
+utilisation as complexity grows past the optimum ("Illusion of Thinking" parallel).
+
+### Study 2b — Budget efficiency (from Part 1 + 2a logs)
+
+No new runs — computed from existing logs. Plot score vs budget fraction by model and difficulty.
+Test whether models use *less* budget on hard organisms despite scoring worse.
+
+### Study 2c — Failure mode taxonomy (qualitative)
+
+Code ~20 hard + disease agent traces into failure categories:
+`BUDGET_EXHAUSTED` / `PREMATURE_CONVERGENCE` / `SYSTEMATIC` / `THRASHING`.
+
+### Study 2d — Network reconstruction vs prediction accuracy
+
+Correlation between network F1 score and prediction accuracy across difficulty tiers. Tests
+whether understanding the causal structure predicts scoring well.
+
+---
+
 ## Open Questions / Next Steps
 
-- **Full re-run required**: all results above are invalidated by PR #21. Need to re-run all
-  4 sweeps (easy/medium/hard healthy + medium disease) × all 5 models × 20 seeds.
-- **gpt-5.1 disease**: context exhaustion unfixable with output caps — report as failure mode
-  or exclude from primary table (see §6).
-- **Dataset statistics table**: compute per-tier n_genes, n_phenotypes, n_prediction_tasks,
-  n_diagnosis_alternatives for §2.4 — now valid to run against new generation.
-- **Budget utilisation analysis**: do models that use more budget score higher? Claude vs GPT
-  budget efficiency on hard organisms.
+- **Run Part 1 sweeps** — execute in order above; all prior results invalidated by PR #21.
+- **gpt-5.1 disease**: report as failure mode / case study, not primary comparison (see §6).
+- **Extend to 20 seeds?** — decide after reviewing 10-seed CIs on hard and disease.
+- **Dataset statistics table**: n_genes, n_phenotypes, n_prediction_tasks, n_diagnosis_alternatives
+  per tier — compute from new generation before paper §2.4.
+- **Part 2 timing**: run 2a scaling sweep after Part 1 draft results are stable.
