@@ -1,4 +1,9 @@
-# Paper v1 — Results Summary
+# Paper v1 — Lab Journal
+
+A running record of experiments, fixes, observations, and decisions.
+Not a polished results doc — write freely, entries in reverse chronological order within each section.
+
+---
 
 Last updated: 2026-03-16. All 4 sweeps complete. gpt-5.1 disease re-runs attempted with max_completion_tokens caps (4096, 16384) — see §6 below.
 
@@ -177,6 +182,53 @@ baseline phenotype = sigmoid(0) = 0.5. GRN dynamics unchanged.
 | Hard | 4/20 additive + 5/20 latent-irrelevant | **0/20 flagged** |
 
 Hard tier: all 20 seeds pass, latent gene relevance 1–5/5, gene coverage 0.60–1.00.
+
+---
+
+## 8. New Organism Stats (post PR #21, 2026-03-16)
+
+Seeds 0–19 across all tiers. Computed from fixed generation code.
+
+### Structure (constant by design)
+
+| | Easy | Medium | Hard |
+|---|---|---|---|
+| Genes | 20 | 20 | 20 |
+| Observable | 16 (80%) | 12 (60%) | 10 (50%) |
+| Latent | 0 | 0 | 5 (25%) |
+| Phenotypes | 3 | 3 | 3 |
+
+### GRN complexity (varies by seed)
+
+| | Easy | Medium | Hard |
+|---|---|---|---|
+| Relations | 26–42 (mean 34) | 57–75 (mean 67) | 87–121 (mean 102) |
+| Gene coverage | 0.60–0.85 (mean 0.76) | 0.60–0.85 (mean 0.70) | 0.60–1.00 (mean 0.91) |
+
+Edge count roughly triples easy → hard, reflecting higher intra/inter-module densities, more FFLs
+and feedback loops.
+
+### Task difficulty
+
+| | Easy | Medium | Hard |
+|---|---|---|---|
+| Additive tasks (mean) | 0.8/2 | 0.3/2 | 0.0/2 |
+| Mean max additive error | 0.167 ± 0.036 | 0.230 ± 0.056 | 0.330 ± 0.077 |
+| Pass rate (verify_organisms) | 17/20 | 19/20 | 20/20 |
+
+Additive error = gap between best linear prediction and ground truth — a proxy for nonlinearity.
+Hard tier: zero additively solvable tasks, highest errors. Easy residual flags (3/20) are inherent
+to near-linear sigmoid dynamics, not generation artefacts.
+
+### Baseline phenotypes
+
+All 180 phenotype values (20 seeds × 3 tiers × 3 phenotypes) = **exactly 0.500**.
+Bias re-centering (step 13) is exact and deterministic: `bias = −Σ(w_i × baseline_expr_i)`.
+
+### Hard tier: latent gene relevance
+
+4–5/5 latent genes relevant per seed (mean 5.0/5). One borderline case (seed 13, 4/5) where one
+gene's shift is just under the 0.05 threshold but it contributes at the readout level.
 
 ---
 
