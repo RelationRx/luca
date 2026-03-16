@@ -421,6 +421,22 @@ def generate_organism(
                 )
                 baseline_phenos = _compute_ph(org_probe, baseline_state, noise=False)
 
+    # 13. Re-center phenotype readout biases so baseline phenotypes ≈ 0.5.
+    #
+    # When the GRN baseline drives gene expressions to extremes, the phenotype
+    # readout sigmoid saturates (output near 0 or 1). In saturated regions,
+    # individual gene knockouts produce near-zero phenotype shifts — making
+    # tasks appear trivially additive and gene coverage artificially low.
+    #
+    # Fix: set bias_new = -Σ(w_i * baseline_expr_i) so that the weighted sum
+    # at baseline evaluates to 0, i.e. sigmoid(0) = 0.5. This is applied AFTER
+    # the latent gene guarantee so it accounts for any latent gene additions.
+    # GRN dynamics are unaffected — only the phenotype readout threshold shifts.
+    for ph in phenotypes:
+        ro = ph.readout
+        S = sum(w * baseline_state.get(gid, 0.0) for gid, w in zip(ro.depends_on, ro.weights))
+        ro.bias = float(-S)
+
     return Organism(
         id=organism_id,
         genes=genes,
