@@ -67,6 +67,7 @@ def _run_one_model(
     results_dir: Path,
     logs_dir: Path,
     verbose: bool,
+    max_tokens_per_turn: int | None = None,
 ) -> tuple[str, list[dict]]:
     """Run a single model and save its JSONL. Returns (model_name, records)."""
     print(f"\n[{model_name}]")
@@ -78,6 +79,7 @@ def _run_one_model(
         results_dir=logs_dir,
         verbose=verbose,
         active_tasks=None,
+        max_tokens_per_turn=max_tokens_per_turn,
     )
     print_summary(model_name, records, disease)
 
@@ -103,6 +105,7 @@ def run_sweep(
     seeds_override: list[int] | None = None,
     parallel: bool = True,
     verbose: bool = False,
+    max_tokens_per_turn: int | None = None,
 ) -> None:
     cfg = SWEEPS[sweep_name]
     seeds = seeds_override if seeds_override is not None else (SEEDS[:n] if n else SEEDS)
@@ -124,7 +127,7 @@ def run_sweep(
     if parallel and len(models) > 1:
         with ThreadPoolExecutor(max_workers=len(models)) as executor:
             futures = {
-                executor.submit(_run_one_model, m, seeds, disease, difficulty, results_dir, logs_dir, verbose): m
+                executor.submit(_run_one_model, m, seeds, disease, difficulty, results_dir, logs_dir, verbose, max_tokens_per_turn): m
                 for m in models
             }
             for future in as_completed(futures):
@@ -132,7 +135,7 @@ def run_sweep(
                 all_records.extend(records)
     else:
         for model_name in models:
-            _, records = _run_one_model(model_name, seeds, disease, difficulty, results_dir, logs_dir, verbose)
+            _, records = _run_one_model(model_name, seeds, disease, difficulty, results_dir, logs_dir, verbose, max_tokens_per_turn)
             all_records.extend(records)
 
     # Rewrite concatenated results
@@ -205,6 +208,10 @@ def main() -> None:
         "--no-parallel", action="store_true",
         help="Run models sequentially instead of in parallel (default: parallel).",
     )
+    parser.add_argument(
+        "--max-tokens", type=int, default=None, metavar="N",
+        help="Cap max_tokens per turn for OpenAI models (e.g. 4096). Helps prevent context exhaustion on verbose organisms.",
+    )
     args = parser.parse_args()
 
     models = args.models or ["heuristic"]
@@ -213,7 +220,7 @@ def main() -> None:
     parallel = not args.no_parallel
 
     for sweep_name in sweeps:
-        run_sweep(sweep_name, models, n=args.n, seeds_override=seeds_override, parallel=parallel, verbose=args.verbose)
+        run_sweep(sweep_name, models, n=args.n, seeds_override=seeds_override, parallel=parallel, verbose=args.verbose, max_tokens_per_turn=args.max_tokens)
 
 
 if __name__ == "__main__":

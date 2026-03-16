@@ -780,6 +780,7 @@ def _run_agent_openai(
     disease_mode: bool | None = None,
     log_path: str | None = None,
     active_tasks: frozenset[str] | None = None,
+    max_tokens_per_turn: int | None = None,
 ) -> dict[str, Any]:
     """
     Run an OpenAI model on a Lemonoids ExperimentSession.
@@ -844,13 +845,17 @@ def _run_agent_openai(
         })
 
     def _run_turn(msgs: list[dict]) -> Any:
-        return _with_retry(
-            client.chat.completions.create, _openai_retryable,
+        kwargs: dict[str, Any] = dict(
             model=model,
             tools=active_tools,
             tool_choice="auto",
             messages=msgs,
         )
+        if max_tokens_per_turn is not None:
+            # gpt-5.1+ requires max_completion_tokens; older models accept max_tokens.
+            # max_completion_tokens is accepted by all current OpenAI chat models.
+            kwargs["max_completion_tokens"] = max_tokens_per_turn
+        return _with_retry(client.chat.completions.create, _openai_retryable, **kwargs)
 
     def _process_tool_calls(response_message, turn_log: dict) -> list[dict]:
         """Dispatch all tool calls and return tool result messages."""
@@ -1012,6 +1017,7 @@ def run_agent(
     disease_mode: bool | None = None,
     log_path: str | None = None,
     active_tasks: frozenset[str] | None = None,
+    max_tokens_per_turn: int | None = None,
 ) -> dict[str, Any]:
     """
     Run an LLM agent on a Lemonoids ExperimentSession.
@@ -1038,7 +1044,7 @@ def run_agent(
     if any(model.startswith(p) for p in _ANTHROPIC_PREFIXES):
         return _run_agent_anthropic(session, model, max_turns, verbose, disease_mode, log_path, active_tasks)
     if any(model.startswith(p) for p in _OPENAI_PREFIXES):
-        return _run_agent_openai(session, model, max_turns, verbose, disease_mode, log_path, active_tasks)
+        return _run_agent_openai(session, model, max_turns, verbose, disease_mode, log_path, active_tasks, max_tokens_per_turn)
     raise ValueError(
         f"Cannot infer provider from model name {model!r}. "
         "Use a model name starting with 'claude-' (Anthropic) or 'gpt-'/'o1'/'o3' (OpenAI)."
