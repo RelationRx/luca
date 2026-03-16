@@ -77,6 +77,9 @@ class ExperimentSession:
         self._hypothesis_locked: bool = False   # True after first hypothesis submission
         self._rescue_results: list[dict] = []
 
+        # Network reconstruction state
+        self._submitted_network: list[dict] | None = None
+
         # Generate prediction tasks on init (skipped if predict task is not active)
         self._tasks: dict[str, PredictionTask] = {}
         if "predict" in self._active_tasks:
@@ -393,6 +396,62 @@ class ExperimentSession:
         self._hypothesis = text
         return {"stored": True, "length": len(text)}
 
+    def submit_network(self, edges: list[dict]) -> dict[str, Any]:
+        """
+        Cost 0. Submit a reconstructed gene-regulatory network as a list of
+        gene → phenotype edges inferred from your experiments.
+
+        Each edge is a dict with:
+          - "gene":      gene name (e.g. "G007")
+          - "phenotype": phenotype label (e.g. "adaptation-score")
+          - "direction": "activates" or "inhibits" (optional)
+
+        Example:
+          [
+            {"gene": "G007", "phenotype": "adaptation-score", "direction": "activates"},
+            {"gene": "G012", "phenotype": "recovery-index", "direction": "inhibits"},
+          ]
+
+        Can be called at most once. Precision/recall/F1 against ground truth
+        are revealed at session end via get_summary(). Ground truth is the set
+        of observable gene → phenotype readout edges; latent gene contributions
+        are excluded (they are unknowable from perturbation experiments alone).
+        """
+        if self._submitted_network is not None:
+            return {"error": "network already submitted; score revealed at session end"}
+
+        gene_names = {g.name for g in self.organism.genes}
+        ph_labels = {p.label for p in self.organism.phenotypes}
+        valid_directions = {"activates", "inhibits"}
+
+        validated: list[dict] = []
+        errors: list[str] = []
+        for i, edge in enumerate(edges):
+            if not isinstance(edge, dict):
+                errors.append(f"edge {i}: must be a dict")
+                continue
+            gene = edge.get("gene")
+            phenotype = edge.get("phenotype")
+            direction = edge.get("direction")
+            if gene not in gene_names:
+                errors.append(f"edge {i}: unknown gene '{gene}'")
+            elif phenotype not in ph_labels:
+                errors.append(f"edge {i}: unknown phenotype '{phenotype}'")
+            elif direction is not None and direction not in valid_directions:
+                errors.append(f"edge {i}: direction must be 'activates' or 'inhibits', got '{direction}'")
+            else:
+                validated.append({"gene": gene, "phenotype": phenotype, "direction": direction})
+
+        if errors:
+            return {"error": f"Invalid edges: {errors[:5]}"}  # show first 5
+
+        self._submitted_network = validated
+        return {
+            "stored": True,
+            "n_edges": len(validated),
+            "note": "Network stored. Precision/recall/F1 revealed at session end via get_summary().",
+        }
+
     def test_rescue(
         self,
         interventions: dict[str, Any],
@@ -503,6 +562,39 @@ class ExperimentSession:
             "note": "Hypothesis locked. test_rescue() is now available. Score revealed at session end.",
         }
 
+    def _ground_truth_network_edges(self) -> tuple[set, set]:
+        """
+        Return ground truth gene→phenotype edges as two sets:
+          - undirected: {(gene_name, ph_label)}
+          - directed:   {(gene_name, ph_label, direction)}
+
+        Only observable gene edges are included — latent gene contributions
+        are unknowable from perturbation experiments alone.
+        """
+        observable_ids = set(self.organism.observable_genes)
+        gene_id_to_name = {g.id: g.name for g in self.organism.genes}
+        undirected: set[tuple[str, str]] = set()
+        directed: set[tuple[str, str, str]] = set()
+        for ph in self.organism.phenotypes:
+            for gid, w in zip(ph.readout.depends_on, ph.readout.weights):
+                if gid not in observable_ids:
+                    continue
+                name = gene_id_to_name.get(gid)
+                if name is None:
+                    continue
+                undirected.add((name, ph.label))
+                directed.add((name, ph.label, "activates" if w > 0 else "inhibits"))
+        return undirected, directed
+
+    def _prf1(self, inferred: set, ground_truth: set) -> dict[str, float]:
+        if not inferred or not ground_truth:
+            return {"precision": 0.0, "recall": 0.0, "f1": 0.0}
+        tp = len(inferred & ground_truth)
+        p = tp / len(inferred)
+        r = tp / len(ground_truth)
+        f1 = 2 * p * r / (p + r) if (p + r) > 0 else 0.0
+        return {"precision": round(p, 4), "recall": round(r, 4), "f1": round(f1, 4)}
+
     def get_summary(self) -> dict[str, Any]:
         """Return all scores and budget usage."""
         pred_summary = []
@@ -538,6 +630,24 @@ class ExperimentSession:
             summary["malfunction_hypothesis"] = self._malfunction_guess
             summary["rescue_results"] = self._rescue_results
             summary["n_diagnosis_alternatives"] = self.organism.n_diagnosis_alternatives
+
+        # Network reconstruction scoring
+        if self._submitted_network is not None:
+            gt_undir, gt_dir = self._ground_truth_network_edges()
+            sub_undir = {(e["gene"], e["phenotype"]) for e in self._submitted_network}
+            sub_dir = {
+                (e["gene"], e["phenotype"], e["direction"])
+                for e in self._submitted_network
+                if e.get("direction") is not None
+            }
+            summary["network_reconstruction"] = {
+                "n_submitted": len(sub_undir),
+                "n_ground_truth": len(gt_undir),
+                "undirected": self._prf1(sub_undir, gt_undir),
+                "directed": self._prf1(sub_dir, gt_dir) if sub_dir else None,
+            }
+        else:
+            summary["network_reconstruction"] = None
 
         return summary
 
