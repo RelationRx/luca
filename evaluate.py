@@ -142,6 +142,7 @@ def evaluate_model(
     results_dir: Path,
     verbose: bool,
     active_tasks: frozenset[str] | None = None,
+    max_tokens_per_turn: int | None = None,
 ) -> list[dict[str, Any]]:
     """Run one model across all seeds. Returns list of per-organism records."""
     if active_tasks is None:
@@ -173,6 +174,7 @@ def evaluate_model(
                     verbose=verbose,
                     log_path=log_path,
                     active_tasks=active_tasks,
+                    max_tokens_per_turn=max_tokens_per_turn,
                 )
 
             record = _make_record(seed, org, summary, model_name, disease, difficulty, active_tasks)

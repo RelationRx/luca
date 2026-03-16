@@ -242,7 +242,34 @@ def generate_organism(
     biases = rng_np.uniform(-0.5, 0.5, size=n_genes)
     bias_map = {gid: float(biases[i]) for i, gid in enumerate(gene_ids)}
 
-    # 8. Build dynamics rule
+    # 8. Select observable genes covering all modules
+    # Done BEFORE dynamics rule so that latent gene connectivity can be guaranteed
+    # against the observable set before baseline simulation.
+    n_observable = max(n_modules, math.ceil(observability * n_genes))
+    observable_set: set[str] = set()
+    # Ensure at least one gene per module
+    for mod in modules:
+        if mod.gene_ids:
+            observable_set.add(rng_py.choice(mod.gene_ids))
+    # Fill up to n_observable
+    remaining = [gid for gid in gene_ids if gid not in observable_set]
+    rng_py.shuffle(remaining)
+    for gid in remaining:
+        if len(observable_set) >= n_observable:
+            break
+        observable_set.add(gid)
+    observable_genes = list(observable_set)
+
+    # 9. Select latent genes (deferred connectivity check happens after phenotype
+    # readouts are built in step 11 — see below).
+    n_latent = round(latent_fraction * n_genes)
+    latent_candidates: list[str] = []
+    if n_latent > 0:
+        non_observable = [gid for gid in gene_ids if gid not in observable_set]
+        rng_py.shuffle(non_observable)
+        latent_candidates = non_observable[:n_latent]
+
+    # 10. Build dynamics rule
     rule: dict[str, Any] = {}
     for dst in gene_ids:
         inputs = [
@@ -278,13 +305,37 @@ def generate_organism(
     result = simulate_sigmoid(org_tmp, interventions={}, active_signals={}, rng=rng_np)
     baseline_state = result["final_state"]
 
-    # 9. Create phenotype readouts
+    # 11. Create phenotype readouts over observable genes
+    #
+    # Coverage guarantee: observable genes are shuffled then assigned round-robin
+    # across phenotypes, so every observable gene is a primary input to exactly one
+    # phenotype. This ensures every perturbable gene has a measurable direct effect
+    # on at least one phenotype — eliminating "silent observable gene" artefacts.
+    #
+    # Weight floor: weights are sampled with |w| ∈ [0.5, 1.5] (signed by
+    # inhibition_fraction) to prevent near-zero connections that nominally exist
+    # in the readout but produce no measurable effect.
     phenotype_label_pool = rng_py.sample(PHENOTYPE_LABELS, min(n_phenotypes, len(PHENOTYPE_LABELS)))
+
+    obs_shuffled = list(observable_genes)
+    rng_py.shuffle(obs_shuffled)
+
+    # Round-robin partition: obs[i] → phenotype[i % n_phenotypes]
+    primary: list[list[str]] = [[] for _ in range(n_phenotypes)]
+    for i, gid in enumerate(obs_shuffled):
+        primary[i % n_phenotypes].append(gid)
+
     phenotypes: list[Phenotype] = []
     for k in range(n_phenotypes):
-        n_deps = rng_py.randint(2, min(4, n_genes))
-        dep_genes = rng_py.sample(gene_ids, n_deps)
-        weights = [float(rng_np.uniform(-1.5, 1.5)) for _ in dep_genes]
+        dep_genes = primary[k]  # guaranteed non-empty: n_observable >= n_modules >= n_phenotypes
+        # Signed weights with floor — inhibition_fraction controls sign probability
+        weights = [
+            float(
+                (1.0 if rng_py.random() > inhibition_fraction else -1.0)
+                * rng_np.uniform(0.5, 1.5)
+            )
+            for _ in dep_genes
+        ]
         ph_bias = float(rng_np.uniform(-0.5, 0.5))
         phenotypes.append(
             Phenotype(
@@ -299,32 +350,92 @@ def generate_organism(
             )
         )
 
-    # 10. Select observable genes covering all modules
-    n_observable = max(n_modules, math.ceil(observability * n_genes))
-    observable_set: set[str] = set()
-    # Ensure at least one gene per module
-    for mod in modules:
-        if mod.gene_ids:
-            observable_set.add(rng_py.choice(mod.gene_ids))
-    # Fill up to n_observable
-    remaining = [gid for gid in gene_ids if gid not in observable_set]
-    rng_py.shuffle(remaining)
-    for gid in remaining:
-        if len(observable_set) >= n_observable:
-            break
-        observable_set.add(gid)
-    observable_genes = list(observable_set)
+    # 12. Guarantee each latent gene has a measurable phenotype effect.
+    #
+    # A latent gene that cannot be detected (|phenotype shift| ≤ threshold when
+    # blocked) is a completely invisible confounder — it adds zero difficulty.
+    # We check this functionally (by simulation) rather than structurally, because
+    # the sigmoid chain (GRN → observable gene → phenotype readout) can wash out
+    # even strong GRN edges when genes are near saturation.
+    #
+    # Fix: add the latent gene as a direct contributor to one phenotype readout.
+    # Phenotype readouts are computed independently of GRN dynamics, so this
+    # requires no re-simulation of the baseline state.
+    latent_genes: list[str] = list(latent_candidates)
+    if latent_genes:
+        from .dynamics import compute_phenotypes as _compute_ph
+        LATENT_EFFECT_THRESHOLD = 0.05
 
-    # 11. Select latent genes (hidden + untargetable confounders)
-    # Latent genes are drawn from non-observable genes; they influence the network
-    # but cannot be seen or targeted by the agent. Malfunction genes (if any) are
-    # removed from the latent set afterwards in generate_disease_organism().
-    n_latent = round(latent_fraction * n_genes)
-    latent_genes: list[str] = []
-    if n_latent > 0:
-        non_observable = [gid for gid in gene_ids if gid not in observable_set]
-        rng_py.shuffle(non_observable)
-        latent_genes = non_observable[:n_latent]
+        # Build a temporary organism (phenotypes now known) to probe effects
+        org_probe = Organism(
+            id=organism_id,
+            genes=genes,
+            modules=modules,
+            signals=signals,
+            relations=relations,
+            phenotypes=phenotypes,
+            dynamics=dynamics,
+            seed=seed,
+            baseline_state=baseline_state,
+            observable_genes=observable_genes,
+        )
+        baseline_phenos = _compute_ph(org_probe, baseline_state, noise=False)
+        ph_labels = list(baseline_phenos.keys())
+
+        for latent_id in latent_genes:
+            # Probe: BLOCK the latent gene, measure phenotype shift
+            blocked_result = simulate_sigmoid(
+                org_probe,
+                interventions={latent_id: {"type": "BLOCK"}},
+                active_signals={},
+                rng=np.random.default_rng(seed ^ 0xDEAD),
+            )
+            blocked_phenos = _compute_ph(org_probe, blocked_result["final_state"], noise=False)
+            max_shift = max(
+                abs(blocked_phenos.get(lbl, 0.5) - baseline_phenos.get(lbl, 0.5))
+                for lbl in ph_labels
+            )
+
+            if max_shift <= LATENT_EFFECT_THRESHOLD:
+                # Add latent gene directly to a phenotype readout as a confounder.
+                # Pick the phenotype whose current readout has the fewest entries
+                # (to distribute latent gene contributions evenly).
+                k = min(range(n_phenotypes), key=lambda i: len(phenotypes[i].readout.depends_on))
+                ph = phenotypes[k]
+                strength = float(rng_np.uniform(0.7, 1.5))
+                sign = -1.0 if rng_np.random() < inhibition_fraction else 1.0
+                ph.readout.depends_on.append(latent_id)
+                ph.readout.weights.append(sign * strength)
+                # Refresh probe organism with updated phenotype readout
+                org_probe = Organism(
+                    id=organism_id,
+                    genes=genes,
+                    modules=modules,
+                    signals=signals,
+                    relations=relations,
+                    phenotypes=phenotypes,
+                    dynamics=dynamics,
+                    seed=seed,
+                    baseline_state=baseline_state,
+                    observable_genes=observable_genes,
+                )
+                baseline_phenos = _compute_ph(org_probe, baseline_state, noise=False)
+
+    # 13. Re-center phenotype readout biases so baseline phenotypes ≈ 0.5.
+    #
+    # When the GRN baseline drives gene expressions to extremes, the phenotype
+    # readout sigmoid saturates (output near 0 or 1). In saturated regions,
+    # individual gene knockouts produce near-zero phenotype shifts — making
+    # tasks appear trivially additive and gene coverage artificially low.
+    #
+    # Fix: set bias_new = -Σ(w_i * baseline_expr_i) so that the weighted sum
+    # at baseline evaluates to 0, i.e. sigmoid(0) = 0.5. This is applied AFTER
+    # the latent gene guarantee so it accounts for any latent gene additions.
+    # GRN dynamics are unaffected — only the phenotype readout threshold shifts.
+    for ph in phenotypes:
+        ro = ph.readout
+        S = sum(w * baseline_state.get(gid, 0.0) for gid, w in zip(ro.depends_on, ro.weights))
+        ro.bias = float(-S)
 
     return Organism(
         id=organism_id,

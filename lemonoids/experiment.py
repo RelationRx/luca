@@ -102,12 +102,19 @@ class ExperimentSession:
         """
         iv_types = ["BLOCK", "BOOST", "DAMPEN"]
         latent_ids = set(self.organism.latent_genes)
-        modules_with_genes = [
-            m for m in self.organism.modules
-            if any(gid not in latent_ids for gid in m.gene_ids)
-        ]
         gene_ids = [g.id for g in self.organism.genes if g.id not in latent_ids]
         baseline = self._compute_baseline_phenotypes()
+
+        # Build phenotype → gene candidates map so tasks can target genes that
+        # share a readout. Shared-readout pairs interact via the same sigmoid,
+        # making additive prediction inaccurate — the task genuinely requires
+        # reasoning about the combined regulatory input.
+        ph_to_genes: list[list[str]] = [
+            [gid for gid in ph.readout.depends_on if gid not in latent_ids]
+            for ph in self.organism.phenotypes
+        ]
+        # Only use phenotypes that have ≥2 candidates for intra-phenotype sampling
+        shared_readout_phs = [gs for gs in ph_to_genes if len(gs) >= 2]
 
         for i in range(n):
             best_interventions = None
@@ -115,12 +122,12 @@ class ExperimentSession:
             best_shift = -1.0
 
             for _attempt in range(max_retries):
-                if len(modules_with_genes) >= 2:
-                    mod_a, mod_b = self._rng_py.sample(modules_with_genes, 2)
-                    target_ids = [
-                        self._rng_py.choice([g for g in mod_a.gene_ids if g not in latent_ids]),
-                        self._rng_py.choice([g for g in mod_b.gene_ids if g not in latent_ids]),
-                    ]
+                # Prefer two genes that share a phenotype readout: their combined
+                # perturbation is non-additive due to sigmoid nonlinearity.
+                # Fall back to any two observable genes if no shared-readout pair exists.
+                if shared_readout_phs:
+                    ph_genes = self._rng_py.choice(shared_readout_phs)
+                    target_ids = self._rng_py.sample(ph_genes, 2)
                 else:
                     target_ids = self._rng_py.sample(gene_ids, min(2, len(gene_ids)))
 
