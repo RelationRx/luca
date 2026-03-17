@@ -948,9 +948,40 @@ def _run_agent_openai(
         messages.append(msg)
 
         if finish_reason == "stop":
-            if verbose:
-                print("[agent] Agent finished naturally.")
-            break
+            # Check whether the session is actually complete before accepting a stop.
+            # Some models (e.g. gpt-5.1) occasionally return finish_reason=stop early
+            # without submitting predictions/hypothesis. If work is unfinished, inject
+            # a nudge and continue rather than silently producing a null record.
+            n_tasks = len(session._tasks) if "predict" in session._active_tasks else 0
+            n_submitted = len(session._prediction_results)
+            tasks_done = n_submitted >= n_tasks
+            hypothesis_done = (
+                "predict" not in session._active_tasks or session._hypothesis is not None
+            )
+            if tasks_done and hypothesis_done:
+                if verbose:
+                    print("[agent] Agent finished naturally.")
+                break
+            # Unfinished — nudge the model to complete
+            missing = []
+            if not tasks_done:
+                missing.append(f"predictions ({n_submitted}/{n_tasks} submitted)")
+            if not hypothesis_done:
+                missing.append("hypothesis")
+            print(
+                f"[agent] finish_reason=stop on turn {turn + 1} but session incomplete "
+                f"({', '.join(missing)} missing). Injecting recovery prompt."
+            )
+            messages.append({
+                "role": "user",
+                "content": (
+                    "You stopped before completing the session. "
+                    f"Please finish: {', '.join(missing)}. "
+                    "Call get_prediction_tasks() if you haven't yet, then submit_prediction() "
+                    "for each task, and finally submit_hypothesis()."
+                ),
+            })
+            continue
 
         if finish_reason == "length":
             # Context window hit — inject a recovery message and keep going
