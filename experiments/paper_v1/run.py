@@ -37,10 +37,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from experiments.paper_v1.config import MODELS, SEEDS, SWEEPS
+from experiments.paper_v1.config import MODELS, SWEEPS
 
 # Import evaluate helpers directly — avoids subprocess overhead and keeps logs tidy
-from evaluate import evaluate_model, print_summary, run_heuristic, parse_seeds   # noqa: E402
+from evaluate import evaluate_model, print_summary, run_heuristic, run_random, parse_seeds   # noqa: E402
 
 
 _write_lock = threading.Lock()
@@ -68,8 +68,14 @@ def _run_one_model(
     logs_dir: Path,
     verbose: bool,
     max_tokens_per_turn: int | None = None,
+    resume: bool = False,
 ) -> tuple[str, list[dict]]:
-    """Run a single model and save its JSONL. Returns (model_name, records)."""
+    """Run a single model and save its JSONL. Returns (model_name, records).
+
+    resume=True merges with any existing file (useful for adding seeds to a
+    partial run). Default is False — overwrites, never contaminates with stale
+    results from a different seed set or generation version.
+    """
     print(f"\n[{model_name}]")
     records = evaluate_model(
         model_name=model_name,
@@ -83,14 +89,15 @@ def _run_one_model(
     )
     print_summary(model_name, records, disease)
 
-    # Merge with any existing records (e.g. from a partial run) — lock for thread safety
     model_file = results_dir / f"{model_name.replace('/', '_')}.jsonl"
     with _write_lock:
-        if model_file.exists():
+        if resume and model_file.exists():
             existing = [json.loads(l) for l in model_file.read_text().splitlines() if l.strip()]
             new_seeds = {r["seed"] for r in records}
-            merged = [r for r in existing if r["seed"] not in new_seeds] + records
-            records = sorted(merged, key=lambda r: r["seed"])
+            records = sorted(
+                [r for r in existing if r["seed"] not in new_seeds] + records,
+                key=lambda r: r["seed"],
+            )
         with open(model_file, "w") as f:
             for r in records:
                 f.write(json.dumps(r) + "\n")
@@ -106,9 +113,11 @@ def run_sweep(
     parallel: bool = True,
     verbose: bool = False,
     max_tokens_per_turn: int | None = None,
+    resume: bool = False,
 ) -> None:
     cfg = SWEEPS[sweep_name]
-    seeds = seeds_override if seeds_override is not None else (SEEDS[:n] if n else SEEDS)
+    default_seeds = cfg["seeds"]
+    seeds = seeds_override if seeds_override is not None else (default_seeds[:n] if n else default_seeds)
     difficulty = cfg["difficulty"]
     disease = cfg["disease"]
 
@@ -127,7 +136,7 @@ def run_sweep(
     if parallel and len(models) > 1:
         with ThreadPoolExecutor(max_workers=len(models)) as executor:
             futures = {
-                executor.submit(_run_one_model, m, seeds, disease, difficulty, results_dir, logs_dir, verbose, max_tokens_per_turn): m
+                executor.submit(_run_one_model, m, seeds, disease, difficulty, results_dir, logs_dir, verbose, max_tokens_per_turn, resume): m
                 for m in models
             }
             for future in as_completed(futures):
@@ -135,7 +144,7 @@ def run_sweep(
                 all_records.extend(records)
     else:
         for model_name in models:
-            _, records = _run_one_model(model_name, seeds, disease, difficulty, results_dir, logs_dir, verbose, max_tokens_per_turn)
+            _, records = _run_one_model(model_name, seeds, disease, difficulty, results_dir, logs_dir, verbose, max_tokens_per_turn, resume)
             all_records.extend(records)
 
     # Rewrite concatenated results
@@ -209,6 +218,11 @@ def main() -> None:
         help="Run models sequentially instead of in parallel (default: parallel).",
     )
     parser.add_argument(
+        "--resume", action="store_true",
+        help="Merge new results with any existing JSONL (e.g. to add seeds to a partial run). "
+             "Default: overwrite — never merge with stale results.",
+    )
+    parser.add_argument(
         "--max-tokens", type=int, default=None, metavar="N",
         help="Cap max_tokens per turn for OpenAI models (e.g. 4096). Helps prevent context exhaustion on verbose organisms.",
     )
@@ -216,11 +230,11 @@ def main() -> None:
 
     models = args.models or ["heuristic"]
     sweeps = args.sweeps or list(SWEEPS.keys())
-    seeds_override = parse_seeds(args.seeds, 20) if args.seeds else None
+    seeds_override = parse_seeds(args.seeds, len(SWEEPS[list(SWEEPS.keys())[0]]["seeds"])) if args.seeds else None
     parallel = not args.no_parallel
 
     for sweep_name in sweeps:
-        run_sweep(sweep_name, models, n=args.n, seeds_override=seeds_override, parallel=parallel, verbose=args.verbose, max_tokens_per_turn=args.max_tokens)
+        run_sweep(sweep_name, models, n=args.n, seeds_override=seeds_override, parallel=parallel, verbose=args.verbose, max_tokens_per_turn=args.max_tokens, resume=args.resume)
 
 
 if __name__ == "__main__":
