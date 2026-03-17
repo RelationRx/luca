@@ -5,7 +5,7 @@ Not a polished results doc — write freely, entries in reverse chronological or
 
 ---
 
-Last updated: 2026-03-16. Experiment plan finalised (§9). Generation code frozen at `v1-generation-freeze` (commit `7bdbb28`). Ready for Part 1 re-runs.
+Last updated: 2026-03-17. **Full benchmark run complete — 560/560 seeds clean.** See §10 for final results table.
 
 > **Note (2026-03-16):** All results in §1–6 were produced with the old generation code and are
 > **invalidated** by PR #21. The canonical benchmark re-run uses the plan in §9.
@@ -357,11 +357,39 @@ whether understanding the causal structure predicts scoring well.
 
 ---
 
+## §10 Final Benchmark Results (2026-03-17)
+
+Full run complete: 7 models × 4 sweeps × 20 seeds = 560 sessions, all clean.
+Generation frozen at `v1-generation-freeze` (commit `7bdbb28`).
+Early-stop bug fixed in `lemonoids/agent.py` (gpt-5.1/gpt-4.1 were silently exiting sessions
+before submitting predictions; now detected and nudged to complete).
+
+### Composite Score (mean ± std, N=20 all)
+
+| Model | Easy (healthy) | Med (healthy) | Hard (healthy) | Med (disease) |
+|---|---|---|---|---|
+| claude-opus-4-6   | **1.000** ± 0.000 | **0.967** ± 0.068 | **0.783** ± 0.172 | **0.778** ± 0.189 |
+| claude-sonnet-4-6 | 0.983 ± 0.051 | 0.917 ± 0.101 | 0.733 ± 0.157 | **0.783** ± 0.178 |
+| gpt-5.1           | 0.942 ± 0.082 | 0.850 ± 0.142 | 0.717 ± 0.188 | 0.582 ± 0.185 |
+| gpt-4o            | 0.925 ± 0.085 | 0.783 ± 0.122 | 0.633 ± 0.159 | 0.481 ± 0.125 |
+| gpt-4.1           | 0.900 ± 0.137 | 0.767 ± 0.126 | 0.592 ± 0.232 | 0.442 ± 0.191 |
+| heuristic         | 0.775 ± 0.124 | 0.733 ± 0.100 | 0.342 ± 0.183 | 0.611 ± 0.212 |
+| random            | 0.800 ± 0.103 | 0.750 ± 0.085 | 0.483 ± 0.142 | 0.492 ± 0.142 |
+
+### Key observations
+
+- **Easy**: near-ceiling for all LLMs (0.90–1.00); weak discriminator.
+- **Medium healthy**: clear Claude > GPT gap (0.92–0.97 vs 0.77–0.85). Random (0.750) ≈ heuristic (0.733) — heuristic adds little on medium.
+- **Hard healthy**: sharpest discrimination. Heuristic (0.342) collapses *below* random (0.483) — systematic BLOCK sweep fails on high-feedback organisms. Claude holds ~0.73–0.78; GPTs drop to 0.59–0.72.
+- **Disease**: Claude substantially outperforms GPTs (0.78 vs 0.44–0.58). Heuristic (0.611) beats all GPTs — exhaustive sweep helps with diagnosis even without reasoning. gpt-5.1 diagnosis score ≈ 0 (gets predictions right but never identifies the malfunction).
+
+---
+
 ## Open Questions / Next Steps
 
-- **Run Part 1 sweeps** — execute in order above; all prior results invalidated by PR #21.
-- **gpt-5.1 disease**: report as failure mode / case study, not primary comparison (see §6).
-- **Extend to 20 seeds?** — decide after reviewing 10-seed CIs on hard and disease.
+- ~~**Run Part 1 sweeps**~~ — **DONE** (2026-03-17), 560/560 clean.
+- ~~**Extend to 20 seeds?**~~ — **DONE**, ran 20 seeds throughout.
+- **gpt-5.1 disease diagnosis=0**: investigate why — does it submit a hypothesis at all, or always wrong gene? Good failure mode case study for §5.3.
 - **Dataset statistics table**: n_genes, n_phenotypes, n_prediction_tasks, n_diagnosis_alternatives
   per tier — compute from new generation before paper §2.4.
 - **Part 2 timing**: run 2a scaling sweep after Part 1 draft results are stable.
