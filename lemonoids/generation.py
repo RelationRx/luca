@@ -280,7 +280,7 @@ def generate_organism(
         if len(observable_set) >= n_observable:
             break
         observable_set.add(gid)
-    observable_genes = list(observable_set)
+    observable_genes = sorted(observable_set)  # sorted for hash-independent determinism
 
     # 9. Select latent genes (deferred connectivity check happens after phenotype
     # readouts are built in step 11 — see below).
