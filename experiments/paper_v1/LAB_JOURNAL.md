@@ -406,7 +406,8 @@ Fixes applied during this run:
 
 - ~~**Run Part 1 sweeps**~~ — **DONE** (2026-03-17), 560/560 clean.
 - ~~**Extend to 20 seeds?**~~ — **DONE**, ran 20 seeds throughout.
-- **gpt-5.1 disease diagnosis=0**: investigate why — does it submit a hypothesis at all, or always wrong gene? Good failure mode case study for §5.3.
-- **Dataset statistics table**: n_genes, n_phenotypes, n_prediction_tasks, n_diagnosis_alternatives
-  per tier — compute from new generation before paper §2.4.
+- ~~**gpt-5.1 disease diagnosis=0**~~ — **DONE** (2026-03-17): prediction/diagnosis dissociation confirmed — GPT models submit hypotheses but almost always wrong gene/type (diag≈0.05 ≈ random for gpt-5.1/4o/4.1). Write up as §5 failure mode analysis.
+- **gpt-4.1 disease composite anomaly**: document in paper — "laziness" (9/20 seeds skip experiments, budget=0) accidentally boosts composite via prediction accuracy. Highlights composite score sensitivity to partial task completion; may want to report sub-scores separately.
+- **Heuristic beats GPTs on diagnosis**: worth a paragraph — exhaustive enumeration outperforms language-based abduction. Implication: GPT models are not doing genuine interventional reasoning for diagnosis.
+- **Dataset statistics table**: n_genes, n_phenotypes, n_prediction_tasks, n_diagnosis_alternatives per tier — compute from generation for paper §2.4.
 - **Part 2 timing**: run 2a scaling sweep after Part 1 draft results are stable.
