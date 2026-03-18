@@ -12,8 +12,8 @@ import anthropic
 # ---------------------------------------------------------------------------
 
 _API_TIMEOUT = 120.0   # seconds per request
-_API_RETRIES = 3       # attempts before giving up
-_API_RETRY_WAIT = 10   # seconds between retries
+_API_RETRIES = 6       # attempts before giving up
+_API_RETRY_WAIT = 15   # seconds between retries
 
 
 def _with_retry(fn, retryable_exc: tuple, *args, **kwargs):
@@ -27,6 +27,14 @@ def _with_retry(fn, retryable_exc: tuple, *args, **kwargs):
             print(f"\n[agent] API error ({exc.__class__.__name__}), retrying in {_API_RETRY_WAIT}s "
                   f"(attempt {attempt + 1}/{_API_RETRIES})...")
             time.sleep(_API_RETRY_WAIT)
+        except anthropic.APIStatusError as exc:
+            # Retry on transient server errors (529 overloaded, 503 unavailable)
+            if exc.status_code not in (500, 503, 529) or attempt == _API_RETRIES - 1:
+                raise
+            wait = _API_RETRY_WAIT * (attempt + 1)  # back off: 10s, 20s, 30s
+            print(f"\n[agent] API overloaded (HTTP {exc.status_code}), retrying in {wait}s "
+                  f"(attempt {attempt + 1}/{_API_RETRIES})...")
+            time.sleep(wait)
 
 from .experiment import ExperimentSession
 

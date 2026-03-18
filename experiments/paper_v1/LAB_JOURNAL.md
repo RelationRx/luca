@@ -5,7 +5,7 @@ Not a polished results doc — write freely, entries in reverse chronological or
 
 ---
 
-Last updated: 2026-03-17. **Full benchmark run complete — 560/560 seeds clean.** See §10 for final results table.
+Last updated: 2026-03-18. **Full benchmark run complete — 560/560 seeds clean (N=20 all, 7 models × 4 sweeps).** See §10 for final results table.
 
 > **Note (2026-03-16):** All results in §1–6 were produced with the old generation code and are
 > **invalidated** by PR #21. The canonical benchmark re-run uses the plan in §9.
@@ -262,7 +262,7 @@ difficulty)` is fully deterministic: seed + parameters → organism. The seed li
 
 The risk is generation code changes invalidating results (as happened with PR #21). Guard:
 
-- Generation code frozen at git tag **`v1-generation-freeze`** (commit `7bdbb28`, 2026-03-16).
+- Generation code frozen at git tag **`v1-generation-freeze-2`** (commit `57f7be7`, 2026-03-17).
 - All Part 1 runs must use this tag or a later commit that does not touch `lemonoids/generation.py`
   or `lemonoids/experiment.py`.
 - Each results JSONL records the git commit hash at run time (via `run.py` metadata).
@@ -357,31 +357,48 @@ whether understanding the causal structure predicts scoring well.
 
 ---
 
-## §10 Final Benchmark Results (2026-03-17)
+## §10 Final Benchmark Results (2026-03-18, updated)
 
-Full run complete: 7 models × 4 sweeps × 20 seeds = 560 sessions, all clean.
-Generation frozen at `v1-generation-freeze` (commit `7bdbb28`).
-Early-stop bug fixed in `lemonoids/agent.py` (gpt-5.1/gpt-4.1 were silently exiting sessions
-before submitting predictions; now detected and nudged to complete).
+Full run complete: 7 models × 4 sweeps × 20 seeds = **560/560 sessions, all N=20**.
+(5 LLMs + heuristic + random baselines.)
+Generation frozen at `v1-generation-freeze-2` (commit `57f7be7`).
+
+Fixes applied during this run:
+- Early-stop bug fixed in `lemonoids/agent.py` (gpt-5.1/gpt-4.1 exiting before submitting; now nudged to complete).
+- HTTP 500/529/503 overload retries added to `_with_retry` (opus disease seeds required up to 10 retry attempts each due to persistent API overloads on 2026-03-17/18).
 
 ### Composite Score (mean ± std, N=20 all)
 
 | Model | Easy (healthy) | Med (healthy) | Hard (healthy) | Med (disease) |
 |---|---|---|---|---|
-| claude-opus-4-6   | **1.000** ± 0.000 | **0.967** ± 0.068 | **0.783** ± 0.172 | **0.778** ± 0.189 |
-| claude-sonnet-4-6 | 0.983 ± 0.051 | 0.917 ± 0.101 | 0.733 ± 0.157 | **0.783** ± 0.178 |
+| claude-opus-4-6   | **1.000** ± 0.000 | **0.967** ± 0.068 | **0.783** ± 0.172 | **0.833** ± 0.179 |
+| claude-sonnet-4-6 | 0.983 ± 0.051 | 0.917 ± 0.101 | 0.733 ± 0.157 | 0.783 ± 0.178 |
 | gpt-5.1           | 0.942 ± 0.082 | 0.850 ± 0.142 | 0.717 ± 0.188 | 0.582 ± 0.185 |
 | gpt-4o            | 0.925 ± 0.085 | 0.783 ± 0.122 | 0.633 ± 0.159 | 0.481 ± 0.125 |
-| gpt-4.1           | 0.900 ± 0.137 | 0.767 ± 0.126 | 0.592 ± 0.232 | 0.442 ± 0.191 |
+| gpt-4.1           | 0.900 ± 0.137 | 0.767 ± 0.126 | 0.592 ± 0.232 | 0.682 ± 0.146 |
 | heuristic         | 0.775 ± 0.124 | 0.733 ± 0.100 | 0.342 ± 0.183 | 0.611 ± 0.212 |
 | random            | 0.800 ± 0.103 | 0.750 ± 0.085 | 0.483 ± 0.142 | 0.492 ± 0.142 |
+
+### Disease Mode Breakdown (medium, N=20 all)
+
+| Model | Pred acc | Diagnosis | Rescue | Composite |
+|---|---|---|---|---|
+| claude-opus-4-6   | 0.900 | **0.600** | 1.000 | **0.833** |
+| claude-sonnet-4-6 | 0.917 | 0.450 | 0.983 | 0.783 |
+| gpt-4.1           | 0.817 | 0.050 | 0.300 | 0.682 |
+| heuristic         | 0.650 | 0.350 | 0.833 | 0.611 |
+| gpt-5.1           | 0.675 | 0.050 | 0.333 | 0.582 |
+| random            | 0.692 | 0.050 | 0.733 | 0.492 |
+| gpt-4o            | 0.567 | 0.050 | 0.717 | 0.481 |
 
 ### Key observations
 
 - **Easy**: near-ceiling for all LLMs (0.90–1.00); weak discriminator.
 - **Medium healthy**: clear Claude > GPT gap (0.92–0.97 vs 0.77–0.85). Random (0.750) ≈ heuristic (0.733) — heuristic adds little on medium.
 - **Hard healthy**: sharpest discrimination. Heuristic (0.342) collapses *below* random (0.483) — systematic BLOCK sweep fails on high-feedback organisms. Claude holds ~0.73–0.78; GPTs drop to 0.59–0.72.
-- **Disease**: Claude substantially outperforms GPTs (0.78 vs 0.44–0.58). Heuristic (0.611) beats all GPTs — exhaustive sweep helps with diagnosis even without reasoning. gpt-5.1 diagnosis score ≈ 0 (gets predictions right but never identifies the malfunction).
+- **Disease diagnosis**: stark prediction/diagnosis dissociation in GPT models — gpt-5.1/gpt-4o/gpt-4.1 all score ~0.05 on diagnosis (≈ random) despite reasonable prediction accuracy. Claude opus leads (0.60), Claude sonnet second (0.45). Heuristic (0.35) beats all GPTs through exhaustive hypothesis enumeration.
+- **gpt-4.1 disease composite (0.682) > gpt-4o (0.481)**: counterintuitive given gpt-4.1 < gpt-4o on all healthy sweeps. Root cause: gpt-4.1 has 9/20 seeds with budget_used=0 — it skips experiments entirely and submits predictions directly from the organism description, scoring pred_acc=0.667–1.000. gpt-4o actually runs experiments on most seeds but its predictions are worse (avg_acc=0.567), suggesting it gets confused by perturbation results. gpt-4.1 "laziness" is accidentally rewarded by the composite formula which weights prediction accuracy heavily even when diagnosis=0. Not a sign of better reasoning — rather a failure to engage with the task.
+- **Heuristic (0.611) beats all GPTs on disease**: heuristic uses a fixed budget=21 for exhaustive hypothesis enumeration — it systematically tests blocking/locking each candidate gene and scores outcomes. This is effective abductive inference by exhaustion: 7/20 seeds get diag=1.0. GPTs almost never identify the correct malfunction (diag≈0.05 = 1/20 correct each). The heuristic's brute-force sweep is a stronger diagnosis strategy than language-based deduction for this task, suggesting GPT models are not doing genuine abductive reasoning over interventional evidence.
 
 ---
 
@@ -389,7 +406,8 @@ before submitting predictions; now detected and nudged to complete).
 
 - ~~**Run Part 1 sweeps**~~ — **DONE** (2026-03-17), 560/560 clean.
 - ~~**Extend to 20 seeds?**~~ — **DONE**, ran 20 seeds throughout.
-- **gpt-5.1 disease diagnosis=0**: investigate why — does it submit a hypothesis at all, or always wrong gene? Good failure mode case study for §5.3.
-- **Dataset statistics table**: n_genes, n_phenotypes, n_prediction_tasks, n_diagnosis_alternatives
-  per tier — compute from new generation before paper §2.4.
+- ~~**gpt-5.1 disease diagnosis=0**~~ — **DONE** (2026-03-17): prediction/diagnosis dissociation confirmed — GPT models submit hypotheses but almost always wrong gene/type (diag≈0.05 ≈ random for gpt-5.1/4o/4.1). Write up as §5 failure mode analysis.
+- **gpt-4.1 disease composite anomaly**: document in paper — "laziness" (9/20 seeds skip experiments, budget=0) accidentally boosts composite via prediction accuracy. Highlights composite score sensitivity to partial task completion; may want to report sub-scores separately.
+- **Heuristic beats GPTs on diagnosis**: worth a paragraph — exhaustive enumeration outperforms language-based abduction. Implication: GPT models are not doing genuine interventional reasoning for diagnosis.
+- **Dataset statistics table**: n_genes, n_phenotypes, n_prediction_tasks, n_diagnosis_alternatives per tier — compute from generation for paper §2.4.
 - **Part 2 timing**: run 2a scaling sweep after Part 1 draft results are stable.

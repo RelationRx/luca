@@ -23,6 +23,7 @@ lemonoids_dataset/
 
 # Evaluation output (regenerate locally)
 results/
+*.jsonl
 
 # Per-experiment session logs (verbose JSON/HTML dumps; regenerate locally)
 experiments/**/logs/
