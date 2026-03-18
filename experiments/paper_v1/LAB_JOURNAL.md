@@ -479,6 +479,46 @@ Pearson r(network_F1, prediction_accuracy) per model:
 
 Weak and inconsistent correlations overall. Building a correct causal map does not reliably predict prediction accuracy — models may succeed through pattern matching or baseline memorisation rather than genuine network inference. Claude has higher network F1 than GPTs despite the network not strongly predicting its scores, suggesting it infers better structure but the structure isn't the sole source of its prediction ability.
 
+### §11.6 Hypothesis quality (disease mode, free-text)
+
+Quantitative metrics from logs:
+
+| Model | Text present | Avg length | Cites evidence | Gene references |
+|---|---|---|---|---|
+| claude-opus-4-6   | 20/20 | 1292 chars | 19/20 | 20/20 |
+| claude-sonnet-4-6 | 20/20 | 1336 chars | 19/20 | 20/20 |
+| gpt-5.1           | 19/20 | **2932 chars** | 19/19 | 19/19 |
+| gpt-4.1           | 20/20 |  799 chars | 13/20 | 18/20 |
+| gpt-4o            | 17/20 |  429 chars |  6/17 | 17/17 |
+
+Qualitative observations from spot-checks:
+- **Claude (correct)**: sharp, evidence-backed, cites specific experiment results (e.g. "BLOCK G013 → signal-output = 0.77"). Identifies gene, malfunction type, and mechanism. Concise and structured.
+- **Claude (wrong)**: still high quality — identifies a plausible alternative with real evidence. Wrong answer, good reasoning process.
+- **gpt-5.1**: writes longest hypotheses (2932 chars avg) but the single correct case had *no free text*. Wrong cases are verbose, fluent, evidence-rich — but reason toward wrong conclusions. Classic fluent-but-wrong pattern.
+- **gpt-4.1 lazy seeds**: writes plausible-sounding hypotheses without running any experiments — guessing from phenotype description alone ("expansion-rate is elevated, likely a LOCK_HI somewhere upstream"). No experimental evidence cited.
+- **gpt-4o**: shortest, rarely cites evidence — closest to "I think it's X because Y is high."
+
+### §11.7 Case study: seed 0 — rescue ≠ root cause diagnosis
+
+Both Claude models (Opus and Sonnet) gave identical wrong diagnoses on seed 0: `G013 LOCK_LO`.
+
+**The organism:**
+- True malfunction: `thermal-pulse PERSIST` (external signal, 10× normal strength)
+- thermal-pulse inhibits G007, G011, G018; at 10× strength → signal-output rises to 0.761 (healthy: [0.35, 0.65])
+- `n_diagnosis_alternatives = 2`
+
+**Why both Claude models were wrong:**
+- G013 strongly inhibits signal-output (gene-phenotype edge, weight=1.328)
+- G13 LOCK_LO would remove that inhibition → signal-output rises — *identical phenotype to the true malfunction*
+- BOOSTing G013 restores signal-output to healthy range → rescue_fraction = 1.0
+- Both models correctly identified G013 as a rescue target, but misattributed it as the root cause
+
+**What this means:**
+- This is genuine diagnosis ambiguity, not model error: two mechanistically distinct malfunctions produce indistinguishable phenotypes from the agent's vantage point
+- Demonstrates that **rescue success does not imply correct root-cause identification** — a key benchmark design subtlety worth highlighting in the paper
+- The true malfunction is a *signal* (thermal-pulse), not a gene — models may be biased toward proposing gene malfunctions. Worth investigating: do models ever correctly identify signal malfunctions?
+- `n_diagnosis_alternatives` correctly flags this case (value=2), validating the metric
+
 ---
 
 ## Open Questions / Next Steps
@@ -492,6 +532,7 @@ Weak and inconsistent correlations overall. Building a correct causal map does n
 - ~~**Ambiguity analysis**~~ — **DONE** (2026-03-18, §11.3): nobody solves ≥2-alternative organisms; Opus solves 100% of 1-alternative cases.
 - ~~**Strategy analysis**~~ — **DONE** (2026-03-18, §11.4): Claude systematic BLOCK sweep + adaptive; GPTs low coverage, non-adaptive.
 - **Heuristic beats GPTs on diagnosis**: worth a paragraph — exhaustive enumeration outperforms language-based abduction. Implication: GPT models are not doing genuine interventional reasoning for diagnosis.
-- **Causal hypothesis quality** (§5): spot-check ~10 free-text hypotheses per model against ground truth — remaining Tier 3 analysis.
+- ~~**Causal hypothesis quality**~~ — **DONE** (2026-03-18, §11.6–7): Claude sharp and evidence-backed; GPT-5.1 verbose-but-wrong; GPT-4o/4.1 short or lazy. Seed 0 case study reveals rescue ≠ root-cause diagnosis.
+- **Signal malfunction diagnosis**: do models ever correctly identify signal malfunctions (vs gene malfunctions)? Check across all disease seeds where true malfunction is a signal PERSIST.
 - **Dataset statistics table**: n_genes, n_phenotypes, n_prediction_tasks, n_diagnosis_alternatives per tier — compute from generation for paper §2.4.
 - **Part 2 timing**: run 2a scaling sweep after Part 1 draft results are stable.
