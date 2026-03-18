@@ -397,8 +397,127 @@ Fixes applied during this run:
 - **Medium healthy**: clear Claude > GPT gap (0.92–0.97 vs 0.77–0.85). Random (0.750) ≈ heuristic (0.733) — heuristic adds little on medium.
 - **Hard healthy**: sharpest discrimination. Heuristic (0.342) collapses *below* random (0.483) — systematic BLOCK sweep fails on high-feedback organisms. Claude holds ~0.73–0.78; GPTs drop to 0.59–0.72.
 - **Disease diagnosis**: stark prediction/diagnosis dissociation in GPT models — gpt-5.1/gpt-4o/gpt-4.1 all score ~0.05 on diagnosis (≈ random) despite reasonable prediction accuracy. Claude opus leads (0.60), Claude sonnet second (0.45). Heuristic (0.35) beats all GPTs through exhaustive hypothesis enumeration.
-- **gpt-4.1 disease composite (0.682) > gpt-4o (0.481)**: counterintuitive given gpt-4.1 < gpt-4o on all healthy sweeps. Root cause: gpt-4.1 has 9/20 seeds with budget_used=0 — it skips experiments entirely and submits predictions directly from the organism description, scoring pred_acc=0.667–1.000. gpt-4o actually runs experiments on most seeds but its predictions are worse (avg_acc=0.567), suggesting it gets confused by perturbation results. gpt-4.1 "laziness" is accidentally rewarded by the composite formula which weights prediction accuracy heavily even when diagnosis=0. Not a sign of better reasoning — rather a failure to engage with the task.
+- **gpt-4.1 disease composite (0.682) > gpt-4o (0.481)**: counterintuitive given gpt-4.1 < gpt-4o on all healthy sweeps. Root cause: gpt-4.1 has 11/20 seeds with budget_used=0 — it skips experiments entirely and submits predictions directly from the organism description, scoring pred_acc=0.667–1.000. gpt-4o actually runs experiments on most seeds but its predictions are worse (avg_acc=0.567), suggesting it gets confused by perturbation results. gpt-4.1 "laziness" is accidentally rewarded by the composite formula which weights prediction accuracy heavily even when diagnosis=0. Not a sign of better reasoning — rather a failure to engage with the task.
 - **Heuristic (0.611) beats all GPTs on disease**: heuristic uses a fixed budget=21 for exhaustive hypothesis enumeration — it systematically tests blocking/locking each candidate gene and scores outcomes. This is effective abductive inference by exhaustion: 7/20 seeds get diag=1.0. GPTs almost never identify the correct malfunction (diag≈0.05 = 1/20 correct each). The heuristic's brute-force sweep is a stronger diagnosis strategy than language-based deduction for this task, suggesting GPT models are not doing genuine abductive reasoning over interventional evidence.
+
+---
+
+## §11 Deeper Analysis (2026-03-18)
+
+Computed from session logs using `analyse.py`. All N=20 per model/sweep.
+
+### §11.1 Complexity threshold — gradual degradation, not a cliff
+
+Drop in composite score from easy → hard:
+
+| Model | Easy→Hard drop | Hard std | Seeds≥0.80 | Seeds<0.50 |
+|---|---|---|---|---|
+| claude-opus-4-6   | −0.208 | 0.178 | 12/20 | 0/20 |
+| claude-sonnet-4-6 | −0.258 | 0.165 | 10/20 | 0/20 |
+| gpt-5.1           | −0.225 | 0.188 |  9/20 | 1/20 |
+| gpt-4o            | −0.267 | 0.161 |  6/20 | 2/20 |
+| gpt-4.1           | −0.308 | 0.232 |  4/20 | 3/20 |
+
+Performance degrades gradually (no cliff), but high per-seed variance on hard suggests bimodal structure: models either solve an organism or partially fail — not graceful degradation within each seed. Claude never catastrophically fails on hard (0 seeds below 0.50); GPT-4.1 does (3/20).
+
+### §11.2 Budget usage patterns
+
+| Model | Easy | Med(H) | Hard | Med(D) |
+|---|---|---|---|---|
+| claude-opus-4-6   | 0.86±0.03 | 0.88±0.04 | 0.84±0.03 | 0.82±0.04 |
+| claude-sonnet-4-6 | 0.80±0.04 | 0.81±0.03 | 0.76±0.03 | 0.75±0.05 |
+| gpt-5.1           | 0.81±0.17 | 0.85±0.08 | 0.69±0.14 | 0.36±0.34 |
+| gpt-4o            | 0.50±0.22 | 0.50±0.22 | 0.54±0.15 | 0.30±0.19 |
+| gpt-4.1           | 0.67±0.13 | 0.63±0.19 | 0.60±0.15 | 0.28±0.35 |
+
+Key findings:
+- Claude uses budget consistently regardless of difficulty (~80–88%). No budget exhaustion.
+- GPT-4o/4.1 use far less budget and are highly variable (large std).
+- **Budget fraction does not correlate with composite score on hard** (r ≈ 0.0–0.2 per model). Failures are not caused by running out of budget — models stop early and still fail.
+- **gpt-4.1 disease: 11/20 seeds with zero experiments** — model reads description and submits predictions without any perturbation experiments.
+
+### §11.3 Disease mode — ambiguity and rescue
+
+Diagnosis by n_diagnosis_alternatives:
+- **n_alternatives=0** (unambiguous, 74/100 sessions): Opus 62.5%, Sonnet 40%, GPTs ~0–8%.
+- **n_alternatives=1** (14 sessions): Opus 100%, Sonnet 50%, GPTs 0–33%.
+- **n_alternatives≥2** (12 sessions): **nobody** gets it right across all models.
+
+Rescue vs diagnosis:
+- Correct diagnosis (N=22): rescue = 0.955
+- Wrong diagnosis (N=78): rescue = 0.526
+- Strong signal: diagnosis accuracy is the bottleneck for rescue performance. Models that fail to diagnose still partially rescue (~52%) — likely due to generic stabilising interventions.
+
+### §11.4 Strategy analysis (medium healthy)
+
+| Model | AvgExpts | BudgetFrac | SingleGene% | MultiGene% | Coverage% |
+|---|---|---|---|---|---|
+| claude-opus-4-6   | 27.2 | 0.88 | 98.5% |  1.5% | 100.0% |
+| claude-sonnet-4-6 | 25.0 | 0.81 | 71.8% | 28.2% | 100.0% |
+| gpt-5.1           | 26.6 | 0.85 | 64.8% |  0.2% |  55.5% |
+| gpt-4o            | 12.8 | 0.50 | 10.0% |  0.0% |   2.3% |
+| gpt-4.1           | 16.8 | 0.63 |  5.0% |  0.0% |   2.5% |
+
+Key findings:
+- **Claude Opus**: near-exhaustive single-gene BLOCK sweep (98.5%), tests all 20 genes (100% coverage). Highly systematic.
+- **Claude Sonnet**: mixes single and multi-gene experiments (28% multi); still achieves full coverage. More exploratory.
+- **gpt-5.1**: runs many experiments (26.6) but only covers 55% of genes — redundant experiments on a subset.
+- **GPT-4o/4.1**: run few experiments, almost no single-gene sweeps, ~2% gene coverage — barely explore the organism at all.
+- **Adaptive behaviour** (disease, re-testing genes): Claude 20/20 sessions, GPTs 0–1/20. Claude builds on earlier observations; GPTs do not.
+
+### §11.5 Network reconstruction vs prediction accuracy
+
+Pearson r(network_F1, prediction_accuracy) per model:
+
+| Model | Medium r | Hard r | Medium NetF1 | Hard NetF1 |
+|---|---|---|---|---|
+| claude-opus-4-6   | +0.11 | +0.11 | 0.713 | 0.503 |
+| claude-sonnet-4-6 | −0.43 | +0.23 | 0.753 | 0.544 |
+| gpt-5.1           | −0.26 | +0.17 | 0.570 | 0.440 |
+| gpt-4o            | +0.40 | +0.34 | 0.365 | 0.403 |
+| gpt-4.1           | +0.58 | +0.40 | 0.308 | 0.375 |
+
+Weak and inconsistent correlations overall. Building a correct causal map does not reliably predict prediction accuracy — models may succeed through pattern matching or baseline memorisation rather than genuine network inference. Claude has higher network F1 than GPTs despite the network not strongly predicting its scores, suggesting it infers better structure but the structure isn't the sole source of its prediction ability.
+
+### §11.6 Hypothesis quality (disease mode, free-text)
+
+Quantitative metrics from logs:
+
+| Model | Text present | Avg length | Cites evidence | Gene references |
+|---|---|---|---|---|
+| claude-opus-4-6   | 20/20 | 1292 chars | 19/20 | 20/20 |
+| claude-sonnet-4-6 | 20/20 | 1336 chars | 19/20 | 20/20 |
+| gpt-5.1           | 19/20 | **2932 chars** | 19/19 | 19/19 |
+| gpt-4.1           | 20/20 |  799 chars | 13/20 | 18/20 |
+| gpt-4o            | 17/20 |  429 chars |  6/17 | 17/17 |
+
+Qualitative observations from spot-checks:
+- **Claude (correct)**: sharp, evidence-backed, cites specific experiment results (e.g. "BLOCK G013 → signal-output = 0.77"). Identifies gene, malfunction type, and mechanism. Concise and structured.
+- **Claude (wrong)**: still high quality — identifies a plausible alternative with real evidence. Wrong answer, good reasoning process.
+- **gpt-5.1**: writes longest hypotheses (2932 chars avg) but the single correct case had *no free text*. Wrong cases are verbose, fluent, evidence-rich — but reason toward wrong conclusions. Classic fluent-but-wrong pattern.
+- **gpt-4.1 lazy seeds**: writes plausible-sounding hypotheses without running any experiments — guessing from phenotype description alone ("expansion-rate is elevated, likely a LOCK_HI somewhere upstream"). No experimental evidence cited.
+- **gpt-4o**: shortest, rarely cites evidence — closest to "I think it's X because Y is high."
+
+### §11.7 Case study: seed 0 — rescue ≠ root cause diagnosis
+
+Both Claude models (Opus and Sonnet) gave identical wrong diagnoses on seed 0: `G013 LOCK_LO`.
+
+**The organism:**
+- True malfunction: `thermal-pulse PERSIST` (external signal, 10× normal strength)
+- thermal-pulse inhibits G007, G011, G018; at 10× strength → signal-output rises to 0.761 (healthy: [0.35, 0.65])
+- `n_diagnosis_alternatives = 2`
+
+**Why both Claude models were wrong:**
+- G013 strongly inhibits signal-output (gene-phenotype edge, weight=1.328)
+- G13 LOCK_LO would remove that inhibition → signal-output rises — *identical phenotype to the true malfunction*
+- BOOSTing G013 restores signal-output to healthy range → rescue_fraction = 1.0
+- Both models correctly identified G013 as a rescue target, but misattributed it as the root cause
+
+**What this means:**
+- This is genuine diagnosis ambiguity, not model error: two mechanistically distinct malfunctions produce indistinguishable phenotypes from the agent's vantage point
+- Demonstrates that **rescue success does not imply correct root-cause identification** — a key benchmark design subtlety worth highlighting in the paper
+- The true malfunction is a *signal* (thermal-pulse), not a gene — models may be biased toward proposing gene malfunctions. Worth investigating: do models ever correctly identify signal malfunctions?
+- `n_diagnosis_alternatives` correctly flags this case (value=2), validating the metric
 
 ---
 
@@ -407,7 +526,13 @@ Fixes applied during this run:
 - ~~**Run Part 1 sweeps**~~ — **DONE** (2026-03-17), 560/560 clean.
 - ~~**Extend to 20 seeds?**~~ — **DONE**, ran 20 seeds throughout.
 - ~~**gpt-5.1 disease diagnosis=0**~~ — **DONE** (2026-03-17): prediction/diagnosis dissociation confirmed — GPT models submit hypotheses but almost always wrong gene/type (diag≈0.05 ≈ random for gpt-5.1/4o/4.1). Write up as §5 failure mode analysis.
-- **gpt-4.1 disease composite anomaly**: document in paper — "laziness" (9/20 seeds skip experiments, budget=0) accidentally boosts composite via prediction accuracy. Highlights composite score sensitivity to partial task completion; may want to report sub-scores separately.
+- ~~**gpt-4.1 disease composite anomaly**~~ — **DONE** (2026-03-18, §11.2): 11/20 zero-experiment seeds confirmed from logs.
+- ~~**Budget patterns**~~ — **DONE** (2026-03-18, §11.2): no budget exhaustion; failures are early-stopping not running out of budget.
+- ~~**Complexity threshold**~~ — **DONE** (2026-03-18, §11.1): gradual degradation, bimodal on hard, Claude never catastrophically fails.
+- ~~**Ambiguity analysis**~~ — **DONE** (2026-03-18, §11.3): nobody solves ≥2-alternative organisms; Opus solves 100% of 1-alternative cases.
+- ~~**Strategy analysis**~~ — **DONE** (2026-03-18, §11.4): Claude systematic BLOCK sweep + adaptive; GPTs low coverage, non-adaptive.
 - **Heuristic beats GPTs on diagnosis**: worth a paragraph — exhaustive enumeration outperforms language-based abduction. Implication: GPT models are not doing genuine interventional reasoning for diagnosis.
+- ~~**Causal hypothesis quality**~~ — **DONE** (2026-03-18, §11.6–7): Claude sharp and evidence-backed; GPT-5.1 verbose-but-wrong; GPT-4o/4.1 short or lazy. Seed 0 case study reveals rescue ≠ root-cause diagnosis.
+- ~~**Signal malfunction diagnosis**~~ — **DONE** (2026-03-18): **no model ever correctly diagnosed a signal malfunction.** Only 2/20 seeds have signal malfunctions (seeds 0, 1: thermal-pulse PERSIST and coupling-factor-Q PERSIST). Claude both times proposed a compensating gene target (G013/G007 LOCK_LO/HI — valid rescue, wrong cause). GPT-4o was the only model to even attempt a signal name (wrong signal). GPT-5.1/4.1 submitted nothing. Systematic **gene attribution bias** — models always frame malfunctions as gene-level even when the true cause is an external signal. Publishable finding: current LLMs do not reason about signal-level causes of phenotypic abnormality.
 - **Dataset statistics table**: n_genes, n_phenotypes, n_prediction_tasks, n_diagnosis_alternatives per tier — compute from generation for paper §2.4.
 - **Part 2 timing**: run 2a scaling sweep after Part 1 draft results are stable.
