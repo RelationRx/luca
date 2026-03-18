@@ -5,7 +5,7 @@ Not a polished results doc — write freely, entries in reverse chronological or
 
 ---
 
-Last updated: 2026-03-18. **Full benchmark run complete — 400/400 LLM seeds clean (N=20 all).** See §10 for final results table.
+Last updated: 2026-03-18. **Full benchmark run complete — 560/560 seeds clean (N=20 all, 7 models × 4 sweeps).** See §10 for final results table.
 
 > **Note (2026-03-16):** All results in §1–6 were produced with the old generation code and are
 > **invalidated** by PR #21. The canonical benchmark re-run uses the plan in §9.
@@ -359,8 +359,8 @@ whether understanding the causal structure predicts scoring well.
 
 ## §10 Final Benchmark Results (2026-03-18, updated)
 
-Full run complete: 5 LLM models × 4 sweeps × 20 seeds = **400/400 sessions, all N=20**.
-Plus heuristic (4 sweeps × 20) and random (4 sweeps × 20) baselines.
+Full run complete: 7 models × 4 sweeps × 20 seeds = **560/560 sessions, all N=20**.
+(5 LLMs + heuristic + random baselines.)
 Generation frozen at `v1-generation-freeze-2` (commit `57f7be7`).
 
 Fixes applied during this run:
