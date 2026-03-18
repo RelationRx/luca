@@ -14,8 +14,9 @@ build/
 *.png
 !assets/*.png
 
-# Tool caches
+# Tool caches and local Claude context
 .claude/
+CLAUDE.md
 
 # Top-level logs directory
 logs/
