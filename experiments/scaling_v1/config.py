@@ -26,9 +26,10 @@ Seeds: 0–9 (10 per sweep). No pre-screening needed for healthy medium organism
 """
 from __future__ import annotations
 
-N_GENES = [20, 40, 80, 160]
+N_GENES = [20, 40, 80, 160, 320, 640, 1280]
 
 SEEDS = list(range(10))
+SEEDS_LARGE = list(range(5))  # 5 seeds for N>=320 (cost constraint)
 
 # Core sweep: cheap, runs at all N values
 CORE_MODELS = [
@@ -37,19 +38,33 @@ CORE_MODELS = [
     "random",
 ]
 
-# Extended sweep: add at N=80+ after core results confirm the scaling trend
+# Extended: Opus added at N>=160 — it's the leader and most informative at scale
 EXTENDED_MODELS = [
     "claude-opus-4-6",
+]
+
+# GPT-4o added at N>=80 for cross-family comparison
+GPT_MODELS = [
     "gpt-4o",
 ]
+
+def _seeds(n: int) -> list[int]:
+    return SEEDS if n <= 160 else SEEDS_LARGE
+
+def _models(n: int) -> list[str]:
+    if n < 160:
+        return CORE_MODELS
+    if n < 320:
+        return CORE_MODELS + EXTENDED_MODELS
+    return CORE_MODELS + EXTENDED_MODELS  # GPT-4o excluded at large N (context risk)
 
 SWEEPS: dict[str, dict] = {
     f"N{n:03d}": dict(
         n_genes=n,
         difficulty="medium",
         disease=False,
-        seeds=SEEDS,
-        models=CORE_MODELS if n < 80 else CORE_MODELS + EXTENDED_MODELS,
+        seeds=_seeds(n),
+        models=_models(n),
     )
     for n in N_GENES
 }

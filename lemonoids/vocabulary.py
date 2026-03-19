@@ -115,15 +115,17 @@ _SIGNAL_BASE = [
 ]
 
 _SIGNAL_TYPES    = ["factor", "flux", "wave", "gradient", "pulse",
-                    "signal", "potential", "cascade", "field", "trigger"]
+                    "signal", "potential", "cascade", "field", "trigger",
+                    "current", "burst", "shift", "oscillation", "impulse"]
 _SIGNAL_SUFFIXES = ["alpha", "beta", "gamma", "delta", "epsilon",
-                    "A", "B", "C", "Q", "R"]
+                    "A", "B", "C", "Q", "R", "X", "Y", "Z", "I", "II",
+                    "zeta", "eta", "theta", "kappa", "lambda"]
 
-# 15 curated + up to 100 combinatorial
+# 15 curated + up to 300 combinatorial (covers N up to ~2000)
 SIGNAL_LABELS = _make_labels(
     _SIGNAL_BASE,
     _SIGNAL_TYPES, _SIGNAL_SUFFIXES,
-    target=100,
+    target=300,
 )
 
 PHENOTYPE_LABELS = [
