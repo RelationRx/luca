@@ -194,6 +194,8 @@ def evaluate_model(
     verbose: bool,
     active_tasks: frozenset[str] | None = None,
     max_tokens_per_turn: int | None = None,
+    n_genes: int = 20,
+    max_turns: int = 50,
 ) -> list[dict[str, Any]]:
     """Run one model across all seeds. Returns list of per-organism records."""
     if active_tasks is None:
@@ -209,9 +211,9 @@ def evaluate_model(
         print(f"  seed={seed} ... ", end="", flush=True)
         try:
             if disease:
-                org = generate_disease_organism(seed=seed, difficulty=difficulty)
+                org = generate_disease_organism(seed=seed, difficulty=difficulty, n_genes=n_genes)
             else:
-                org = generate_organism(seed=seed, difficulty=difficulty)
+                org = generate_organism(seed=seed, difficulty=difficulty, n_genes=n_genes)
             session = ExperimentSession(org, seed=seed, active_tasks=active_tasks)
 
             log_path = str(results_dir / "logs" / f"{model_name}_seed{seed:04d}.json")
@@ -228,6 +230,7 @@ def evaluate_model(
                     log_path=log_path,
                     active_tasks=active_tasks,
                     max_tokens_per_turn=max_tokens_per_turn,
+                    max_turns=max_turns,
                 )
 
             record = _make_record(seed, org, summary, model_name, disease, difficulty, active_tasks)
