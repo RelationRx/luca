@@ -5,7 +5,7 @@ Not a polished results doc — write freely, entries in reverse chronological or
 
 ---
 
-Last updated: 2026-03-18. **Full benchmark run complete — 560/560 seeds clean (N=20 all, 7 models × 4 sweeps).** See §10 for final results table.
+Last updated: 2026-03-18. **Full benchmark run complete — 840/840 sessions (7 models × 6 sweeps × 20 seeds).** See §10 for 4-sweep results, §12 for easy/hard disease sweeps.
 
 > **Note (2026-03-16):** All results in §1–6 were produced with the old generation code and are
 > **invalidated** by PR #21. The canonical benchmark re-run uses the plan in §9.
@@ -521,6 +521,45 @@ Both Claude models (Opus and Sonnet) gave identical wrong diagnoses on seed 0: `
 
 ---
 
+## §12 Easy and Hard Disease Sweeps (2026-03-18)
+
+C_easy_disease and C_hard_disease complete: 7 models × 20 seeds each = 280 new sessions.
+Full benchmark now **840/840 sessions** (7 models × 6 sweeps × 20 seeds).
+
+### C_easy_disease — composite score (mean ± std, N=20)
+
+| Model | Pred acc | Diagnosis | Rescue | Composite |
+|---|---|---|---|---|
+| claude-opus-4-6   | 0.983 | **0.850** | 1.000 | **0.944** ± 0.129 |
+| claude-sonnet-4-6 | 0.967 | 0.500 | 1.000 | 0.822 ± 0.173 |
+| gpt-4o            | 0.833 | 0.125 | 0.717 | 0.558 ± 0.125 |
+| heuristic         | 0.725 | 0.100 | 0.767 | 0.531 ± 0.134 |
+| gpt-4.1           | 0.850 | 0.100 | 0.517 | 0.489 ± 0.220 |
+| random            | 0.642 | 0.000 | 0.783 | 0.475 ± 0.103 |
+| gpt-5.1           | 0.858 | 0.100 | 0.100 | 0.353 ± 0.188 |
+
+### C_hard_disease — composite score (mean ± std, N=20)
+
+| Model | Pred acc | Diagnosis | Rescue | Composite |
+|---|---|---|---|---|
+| claude-opus-4-6   | 0.825 | **0.400** | 0.917 | **0.714** ± 0.198 |
+| claude-sonnet-4-6 | 0.750 | 0.350 | 0.850 | 0.650 ± 0.241 |
+| gpt-4.1           | 0.683 | 0.200 | 0.483 | 0.456 ± 0.241 |
+| gpt-4o            | 0.542 | 0.100 | 0.650 | 0.431 ± 0.111 |
+| heuristic         | 0.525 | 0.300 | 0.600 | 0.475 ± 0.242 |
+| random            | 0.425 | 0.025 | 0.600 | 0.350 ± 0.142 |
+| gpt-5.1           | 0.575 | 0.000 | 0.000 | 0.192 ± 0.084 |
+
+### Key observations
+
+- **Diagnosis scales with difficulty**: Claude Opus diagnosis drops 0.850 → 0.600 → 0.400 (easy → medium → hard). This is the cleanest signal of genuine reasoning difficulty scaling across the disease sweeps.
+- **Claude rescue stays high on easy/medium, drops on hard**: Opus rescue = 1.000 / 1.000 / 0.917. Sonnet = 1.000 / 0.983 / 0.850. Hard organisms are harder to rescue even with correct diagnosis, likely due to high feedback making single-intervention rescue less effective.
+- **gpt-5.1 hard disease collapses**: 0.192 composite, diag=0.000, rescue=0.000. Complete failure — context exhaustion plus no abductive ability. The easy/medium GPT disease failures are partially rescued by reasonable prediction accuracy; hard organisms remove that crutch too (pred_acc drops to 0.575).
+- **Heuristic holds up on hard disease**: 0.475 composite, diag=0.300, rescue=0.600. Better than most GPTs. Exhaustive enumeration remains effective even on hard organisms for diagnosis.
+- **Random rescue stays non-zero on easy/hard**: rescue=0.783 (easy), 0.600 (hard). Some phenotypes are relatively easy to rescue by chance (baseline=0.5 everywhere), so random rescue interventions can accidentally stabilise aberrant phenotypes. This confirms rescue fraction alone is a weak metric — diagnosis score is the discriminating signal.
+
+---
+
 ## Open Questions / Next Steps
 
 - ~~**Run Part 1 sweeps**~~ — **DONE** (2026-03-17), 560/560 clean.
@@ -534,5 +573,6 @@ Both Claude models (Opus and Sonnet) gave identical wrong diagnoses on seed 0: `
 - **Heuristic beats GPTs on diagnosis**: worth a paragraph — exhaustive enumeration outperforms language-based abduction. Implication: GPT models are not doing genuine interventional reasoning for diagnosis.
 - ~~**Causal hypothesis quality**~~ — **DONE** (2026-03-18, §11.6–7): Claude sharp and evidence-backed; GPT-5.1 verbose-but-wrong; GPT-4o/4.1 short or lazy. Seed 0 case study reveals rescue ≠ root-cause diagnosis.
 - ~~**Signal malfunction diagnosis**~~ — **DONE** (2026-03-18): **no model ever correctly diagnosed a signal malfunction.** Only 2/20 seeds have signal malfunctions (seeds 0, 1: thermal-pulse PERSIST and coupling-factor-Q PERSIST). Claude both times proposed a compensating gene target (G013/G007 LOCK_LO/HI — valid rescue, wrong cause). GPT-4o was the only model to even attempt a signal name (wrong signal). GPT-5.1/4.1 submitted nothing. Systematic **gene attribution bias** — models always frame malfunctions as gene-level even when the true cause is an external signal. Publishable finding: current LLMs do not reason about signal-level causes of phenotypic abnormality.
+- ~~**Easy/hard disease sweeps**~~ — **DONE** (2026-03-18, §12): 280 new sessions, 840/840 total. See §12 for full results.
 - **Dataset statistics table**: n_genes, n_phenotypes, n_prediction_tasks, n_diagnosis_alternatives per tier — compute from generation for paper §2.4.
 - **Part 2 timing**: run 2a scaling sweep after Part 1 draft results are stable.
