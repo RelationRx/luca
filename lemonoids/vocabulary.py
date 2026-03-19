@@ -1,5 +1,26 @@
 """Made-up vocabulary — abstract functional terms, no real biological system names."""
 
+from itertools import product as _product
+
+
+def _make_labels(base: list[str], *word_groups: list[str], target: int) -> list[str]:
+    """Return base labels extended with combinatorial names until target length.
+
+    Combines word_groups with hyphens (e.g. ["spectral"] × ["flux"] × ["relay"]
+    → "spectral-flux-relay"). Existing base labels are always preserved first;
+    combinations are added only as needed and duplicates are skipped.
+    """
+    result = list(base)
+    seen = set(base)
+    for combo in _product(*word_groups):
+        if len(result) >= target:
+            break
+        label = "-".join(combo)
+        if label not in seen:
+            result.append(label)
+            seen.add(label)
+    return result
+
 CELL_TYPE_LABELS = [
     "emitter-cell-Q",
     "filter-cell-X",
@@ -38,7 +59,7 @@ CELL_TYPE_DESCRIPTIONS = [
 
 MALFUNCTION_TYPES = ["LOCK_HI", "LOCK_LO", "PERSIST"]
 
-MODULE_LABELS = [
+_MODULE_BASE = [
     "charge-flow-regulator",
     "polarity-oscillator",
     "boundary-cascade-X",
@@ -61,7 +82,21 @@ MODULE_LABELS = [
     "noise-filter-beta",
 ]
 
-SIGNAL_LABELS = [
+_MODULE_MODIFIERS = ["spectral", "resonant", "cascade", "lateral", "diffuse",
+                     "cyclic", "torsional", "angular", "radial", "temporal"]
+_MODULE_NOUNS     = ["flow", "pulse", "flux", "wave", "gradient",
+                     "field", "charge", "phase", "pressure", "signal"]
+_MODULE_TYPES     = ["regulator", "buffer", "relay", "gate", "coupler",
+                     "integrator", "dampener", "modulator", "arbiter", "distributor"]
+
+# 20 curated + up to 1000 combinatorial — sufficient for any practical N
+MODULE_LABELS = _make_labels(
+    _MODULE_BASE,
+    _MODULE_MODIFIERS, _MODULE_NOUNS, _MODULE_TYPES,
+    target=1000,
+)
+
+_SIGNAL_BASE = [
     "substrate-X",
     "factor-alpha",
     "photon-flux",
@@ -78,6 +113,18 @@ SIGNAL_LABELS = [
     "coupling-factor-Q",
     "interface-potential",
 ]
+
+_SIGNAL_TYPES    = ["factor", "flux", "wave", "gradient", "pulse",
+                    "signal", "potential", "cascade", "field", "trigger"]
+_SIGNAL_SUFFIXES = ["alpha", "beta", "gamma", "delta", "epsilon",
+                    "A", "B", "C", "Q", "R"]
+
+# 15 curated + up to 100 combinatorial
+SIGNAL_LABELS = _make_labels(
+    _SIGNAL_BASE,
+    _SIGNAL_TYPES, _SIGNAL_SUFFIXES,
+    target=100,
+)
 
 PHENOTYPE_LABELS = [
     "expansion-rate",
