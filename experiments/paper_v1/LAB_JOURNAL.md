@@ -357,7 +357,7 @@ whether understanding the causal structure predicts scoring well.
 
 ---
 
-## §10 Final Benchmark Results (2026-03-18, updated)
+## §10 Final Benchmark Results (2026-03-18, updated 2026-03-20)
 
 Full run complete: 7 models × 4 sweeps × 20 seeds = **560/560 sessions, all N=20**.
 (5 LLMs + heuristic + random baselines.)
@@ -367,38 +367,45 @@ Fixes applied during this run:
 - Early-stop bug fixed in `lemonoids/agent.py` (gpt-5.1/gpt-4.1 exiting before submitting; now nudged to complete).
 - HTTP 500/529/503 overload retries added to `_with_retry` (opus disease seeds required up to 10 retry attempts each due to persistent API overloads on 2026-03-17/18).
 
-### Composite Score (mean ± std, N=20 all)
+**2026-03-20 update**: All accuracy values recomputed at **±0.10 threshold** (was ±0.15). LLM values recomputed from session logs; heuristic/random baselines re-run. See PR #36 (`fix/accuracy-threshold`).
+
+### Composite Score (mean ± std, N=20, threshold ±0.10)
 
 | Model | Easy (healthy) | Med (healthy) | Hard (healthy) | Med (disease) |
 |---|---|---|---|---|
-| claude-opus-4-6   | **1.000** ± 0.000 | **0.967** ± 0.068 | **0.783** ± 0.172 | **0.833** ± 0.179 |
-| claude-sonnet-4-6 | 0.983 ± 0.051 | 0.917 ± 0.101 | 0.733 ± 0.157 | 0.783 ± 0.178 |
-| gpt-5.1           | 0.942 ± 0.082 | 0.850 ± 0.142 | 0.717 ± 0.188 | 0.582 ± 0.185 |
-| gpt-4o            | 0.925 ± 0.085 | 0.783 ± 0.122 | 0.633 ± 0.159 | 0.481 ± 0.125 |
-| gpt-4.1           | 0.900 ± 0.137 | 0.767 ± 0.126 | 0.592 ± 0.232 | 0.682 ± 0.146 |
-| heuristic         | 0.775 ± 0.124 | 0.733 ± 0.100 | 0.342 ± 0.183 | 0.611 ± 0.212 |
-| random            | 0.800 ± 0.103 | 0.750 ± 0.085 | 0.483 ± 0.142 | 0.492 ± 0.142 |
+| claude-opus-4-6   | **1.000** ± 0.000 | **0.950** ± 0.078 | **0.643** ± 0.161 | **0.800** |
+| claude-sonnet-4-6 | 0.957 ± 0.090 | 0.850 ± 0.107 | 0.516 ± 0.197 | 0.775 |
+| gpt-5.1           | 0.850 ± 0.120 | 0.767 ± 0.157 | 0.608 ± 0.225 | 0.350 |
+| gpt-4o            | 0.797 ± 0.133 | 0.675 ± 0.114 | 0.452 ± 0.176 | 0.462 |
+| gpt-4.1           | 0.775 ± 0.135 | 0.717 ± 0.095 | 0.450 ± 0.242 | 0.347 |
+| heuristic         | 0.708 | 0.575 | 0.350 | 0.597 |
+| random            | 0.667 | 0.633 | 0.350 | 0.411 |
 
-### Disease Mode Breakdown (medium, N=20 all)
+Healthy composite = pred_acc. Disease composite = mean(pred_acc, diagnosis_score, rescue_fraction).
+
+### Disease Mode Breakdown (medium, N=20, threshold ±0.10)
 
 | Model | Pred acc | Diagnosis | Rescue | Composite |
 |---|---|---|---|---|
-| claude-opus-4-6   | 0.900 | **0.600** | 1.000 | **0.833** |
-| claude-sonnet-4-6 | 0.917 | 0.450 | 0.983 | 0.783 |
-| gpt-4.1           | 0.817 | 0.050 | 0.300 | 0.682 |
-| heuristic         | 0.650 | 0.350 | 0.833 | 0.611 |
-| gpt-5.1           | 0.675 | 0.050 | 0.333 | 0.582 |
-| random            | 0.692 | 0.050 | 0.733 | 0.492 |
-| gpt-4o            | 0.567 | 0.050 | 0.717 | 0.481 |
+| claude-opus-4-6   | 0.800 | **0.600** | 1.000 | **0.800** |
+| claude-sonnet-4-6 | 0.892 | 0.450 | 0.983 | 0.775 |
+| heuristic         | 0.608 | 0.350 | 0.833 | 0.597 |
+| gpt-4o            | 0.620 | 0.050 | 0.717 | 0.462 |
+| random            | 0.450 | 0.050 | 0.733 | 0.411 |
+| gpt-5.1           | 0.667 | 0.050 | 0.333 | 0.350 |
+| gpt-4.1           | 0.692 | 0.050 | 0.300 | 0.347 |
+
+Note: gpt-5.1 N=19 (seed 17 missing), gpt-4o N=18 (seeds 14,18 missing). Diagnosis/rescue values unchanged from ±0.15 run (they don't depend on prediction threshold).
 
 ### Key observations
 
-- **Easy**: near-ceiling for all LLMs (0.90–1.00); weak discriminator.
-- **Medium healthy**: clear Claude > GPT gap (0.92–0.97 vs 0.77–0.85). Random (0.750) ≈ heuristic (0.733) — heuristic adds little on medium.
-- **Hard healthy**: sharpest discrimination. Heuristic (0.342) collapses *below* random (0.483) — systematic BLOCK sweep fails on high-feedback organisms. Claude holds ~0.73–0.78; GPTs drop to 0.59–0.72.
-- **Disease diagnosis**: stark prediction/diagnosis dissociation in GPT models — gpt-5.1/gpt-4o/gpt-4.1 all score ~0.05 on diagnosis (≈ random) despite reasonable prediction accuracy. Claude opus leads (0.60), Claude sonnet second (0.45). Heuristic (0.35) beats all GPTs through exhaustive hypothesis enumeration.
-- **gpt-4.1 disease composite (0.682) > gpt-4o (0.481)**: counterintuitive given gpt-4.1 < gpt-4o on all healthy sweeps. Root cause: gpt-4.1 has 11/20 seeds with budget_used=0 — it skips experiments entirely and submits predictions directly from the organism description, scoring pred_acc=0.667–1.000. gpt-4o actually runs experiments on most seeds but its predictions are worse (avg_acc=0.567), suggesting it gets confused by perturbation results. gpt-4.1 "laziness" is accidentally rewarded by the composite formula which weights prediction accuracy heavily even when diagnosis=0. Not a sign of better reasoning — rather a failure to engage with the task.
-- **Heuristic (0.611) beats all GPTs on disease**: heuristic uses a fixed budget=21 for exhaustive hypothesis enumeration — it systematically tests blocking/locking each candidate gene and scores outcomes. This is effective abductive inference by exhaustion: 7/20 seeds get diag=1.0. GPTs almost never identify the correct malfunction (diag≈0.05 = 1/20 correct each). The heuristic's brute-force sweep is a stronger diagnosis strategy than language-based deduction for this task, suggesting GPT models are not doing genuine abductive reasoning over interventional evidence.
+- **Easy**: near-ceiling for all LLMs (0.86–1.00); weak discriminator. At ±0.10, random drops to 0.667 (was 0.800) — easy now better separates LLMs from chance.
+- **Medium healthy**: clear Claude > GPT gap (0.85–0.95 vs 0.68–0.77). Random (0.633) > heuristic (0.575) — heuristic **loses to random** on medium at ±0.10 threshold.
+- **Hard healthy**: sharpest discrimination. Both heuristic and random collapse to 0.350 — tied at chance-level. Claude holds 0.52–0.64; GPTs drop to 0.45–0.61. Claude Sonnet now has 6/20 seeds below 0.50 (catastrophic failures emerge).
+- **Threshold effect on baselines**: lowering to ±0.10 correctly demotes heuristic and random to near-chance on hard. This validates ±0.10 as the right threshold — at ±0.15 baselines looked artificially competent.
+- **Disease diagnosis**: pred/diagnosis dissociation persists. Claude opus leads (diag=0.600), heuristic beats all GPTs (diag=0.350 via exhaustive enumeration). GPT-5.1/4o/4.1 remain at diag≈0.05 (≈random).
+- **gpt-4.1 disease composite (0.347) < gpt-4o (0.462)**: at ±0.10, gpt-4.1's lazy zero-experiment seeds no longer get rewarded by inflated pred_acc — the 11/20 seeds that skipped experiments score lower. gpt-4.1 now correctly ranks below gpt-4o.
+- **Heuristic (0.597) beats all GPTs on disease**: still holds. Exhaustive enumeration for diagnosis remains a stronger strategy than GPT language-based abduction.
 
 ---
 
@@ -408,17 +415,17 @@ Computed from session logs using `analyse.py`. All N=20 per model/sweep.
 
 ### §11.1 Complexity threshold — gradual degradation, not a cliff
 
-Drop in composite score from easy → hard:
+Drop in composite score from easy → hard (recomputed at ±0.10, 2026-03-20):
 
 | Model | Easy→Hard drop | Hard std | Seeds≥0.80 | Seeds<0.50 |
 |---|---|---|---|---|
-| claude-opus-4-6   | −0.208 | 0.178 | 12/20 | 0/20 |
-| claude-sonnet-4-6 | −0.258 | 0.165 | 10/20 | 0/20 |
-| gpt-5.1           | −0.225 | 0.188 |  9/20 | 1/20 |
-| gpt-4o            | −0.267 | 0.161 |  6/20 | 2/20 |
-| gpt-4.1           | −0.308 | 0.232 |  4/20 | 3/20 |
+| claude-opus-4-6   | −0.357 | 0.161 |  3/20 | 2/20 |
+| claude-sonnet-4-6 | −0.441 | 0.197 |  2/20 | 6/20 |
+| gpt-5.1           | −0.242 | 0.225 |  5/20 | 4/20 |
+| gpt-4o            | −0.345 | 0.176 |  0/20 | 5/20 |
+| gpt-4.1           | −0.325 | 0.242 |  2/20 | 9/20 |
 
-Performance degrades gradually (no cliff), but high per-seed variance on hard suggests bimodal structure: models either solve an organism or partially fail — not graceful degradation within each seed. Claude never catastrophically fails on hard (0 seeds below 0.50); GPT-4.1 does (3/20).
+Performance degrades gradually (no cliff), but high per-seed variance on hard suggests bimodal structure. At ±0.10, the picture sharpens: Claude Opus still avoids complete collapse (only 2/20 below 0.50) while Sonnet and GPT-4.1 have significant failure rates. GPT-4o achieves 0/20 seeds ≥ 0.80 on hard — never strong, never catastrophic. GPT-4.1 is worst: 9/20 seeds below 0.50, high variance (0.242). The "Claude never catastrophically fails" finding is weakened at ±0.10 — Opus has 2 hard failures, Sonnet 6.
 
 ### §11.2 Budget usage patterns
 
@@ -521,42 +528,45 @@ Both Claude models (Opus and Sonnet) gave identical wrong diagnoses on seed 0: `
 
 ---
 
-## §12 Easy and Hard Disease Sweeps (2026-03-18)
+## §12 Easy and Hard Disease Sweeps (2026-03-18, updated 2026-03-20)
 
 C_easy_disease and C_hard_disease complete: 7 models × 20 seeds each = 280 new sessions.
 Full benchmark now **840/840 sessions** (7 models × 6 sweeps × 20 seeds).
 
-### C_easy_disease — composite score (mean ± std, N=20)
+Pred_acc values updated to ±0.10 threshold (2026-03-20). Diagnosis/rescue unchanged.
+
+### C_easy_disease — composite score (mean ± std, N=20, threshold ±0.10)
 
 | Model | Pred acc | Diagnosis | Rescue | Composite |
 |---|---|---|---|---|
-| claude-opus-4-6   | 0.983 | **0.850** | 1.000 | **0.944** ± 0.129 |
-| claude-sonnet-4-6 | 0.967 | 0.500 | 1.000 | 0.822 ± 0.173 |
-| gpt-4o            | 0.833 | 0.125 | 0.717 | 0.558 ± 0.125 |
-| heuristic         | 0.725 | 0.100 | 0.767 | 0.531 ± 0.134 |
-| gpt-4.1           | 0.850 | 0.100 | 0.517 | 0.489 ± 0.220 |
-| random            | 0.642 | 0.000 | 0.783 | 0.475 ± 0.103 |
-| gpt-5.1           | 0.858 | 0.100 | 0.100 | 0.353 ± 0.188 |
+| claude-opus-4-6   | 0.925 | **0.850** | 1.000 | **0.925** |
+| claude-sonnet-4-6 | 0.883 | 0.500 | 1.000 | 0.794 |
+| gpt-4o            | 0.742 | 0.125 | 0.717 | 0.528 |
+| heuristic         | 0.675 | 0.100 | 0.767 | 0.514 |
+| gpt-4.1           | 0.750 | 0.100 | 0.517 | 0.456 |
+| random            | 0.583 | 0.000 | 0.783 | 0.455 |
+| gpt-5.1           | 0.750 | 0.100 | 0.100 | 0.317 |
 
-### C_hard_disease — composite score (mean ± std, N=20)
+### C_hard_disease — composite score (mean ± std, N=20, threshold ±0.10)
 
 | Model | Pred acc | Diagnosis | Rescue | Composite |
 |---|---|---|---|---|
-| claude-opus-4-6   | 0.825 | **0.400** | 0.917 | **0.714** ± 0.198 |
-| claude-sonnet-4-6 | 0.750 | 0.350 | 0.850 | 0.650 ± 0.241 |
-| gpt-4.1           | 0.683 | 0.200 | 0.483 | 0.456 ± 0.241 |
-| gpt-4o            | 0.542 | 0.100 | 0.650 | 0.431 ± 0.111 |
-| heuristic         | 0.525 | 0.300 | 0.600 | 0.475 ± 0.242 |
-| random            | 0.425 | 0.025 | 0.600 | 0.350 ± 0.142 |
-| gpt-5.1           | 0.575 | 0.000 | 0.000 | 0.192 ± 0.084 |
+| claude-opus-4-6   | 0.583 | **0.400** | 0.917 | **0.633** |
+| claude-sonnet-4-6 | 0.642 | 0.350 | 0.850 | 0.614 |
+| heuristic         | 0.450 | 0.300 | 0.600 | 0.450 |
+| gpt-4.1           | 0.542 | 0.200 | 0.483 | 0.408 |
+| gpt-4o            | 0.392 | 0.100 | 0.650 | 0.381 |
+| random            | 0.267 | 0.025 | 0.600 | 0.297 |
+| gpt-5.1           | 0.450 | 0.000 | 0.000 | 0.150 |
 
 ### Key observations
 
-- **Diagnosis scales with difficulty**: Claude Opus diagnosis drops 0.850 → 0.600 → 0.400 (easy → medium → hard). This is the cleanest signal of genuine reasoning difficulty scaling across the disease sweeps.
-- **Claude rescue stays high on easy/medium, drops on hard**: Opus rescue = 1.000 / 1.000 / 0.917. Sonnet = 1.000 / 0.983 / 0.850. Hard organisms are harder to rescue even with correct diagnosis, likely due to high feedback making single-intervention rescue less effective.
-- **gpt-5.1 hard disease collapses**: 0.192 composite, diag=0.000, rescue=0.000. Complete failure — context exhaustion plus no abductive ability. The easy/medium GPT disease failures are partially rescued by reasonable prediction accuracy; hard organisms remove that crutch too (pred_acc drops to 0.575).
-- **Heuristic holds up on hard disease**: 0.475 composite, diag=0.300, rescue=0.600. Better than most GPTs. Exhaustive enumeration remains effective even on hard organisms for diagnosis.
-- **Random rescue stays non-zero on easy/hard**: rescue=0.783 (easy), 0.600 (hard). Some phenotypes are relatively easy to rescue by chance (baseline=0.5 everywhere), so random rescue interventions can accidentally stabilise aberrant phenotypes. This confirms rescue fraction alone is a weak metric — diagnosis score is the discriminating signal.
+- **Diagnosis scales with difficulty**: Claude Opus diagnosis drops 0.850 → 0.600 → 0.400 (easy → medium → hard). Cleanest signal of genuine reasoning difficulty scaling.
+- **Claude rescue stays high on easy/medium, drops on hard**: Opus rescue = 1.000 / 1.000 / 0.917. Sonnet = 1.000 / 0.983 / 0.850.
+- **gpt-5.1 hard disease collapses**: 0.150 composite, diag=0.000, rescue=0.000. At ±0.10, pred_acc=0.450 confirms near-chance prediction on hard disease.
+- **Heuristic (0.450) beats random (0.297) and gpt-5.1 (0.150) on hard disease**: exhaustive enumeration for diagnosis (0.300) drives this — GPTs can't diagnose at all. Random pred_acc collapses to 0.267 on hard disease, fully exposing it as chance performance.
+- **gpt-5.1 easy disease lower than gpt-4o**: at ±0.10, gpt-5.1's easy disease pred_acc (0.750) ≈ gpt-4.1 (0.750) ≈ gpt-4o (0.742), but gpt-5.1's rescue=0.100 collapses its composite to 0.317 — worst on easy disease.
+- **Composite ranking changes at ±0.10**: hard disease ranking is now Opus > Sonnet > Heuristic > GPT-4.1 > GPT-4o > Random > GPT-5.1. The heuristic now cleanly outranks all GPTs on hard disease (was borderline at ±0.15).
 
 ---
 
@@ -574,6 +584,51 @@ Full benchmark now **840/840 sessions** (7 models × 6 sweeps × 20 seeds).
 - ~~**Causal hypothesis quality**~~ — **DONE** (2026-03-18, §11.6–7): Claude sharp and evidence-backed; GPT-5.1 verbose-but-wrong; GPT-4o/4.1 short or lazy. Seed 0 case study reveals rescue ≠ root-cause diagnosis.
 - ~~**Signal malfunction diagnosis**~~ — **DONE** (2026-03-18): **no model ever correctly diagnosed a signal malfunction.** Only 2/20 seeds have signal malfunctions (seeds 0, 1: thermal-pulse PERSIST and coupling-factor-Q PERSIST). Claude both times proposed a compensating gene target (G013/G007 LOCK_LO/HI — valid rescue, wrong cause). GPT-4o was the only model to even attempt a signal name (wrong signal). GPT-5.1/4.1 submitted nothing. Systematic **gene attribution bias** — models always frame malfunctions as gene-level even when the true cause is an external signal. Publishable finding: current LLMs do not reason about signal-level causes of phenotypic abnormality.
 - ~~**Easy/hard disease sweeps**~~ — **DONE** (2026-03-18, §12): 280 new sessions, 840/840 total. See §12 for full results.
+- ~~**Recompute at ±0.10 threshold**~~ — **DONE** (2026-03-20, §10, §11.1, §12): all benchmark tables updated. PR #36 (`fix/accuracy-threshold`) pending merge.
 - **Dataset statistics table**: n_genes, n_phenotypes, n_prediction_tasks, n_diagnosis_alternatives per tier — compute from generation for paper §2.4.
 - **Part 2 timing**: run 2a scaling sweep after Part 1 draft results are stable.
+- ~~**Run N=640/1280 scaling sweep**~~ — **DONE** (2026-03-20, §13): completed. Sonnet scales to 1.000 at both. Opus fails at N=640 (4/5 seeds) and N=1280 (5/5 seeds) — new max_tokens stall bug (see §13).
+- ~~**⚠️ Scaling threshold inconsistency**~~ — **RESOLVED** (2026-03-20): Sonnet N=20–160 recomputed from session logs; heuristic/random re-run deterministically. §13 table now consistent at ±0.10.
+- **⚠️ Opus large-N stall (2026-03-20)**: At N=640/1280, Opus generates >16384 tokens of planning text before issuing any tool call → stop_reason=max_tokens with no tool_use blocks → budget_used=0, acc=None. Different from the PR #35 bug (which was max_tokens *during* tool call emission). Fix needed: detect stall + inject nudge, or raise max_tokens further, or instruct Opus to act immediately.
 - **⚠️ Simulation noise at large N (2026-03-20)**: At N≥80 (possibly all N), `simulate_sigmoid` never converges within 500 steps (`max_steps_reached` on every experiment). Because the simulation adds Gaussian noise on every step and uses the *shared session RNG*, the same intervention gives slightly different phenotype values depending on how many prior experiments have been run in the session. This makes large-N experiment results non-deterministic (path-dependent through the session). Fix idea: derive a fresh per-experiment RNG from `[session_seed, experiment_index]` so each call is deterministic regardless of order. Outstanding questions: (1) how much does this shift prediction accuracy vs. ground truth at large N? (2) does the noise inflate or deflate scores? (3) is it large enough to matter at N=320 given that phenotype readouts are aggregates of many genes? Defer to Part 2 analysis — flagged for investigation before publishing scaling results.
+
+---
+
+## §13 Scaling Study — N=320/640/1280 (2026-03-20)
+
+N=320/640/1280 runs complete for claude-sonnet-4-6, claude-opus-4-6, heuristic, random.
+N=5 seeds each. Note: N=20–160 were run earlier (Sonnet+baselines only, N=10 seeds each).
+
+All values recomputed at ±0.10. N=20–160 Sonnet recomputed from session logs (2026-03-20); heuristic/random re-run deterministically. N=320–1280 from direct run on `fix/accuracy-threshold` branch.
+
+### Composite score by N (mean ± std, all at threshold ±0.10)
+
+| N | Opus | Sonnet | Heuristic | Random |
+|---|---|---|---|---|
+| 20   | n/a | 0.867 ± 0.067 (n=10) | 0.500 ± 0.183 (n=10) | 0.617 ± 0.107 (n=10) |
+| 40   | n/a | 0.817 ± 0.157 (n=10) | 0.483 ± 0.117 (n=10) | 0.633 ± 0.067 (n=10) |
+| 80   | n/a | 0.850 ± 0.157 (n=10) | 0.500 ± 0.149 (n=10) | 0.617 ± 0.076 (n=10) |
+| 160  | n/a | 0.817 ± 0.217 (n=10) | 0.617 ± 0.107 (n=10) | 0.633 ± 0.100 (n=10) |
+| 320  | **0.967** ± 0.067 (n=5) | 0.900 ± 0.200 (n=5) | 0.667 ± 0.000 (n=5) | 0.733 ± 0.082 (n=5) |
+| 640  | **1.000** ± 0.000 (n=1!) | **1.000** ± 0.000 (n=5) | 0.733 ± 0.082 (n=5) | 0.733 ± 0.133 (n=5) |
+| 1280 | n/a (0/5) | **0.967** ± 0.067 (n=5) | 0.667 ± 0.000 (n=5) | 0.800 ± 0.067 (n=5) |
+
+Note: Opus N=640 n=1 (4/5 seeds stall); treat as unreliable.
+
+### Key findings
+
+- **Sonnet scales with no degradation**: 0.82–1.00 across N=20–1280. Clear gap above baselines at every scale.
+- **Baselines near-chance at ±0.10**: heuristic 0.48–0.67, random 0.62–0.80. At small N (20–80), heuristic falls to 0.483–0.500 — the additive model breaks on nonlinear dynamics. Random is actually *above* heuristic at all sizes (0.617–0.733 vs 0.483–0.667). The heuristic's additive prediction strategy is ineffective — it only looks useful in healthy benchmarks at ±0.15 where the window is generous enough to cover its errors.
+- **Opus N=640: partial failure (4/5 seeds stall)**. Seed 4 scored 1.000. Seeds 0–3: budget_used=0. Opus over-generates planning text before first tool call at 640 genes.
+- **Opus N=1280: complete failure (0/5 seeds)**. Same stall, consistently.
+- **No scaling story for Opus** until the large-N stall is fixed.
+
+### Opus stall root cause analysis
+
+Turn-by-turn trace for failed seeds: turn 1 = `get_organism_info()` ✓ (completes fine). Turn 2 = Opus receives response with 640 gene names, attempts to plan by naming all genes it intends to test → generates >16384 tokens of reasoning text → stop_reason=max_tokens with zero tool_use blocks. Loop adds truncated turn to context, retries. Subsequent turns same or worse (context now longer). Max turns exhausted, no experiments run.
+
+**Fix options (ranked by invasiveness)**:
+1. *System prompt addition*: "Do not enumerate genes in your planning text. Issue tool calls immediately."
+2. *Stall detection*: if stop_reason=max_tokens AND no tool_use in response → inject user message "Please call a tool immediately without lengthy preamble."
+3. *Reduce max_tokens*: paradoxically, a shorter max_tokens budget might force Opus to act sooner.
+4. *Chunk the organism info*: paginate gene list so Opus doesn't see all 640 at once.
