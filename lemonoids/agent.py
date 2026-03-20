@@ -667,7 +667,7 @@ def _run_agent_anthropic(
         response = _with_retry(
             client.messages.create, _anthropic_retryable,
             model=model,
-            max_tokens=4096,
+            max_tokens=16384,
             system=system_prompt,
             tools=active_tools,
             messages=messages,
@@ -685,7 +685,9 @@ def _run_agent_anthropic(
                 print("[agent] Agent finished naturally.")
             break
 
-        if response.stop_reason != "tool_use":
+        # max_tokens: response was truncated mid-generation.  Process any tool
+        # calls that were already emitted in the partial response and continue.
+        if response.stop_reason not in ("tool_use", "max_tokens"):
             if verbose:
                 print(f"[agent] Unexpected stop_reason: {response.stop_reason}. Stopping.")
             break
@@ -746,7 +748,7 @@ def _run_agent_anthropic(
                 response = _with_retry(
                     client.messages.create, _anthropic_retryable,
                     model=model,
-                    max_tokens=4096,
+                    max_tokens=16384,
                     system=system_prompt,
                     tools=active_tools,
                     messages=messages,
