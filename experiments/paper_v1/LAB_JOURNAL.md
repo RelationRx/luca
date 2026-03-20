@@ -588,7 +588,7 @@ Pred_acc values updated to ±0.10 threshold (2026-03-20). Diagnosis/rescue uncha
 - **Dataset statistics table**: n_genes, n_phenotypes, n_prediction_tasks, n_diagnosis_alternatives per tier — compute from generation for paper §2.4.
 - **Part 2 timing**: run 2a scaling sweep after Part 1 draft results are stable.
 - ~~**Run N=640/1280 scaling sweep**~~ — **DONE** (2026-03-20, §13): completed. Sonnet scales to 1.000 at both. Opus fails at N=640 (4/5 seeds) and N=1280 (5/5 seeds) — new max_tokens stall bug (see §13).
-- **⚠️ Scaling threshold inconsistency**: N=20–160 results computed at ±0.15 (old threshold); N=320–1280 at ±0.10 (new). Need to re-run N=20–160 at ±0.10 for consistent scaling table before publishing.
+- ~~**⚠️ Scaling threshold inconsistency**~~ — **RESOLVED** (2026-03-20): Sonnet N=20–160 recomputed from session logs; heuristic/random re-run deterministically. §13 table now consistent at ±0.10.
 - **⚠️ Opus large-N stall (2026-03-20)**: At N=640/1280, Opus generates >16384 tokens of planning text before issuing any tool call → stop_reason=max_tokens with no tool_use blocks → budget_used=0, acc=None. Different from the PR #35 bug (which was max_tokens *during* tool call emission). Fix needed: detect stall + inject nudge, or raise max_tokens further, or instruct Opus to act immediately.
 - **⚠️ Simulation noise at large N (2026-03-20)**: At N≥80 (possibly all N), `simulate_sigmoid` never converges within 500 steps (`max_steps_reached` on every experiment). Because the simulation adds Gaussian noise on every step and uses the *shared session RNG*, the same intervention gives slightly different phenotype values depending on how many prior experiments have been run in the session. This makes large-N experiment results non-deterministic (path-dependent through the session). Fix idea: derive a fresh per-experiment RNG from `[session_seed, experiment_index]` so each call is deterministic regardless of order. Outstanding questions: (1) how much does this shift prediction accuracy vs. ground truth at large N? (2) does the noise inflate or deflate scores? (3) is it large enough to matter at N=320 given that phenotype readouts are aggregates of many genes? Defer to Part 2 analysis — flagged for investigation before publishing scaling results.
 
@@ -599,27 +599,28 @@ Pred_acc values updated to ±0.10 threshold (2026-03-20). Diagnosis/rescue uncha
 N=320/640/1280 runs complete for claude-sonnet-4-6, claude-opus-4-6, heuristic, random.
 N=5 seeds each. Note: N=20–160 were run earlier (Sonnet+baselines only, N=10 seeds each).
 
-**⚠️ Threshold warning**: N=20–160 stored at ±0.15; N=320–1280 stored at ±0.10. Tables below are mixed-threshold and cannot be directly compared until N=20–160 are re-run.
+All values recomputed at ±0.10. N=20–160 Sonnet recomputed from session logs (2026-03-20); heuristic/random re-run deterministically. N=320–1280 from direct run on `fix/accuracy-threshold` branch.
 
-### Composite score by N (mean ± std)
+### Composite score by N (mean ± std, all at threshold ±0.10)
 
-| N | Opus | Sonnet | Heuristic | Random | Threshold |
-|---|---|---|---|---|---|
-| 20  | n/a     | 0.933 ± 0.082 (n=10) | 0.633 ± 0.194 | 0.717 ± 0.076 | ±0.15 |
-| 40  | n/a     | 0.950 ± 0.107 (n=10) | 0.717 ± 0.107 | 0.733 ± 0.111 | ±0.15 |
-| 80  | n/a     | 0.900 ± 0.133 (n=10) | 0.650 ± 0.050 | 0.717 ± 0.130 | ±0.15 |
-| 160 | n/a     | 0.917 ± 0.134 (n=10) | 0.750 ± 0.134 | 0.717 ± 0.076 | ±0.15 |
-| 320 | **1.000** ± 0.000 (n=5) | 0.967 ± 0.067 (n=5) | 0.667 ± 0.000 | 0.733 ± 0.082 | ±0.10 |
-| 640 | **1.000** ± 0.000 (n=1!) | **1.000** ± 0.000 (n=5) | 0.733 ± 0.082 | 0.733 ± 0.133 | ±0.10 |
-| 1280 | n/a (0/5) | **1.000** ± 0.000 (n=5) | 0.667 ± 0.000 | 0.800 ± 0.067 | ±0.10 |
+| N | Opus | Sonnet | Heuristic | Random |
+|---|---|---|---|---|
+| 20   | n/a | 0.867 ± 0.067 (n=10) | 0.500 ± 0.183 (n=10) | 0.617 ± 0.107 (n=10) |
+| 40   | n/a | 0.817 ± 0.157 (n=10) | 0.483 ± 0.117 (n=10) | 0.633 ± 0.067 (n=10) |
+| 80   | n/a | 0.850 ± 0.157 (n=10) | 0.500 ± 0.149 (n=10) | 0.617 ± 0.076 (n=10) |
+| 160  | n/a | 0.817 ± 0.217 (n=10) | 0.617 ± 0.107 (n=10) | 0.633 ± 0.100 (n=10) |
+| 320  | **0.967** ± 0.067 (n=5) | 0.900 ± 0.200 (n=5) | 0.667 ± 0.000 (n=5) | 0.733 ± 0.082 (n=5) |
+| 640  | **1.000** ± 0.000 (n=1!) | **1.000** ± 0.000 (n=5) | 0.733 ± 0.082 (n=5) | 0.733 ± 0.133 (n=5) |
+| 1280 | n/a (0/5) | **0.967** ± 0.067 (n=5) | 0.667 ± 0.000 (n=5) | 0.800 ± 0.067 (n=5) |
+
+Note: Opus N=640 n=1 (4/5 seeds stall); treat as unreliable.
 
 ### Key findings
 
-- **Sonnet scales perfectly**: 0.90–1.00 across all N (20–1280) with no degradation. Budget fraction drops at large N (uses only 13% at N=1280) — it needs fewer experiments relative to budget as organism complexity grows, but doesn't seem confused by the scale.
-- **Opus N=640: partial failure (4/5 seeds stall)**. Seed 4 alone scored 1.000 with 94% budget used. Seeds 0–3: budget_used=0, acc=None. Pattern: Opus generates >16384 tokens of planning text on turn 2 before issuing any tool call. The PR #35 fix (process tool calls even on max_tokens stop) doesn't help when no tool calls are emitted. Root cause: at 640 genes, Opus tries to enumerate/plan all genes in text before acting.
-- **Opus N=1280: complete failure (0/5 seeds)**. All seeds: budget_used=0, acc=None. Same stall pattern as N=640 but consistently.
-- **Heuristic flat 0.667–0.733 across all N**: accuracy is limited by prediction task difficulty (6 phenotypes, 2 to predict). At large N, the additive model assumption fails more severely for complex networks, but the random GT distribution keeps scores non-trivially above chance.
-- **Random 0.717–0.800 at large N**: slightly above heuristic at N=1280 (0.800 vs 0.667), likely due to simulation noise inflating GT variance toward 0.5 (making random predictions more "lucky"). Consistent with the simulation noise warning above.
+- **Sonnet scales with no degradation**: 0.82–1.00 across N=20–1280. Clear gap above baselines at every scale.
+- **Baselines near-chance at ±0.10**: heuristic 0.48–0.67, random 0.62–0.80. At small N (20–80), heuristic falls to 0.483–0.500 — the additive model breaks on nonlinear dynamics. Random is actually *above* heuristic at all sizes (0.617–0.733 vs 0.483–0.667). The heuristic's additive prediction strategy is ineffective — it only looks useful in healthy benchmarks at ±0.15 where the window is generous enough to cover its errors.
+- **Opus N=640: partial failure (4/5 seeds stall)**. Seed 4 scored 1.000. Seeds 0–3: budget_used=0. Opus over-generates planning text before first tool call at 640 genes.
+- **Opus N=1280: complete failure (0/5 seeds)**. Same stall, consistently.
 - **No scaling story for Opus** until the large-N stall is fixed.
 
 ### Opus stall root cause analysis
