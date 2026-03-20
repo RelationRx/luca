@@ -42,7 +42,7 @@ class PredictionResult:
     task_id: str
     prediction: dict[str, float]
     mse: float
-    accuracy: float   # fraction of phenotypes within threshold 0.15
+    accuracy: float   # fraction of phenotypes within threshold 0.10
 
 
 
@@ -357,7 +357,7 @@ class ExperimentSession:
 
         mse_sum = 0.0
         correct = 0
-        threshold = 0.15
+        threshold = 0.10
         details: dict[str, dict] = {}
         for label in phenotype_labels:
             gt_val = gt[label]
