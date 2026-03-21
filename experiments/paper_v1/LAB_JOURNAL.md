@@ -632,3 +632,29 @@ Turn-by-turn trace for failed seeds: turn 1 = `get_organism_info()` ✓ (complet
 2. *Stall detection*: if stop_reason=max_tokens AND no tool_use in response → inject user message "Please call a tool immediately without lengthy preamble."
 3. *Reduce max_tokens*: paradoxically, a shorter max_tokens budget might force Opus to act sooner.
 4. *Chunk the organism info*: paginate gene list so Opus doesn't see all 640 at once.
+
+---
+
+## §14 Prediction Accuracy Threshold Rationale (2026-03-21)
+
+**Threshold**: ±0.10 (fraction of phenotypes within 0.10 of ground truth).
+
+**Why ±0.10 and not tighter or looser:**
+
+The threshold was set empirically by checking that baselines behave correctly:
+- At **±0.15**: heuristic and random looked artificially competent on hard organisms (both ~0.55), making it hard to claim the benchmark requires genuine reasoning.
+- At **±0.10**: both baselines collapse to ~0.350 on hard — indistinguishable from chance. This validates the threshold as discriminating.
+
+**Relation to simulation noise:**
+
+Phenotype values are in [0,1]. Noise σ per difficulty tier: easy=0.005, medium=0.01, hard=0.03. At ±0.10:
+- Easy/medium: threshold is 10–20× the noise floor — tight but fair.
+- Hard: threshold is ~3× noise floor (σ=0.03) — still meaningful but not sub-noise.
+
+**Why not ±0.05 or ±0.01:**
+- ±0.05 is ~1.7× noise floor on hard — likely too tight; would penalise correct reasoning due to simulation stochasticity.
+- ±0.01 would be sub-noise on hard (σ=0.03) — asking for sub-noise precision, which is not meaningful.
+
+**Open question (logged in IDEAS.md):** threshold sensitivity analysis — does the Claude > GPT gap hold at ±0.08 or ±0.07? Computable post-hoc from logs (per-phenotype ground_truth/prediction stored after PR #39).
+
+**Decision**: keep ±0.10 for all future runs.
