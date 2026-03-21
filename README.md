@@ -116,6 +116,32 @@ python evaluate.py --model claude-opus-4-6 --tasks diagnose rescue --disease  # 
 | `--seeds` | — | Override seeds: integers or range, e.g. `0 1 2` or `0:10` |
 | `--out DIR` | `results/` | Output directory for JSONL results and logs |
 
+### Bring Your Own Agent
+
+Benchmark any custom agent — rule-based, open-source LLM, or custom framework — using the `--agent` flag:
+
+```bash
+python evaluate.py --agent my_agent.py:run --n 5
+python evaluate.py --agent my_agent.py:run --disease --difficulty hard
+python evaluate.py --agent my_agent.py:run --agent-name llama-3.3-70b --n 20
+```
+
+Your agent is a Python function that receives an `ExperimentSession` and interacts with it directly:
+
+```python
+# my_agent.py
+def run(session) -> None:
+    info = session.get_info()
+    # run experiments, submit predictions, optionally diagnose and rescue
+    while True:
+        task = session.get_next_prediction_task()
+        if task.get("done"):
+            break
+        session.submit_prediction(task["task_id"], {"phenotype-X": 0.5})
+```
+
+See **[docs/custom_agents.md](docs/custom_agents.md)** for the full interface, disease mode, and a worked example.
+
 ---
 
 ## 🔍 Inspector CLI
@@ -194,7 +220,7 @@ requirements.txt
 
 ## 📖 API Reference
 
-Full API documentation — `generate_organism()`, `generate_disease_organism()`, `ExperimentSession`, `run_agent()`, diagnostic reports, `generate_dataset()` — is in **[docs/api.md](docs/api.md)**.
+Full API documentation — `generate_organism()`, `generate_disease_organism()`, `ExperimentSession`, `run_agent()`, diagnostic reports, `generate_dataset()` — is in **[docs/api.md](docs/api.md)**. For custom agents and open-source model integration, see **[docs/custom_agents.md](docs/custom_agents.md)**.
 
 ---
 

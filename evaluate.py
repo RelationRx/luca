@@ -24,6 +24,10 @@ Usage:
 
     # Quick test
     python evaluate.py --model claude-opus-4-6 --n 5
+
+    # Bring your own agent (see docs/custom_agents.md)
+    python evaluate.py --agent my_agent.py:run --n 5
+    python evaluate.py --agent my_agent.py:run --disease --difficulty hard
 """
 from __future__ import annotations
 
@@ -162,6 +166,32 @@ def run_heuristic(session, active_tasks: frozenset[str] | None = None) -> dict[s
 
 
 # ---------------------------------------------------------------------------
+# Custom agent loader
+# ---------------------------------------------------------------------------
+
+
+def _load_agent_fn(spec: str):
+    """Load a custom agent callable from 'path/to/file.py:function_name'.
+
+    The function must have signature: (session: ExperimentSession) -> None
+    See docs/custom_agents.md for the full interface contract.
+    """
+    import importlib.util
+    if ":" not in spec:
+        raise ValueError(f"--agent must be 'file.py:function_name', got: {spec!r}")
+    path_str, func_name = spec.rsplit(":", 1)
+    path = Path(path_str).resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"Agent file not found: {path}")
+    module_spec = importlib.util.spec_from_file_location("_custom_agent", path)
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    if not hasattr(module, func_name):
+        raise AttributeError(f"Function {func_name!r} not found in {path}")
+    return getattr(module, func_name)
+
+
+# ---------------------------------------------------------------------------
 # Seed parsing
 # ---------------------------------------------------------------------------
 
@@ -188,12 +218,10 @@ def parse_seeds(seeds_args: list[str] | None, n: int) -> list[int]:
 def _write_baseline_log(log_path: str, model_name: str, seed: int, summary: dict) -> None:
     """Write a minimal JSON log for heuristic/random baselines, matching the
     structure written by run_agent() so all models have the same log format."""
-    import os
     os.makedirs(os.path.dirname(os.path.abspath(log_path)), exist_ok=True)
     log = {"metadata": {"model": model_name, "seed": seed, "max_turns": "n/a"}, "summary": summary}
     with open(log_path, "w") as f:
-        import json as _json
-        _json.dump(log, f, indent=2)
+        json.dump(log, f, indent=2)
 
 
 # ---------------------------------------------------------------------------
@@ -212,6 +240,7 @@ def evaluate_model(
     max_tokens_per_turn: int | None = None,
     n_genes: int = 20,
     max_turns: int = 50,
+    agent_fn=None,
 ) -> list[dict[str, Any]]:
     """Run one model across all seeds. Returns list of per-organism records."""
     if active_tasks is None:
@@ -239,6 +268,10 @@ def evaluate_model(
                 _write_baseline_log(log_path, model_name, seed, summary)
             elif model_name == "heuristic":
                 summary = run_heuristic(session, active_tasks=active_tasks)
+                _write_baseline_log(log_path, model_name, seed, summary)
+            elif agent_fn is not None:
+                agent_fn(session)
+                summary = session.get_summary()
                 _write_baseline_log(log_path, model_name, seed, summary)
             else:
                 summary = run_agent(
@@ -417,6 +450,18 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--agent", metavar="FILE:FUNC",
+        help=(
+            "Custom agent: Python file and function name, e.g. my_agent.py:run. "
+            "Function signature: (session: ExperimentSession) -> None. "
+            "See docs/custom_agents.md for the full interface."
+        ),
+    )
+    parser.add_argument(
+        "--agent-name", metavar="NAME",
+        help="Display name for the custom agent in results (default: function name).",
+    )
+    parser.add_argument(
         "--verbose", action="store_true",
         help="Print per-turn agent output",
     )
@@ -432,8 +477,15 @@ def main() -> None:
     if args.heuristic:
         models.append("heuristic")
 
+    agent_fn = None
+    agent_model_name = None
+    if args.agent:
+        agent_fn = _load_agent_fn(args.agent)
+        agent_model_name = args.agent_name or args.agent.rsplit(":", 1)[1]
+        models.append(agent_model_name)
+
     if not models:
-        parser.error("Specify at least one --model or use --heuristic / --random")
+        parser.error("Specify at least one --model, --heuristic, --random, or --agent")
 
     task_set = set(args.tasks)
     if "all" in task_set:
@@ -465,7 +517,8 @@ def main() -> None:
             print(f"\n[heuristic]  (systematic baseline: BLOCK each gene once, predict additively — no LLM)")
         else:
             print(f"\n[{model_name}]")
-        records = evaluate_model(model_name, seeds, args.disease, args.difficulty, results_dir, args.verbose, active_tasks)
+        fn = agent_fn if (agent_model_name and model_name == agent_model_name) else None
+        records = evaluate_model(model_name, seeds, args.disease, args.difficulty, results_dir, args.verbose, active_tasks, agent_fn=fn)
         all_records.extend(records)
         print_summary(model_name, records, args.disease)
 
