@@ -198,6 +198,12 @@ Models systematically frame malfunctions as gene-level even when the true cause 
 
 ---
 
+## Notes
+
+**On the diagnosis/rescue dissociation:** Diagnosis and rescue are correlated but not tightly. Rescue scores are consistently higher than diagnosis scores because the two tasks have different difficulty structures. Rescue is a *search* problem — find any intervention that restores aberrant phenotypes to healthy range. Partial credit is available (fraction of phenotypes restored), and many interventions have a stabilising effect even without identifying the true cause: in a densely connected network, blocking any hub gene near the malfunction often partially corrects downstream phenotypes. Claude models also re-test genes adaptively after observing aberrant phenotypes, which is effective even without a correct causal model. Diagnosis, by contrast, is an *identification* problem — commit to a specific gene (or signal) and a specific malfunction type (LOCK_HI / LOCK_LO / PERSIST). No partial credit for guessing the gene but not the type. This is a much harder abductive inference task, and the signal malfunction finding (§8) makes it harder still: all models systematically misattribute signal malfunctions to genes, because the perturbation signature is observationally indistinguishable.
+
+---
+
 ## Open questions for Part 1
 
 - **Dataset statistics**: exact n_genes, n_phenotypes, n_prediction_tasks, n_diagnosis_alternatives distributions per tier — needed for paper §2.4. Compute from generation code.
