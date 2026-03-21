@@ -622,6 +622,7 @@ def _run_agent_anthropic(
     disease_mode: bool | None = None,
     log_path: str | None = None,
     active_tasks: frozenset[str] | None = None,
+    max_tokens_per_turn: int | None = None,
 ) -> dict[str, Any]:
     """
     Run an Anthropic Claude model on a Lemonoids ExperimentSession.
@@ -641,6 +642,7 @@ def _run_agent_anthropic(
         active_tasks = frozenset({"predict", "diagnose", "rescue"})
 
     active_tools = _active_tool_list(disease_mode, active_tasks)
+    system_prompt = _build_system_prompt(disease_mode, active_tasks)
 
     # ── Log initialisation ────────────────────────────────────────────────
 
@@ -1172,7 +1174,7 @@ def run_agent(
         Session summary dict from ExperimentSession.get_summary().
     """
     if any(model.startswith(p) for p in _ANTHROPIC_PREFIXES):
-        return _run_agent_anthropic(session, model, max_turns, verbose, disease_mode, log_path, active_tasks)
+        return _run_agent_anthropic(session, model, max_turns, verbose, disease_mode, log_path, active_tasks, max_tokens_per_turn)
     if any(model.startswith(p) for p in _OPENAI_PREFIXES):
         return _run_agent_openai(session, model, max_turns, verbose, disease_mode, log_path, active_tasks, max_tokens_per_turn)
     raise ValueError(
