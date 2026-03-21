@@ -243,8 +243,9 @@ This is not a prompt artefact. The system prompt and `submit_malfunction_hypothe
 | | Easy | Medium | Hard |
 |---|---|---|---|
 | Total genes | 20 | 20 | 20 |
-| Observable genes | 20 | 20 | 15 |
-| Latent genes | 0 | 0 | 5 |
+| Latent genes (hidden from agent) | 0 | 0 | 5 |
+| Agent-targetable genes | 20 | 20 | 15 |
+| Phenotype-contributing genes | 16 | 12 | 10 |
 | Signals | 3 | 3 | 3 |
 | Phenotypes | 3 | 3 | 3 |
 | Prediction tasks | 2 | 2 | 2 |
