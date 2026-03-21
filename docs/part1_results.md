@@ -20,8 +20,10 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 | C_easy_disease | easy | disease |
 | C_hard_disease | hard | disease |
 
+**Task**: Each session presents a freshly generated organism the agent has never seen. The agent runs perturbation experiments (BLOCK / BOOST / DAMPEN individual genes) under a fixed budget to characterise the network, then must answer 2 held-out prediction tasks — *"what would the phenotype values be if gene X is blocked and gene Y is boosted simultaneously?"* — for gene combinations it could not directly observe. In disease mode, the agent must additionally identify the malfunctioning gene and malfunction type (diagnosis) and test an intervention that restores phenotypes to healthy range (rescue).
+
 **Scoring**:
-- Prediction accuracy: fraction of phenotypes within **±0.10** of ground truth
+- Prediction accuracy: fraction of phenotypes within **±0.10** of ground truth value across the 2 held-out tasks
 - Healthy composite = prediction accuracy
 - Disease composite = mean(prediction accuracy, diagnosis score, rescue fraction)
 - Diagnosis: 1.0 exact match (gene + malfunction type), 0.5 correct gene wrong type, 0.0 wrong gene
