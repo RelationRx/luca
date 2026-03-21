@@ -253,6 +253,8 @@ This is not a prompt artefact. The system prompt and `submit_malfunction_hypothe
 
 `n_diagnosis_alternatives` = number of alternative malfunction targets that produce an observationally equivalent phenotype shift, making unambiguous diagnosis harder. Hard organisms have substantially more ambiguous disease states due to dense feedback and latent genes.
 
+`n_diagnosis_alternatives` scales sharply with difficulty — easy is nearly unambiguous (mean 0.05), hard has up to 4 alternative explanations per seed. This directly explains the diagnosis score drop from easy to hard, and is structurally separate from prediction difficulty. The 3 medium seeds with n_alternatives=2 include the 2 signal malfunction seeds (seeds 0 and 1) — signal malfunctions are observationally equivalent to LOCK_HI on a downstream gene, as discussed in §8.
+
 - **Easy organism additive tasks**: 3/20 easy seeds are solvable by additive prediction (by design — near-linear dynamics). Worth reporting in paper as a known property, not a flaw.
 
 - **Heuristic diagnosis re-framing**: the original claim (heuristic beats all GPTs on diagnosis) is no longer supported — heuristic scores 0.100 on medium disease, below gpt-5.1 (0.200) and gpt-4.1 (0.167). The updated finding is more interesting: exhaustive enumeration is *insufficient* for diagnosis when signal malfunctions introduce ambiguity (heuristic can't distinguish PERSIST from LOCK_HI on a downstream gene). GPT-5.1 and gpt-4.1 score higher possibly by reasoning about malfunction type from the phenotype pattern rather than just localising the gene. Worth a focused paragraph in the paper.
