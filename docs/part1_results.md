@@ -168,13 +168,13 @@ Pearson r(network_F1, prediction_accuracy) by model:
 
 | Model | Medium r | Hard r | Medium net-F1 | Hard net-F1 |
 |-------|----------|--------|---------------|-------------|
-| claude-opus-4-6 | +0.11 | +0.11 | 0.713 | 0.503 |
-| claude-sonnet-4-6 | −0.43 | +0.23 | 0.753 | 0.544 |
-| gpt-5.1 | −0.26 | +0.17 | 0.570 | 0.440 |
-| gpt-4o | +0.40 | +0.34 | 0.365 | 0.403 |
-| gpt-4.1 | +0.58 | +0.40 | 0.308 | 0.375 |
+| claude-opus-4-6 | −0.30 | +0.18 | 0.754 | 0.404 |
+| claude-sonnet-4-6 | +0.09 | +0.26 | 0.710 | 0.396 |
+| gpt-5.1 | +0.01 | −0.02 | 0.644 | 0.392 |
+| gpt-4o | −0.16 | +0.02 | 0.270 | 0.165 |
+| gpt-4.1 | +0.21 | +0.46 | 0.109 | 0.300 |
 
-Correlations are weak and inconsistent. Claude infers better network structure than GPTs (higher F1) but this doesn't reliably translate to prediction accuracy, suggesting Claude's performance draws on something beyond network reconstruction — possibly direct pattern matching from perturbation responses. GPTs have lower network F1 yet gpt-4o/4.1 show the strongest correlation (positive), suggesting that when they do infer any structure it does help, but they rarely infer enough.
+Correlations are weak and inconsistent across models and tiers. Claude infers substantially better network structure than gpt-4o/4.1 (higher F1) but this does not reliably translate to prediction accuracy — Opus has a negative r on medium, suggesting its performance draws on something beyond explicit network reconstruction, possibly direct pattern matching from perturbation responses. gpt-5.1 achieves moderate network F1 (0.644 medium) despite weaker prediction accuracy, consistent with its context-exhaustion failures on disease mode. gpt-4.1 shows the strongest positive correlation on hard (r=+0.46) but from a low F1 baseline.
 
 ### 7. Hypothesis quality (disease mode, qualitative)
 
