@@ -597,12 +597,22 @@ class ExperimentSession:
 
     def get_summary(self) -> dict[str, Any]:
         """Return all scores and budget usage."""
+        threshold = 0.10
         pred_summary = []
         for r in self._prediction_results:
+            task = self._tasks[r.task_id]
+            per_phenotype = {
+                label: {
+                    "ground_truth": round(task.ground_truth[label], 4),
+                    "prediction": round(r.prediction.get(label, 0.5), 4),
+                }
+                for label in task.ground_truth
+            }
             pred_summary.append({
                 "task_id": r.task_id,
                 "mse": round(r.mse, 4),
                 "accuracy": round(r.accuracy, 4),
+                "phenotypes": per_phenotype,
             })
 
         avg_mse = (
@@ -619,6 +629,7 @@ class ExperimentSession:
             "budget_total": self.budget,
             "budget_used": self.budget_used,
             "active_tasks": sorted(self._active_tasks),
+            "accuracy_threshold": threshold,
             "prediction_results": pred_summary,
             "avg_mse": round(avg_mse, 4) if avg_mse is not None else None,
             "avg_accuracy": round(avg_acc, 4) if avg_acc is not None else None,
@@ -627,6 +638,10 @@ class ExperimentSession:
         }
 
         if self._is_disease:
+            summary["true_malfunction"] = [
+                {"target_name": m.target_name, "malfunction_type": m.type}
+                for m in self.organism.malfunctions
+            ]
             summary["malfunction_hypothesis"] = self._malfunction_guess
             summary["rescue_results"] = self._rescue_results
             summary["n_diagnosis_alternatives"] = self.organism.n_diagnosis_alternatives
