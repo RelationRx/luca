@@ -105,17 +105,17 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 
 ### 1. Difficulty discriminates models cleanly
 
-Easy is near-ceiling for all LLMs (0.86–1.00) and is a weak discriminator. Medium separates Claude from GPT clearly (Claude: 0.85–0.95; GPT: 0.68–0.77). Hard is the most discriminating tier: Claude Opus maintains 0.64, Sonnet 0.52, GPTs drop to 0.45–0.61. Both baselines collapse to 0.350 on hard — indistinguishable from chance — validating that hard organisms require genuine causal reasoning.
+Easy is near-ceiling for Claude (0.96–0.99) but weaker for GPTs (0.76–0.83), making it a limited discriminator. Medium separates Claude from GPT clearly (Claude: 0.875–0.900; GPT: 0.667–0.781). Hard is the most discriminating tier: Claude Opus maintains 0.61, Sonnet 0.58, GPTs drop to 0.49–0.56. Both baselines collapse to 0.350 on hard — indistinguishable from chance — validating that hard organisms require genuine causal reasoning.
 
 Degradation from easy to hard is gradual (no cliff) but with high per-seed variance on hard, indicating a bimodal structure: models either solve an organism or partially fail, not gracefully degrade within a seed.
 
 | Model | Easy→Hard drop | Hard seeds ≥0.80 | Hard seeds <0.50 |
 |-------|---------------|-----------------|-----------------|
-| claude-opus-4-6 | −0.357 | 3/20 | 2/20 |
-| claude-sonnet-4-6 | −0.441 | 2/20 | 6/20 |
-| gpt-5.1 | −0.242 | 5/20 | 4/20 |
-| gpt-4o | −0.345 | 0/20 | 5/20 |
-| gpt-4.1 | −0.325 | 2/20 | 9/20 |
+| claude-opus-4-6 | −0.383 | 4/20 | 3/20 |
+| claude-sonnet-4-6 | −0.383 | 6/20 | 6/20 |
+| gpt-5.1 | −0.250 | 3/20 | 4/20 |
+| gpt-4o | −0.333 | 2/20 | 6/20 |
+| gpt-4.1 | −0.258 | 4/20 | 7/20 |
 
 ### 2. Baselines are near-chance at ±0.10
 
@@ -143,13 +143,13 @@ In disease mode, Claude re-tests previously blocked genes after observing the ab
 
 ### 4. Prediction/diagnosis dissociation in GPT models
 
-GPT models (gpt-5.1, gpt-4o, gpt-4.1) achieve near-chance diagnosis scores (≈0.05) on medium disease despite reasonable prediction accuracy (0.62–0.69). Claude Opus leads diagnosis at 0.600, Claude Sonnet at 0.450. The heuristic (0.350) outperforms all GPTs through exhaustive hypothesis enumeration: it systematically blocks each candidate gene and observes the effect, achieving correct diagnosis on 7/20 medium seeds.
+GPT models show a wide spread on medium disease diagnosis: gpt-4o near-chance (0.050), gpt-4.1 low (0.167), gpt-5.1 moderate (0.200) — despite reasonable prediction accuracy (0.66–0.78). Claude Opus leads diagnosis at 0.550, Claude Sonnet at 0.350. The heuristic scores 0.100, below gpt-5.1 and gpt-4.1 — exhaustive enumeration alone is insufficient when the malfunction signal is ambiguous.
 
 This is a sharp dissociation: running perturbation experiments and accumulating evidence does not automatically translate to correct abductive inference in GPT models. Identifying the root cause of a phenotypic abnormality appears to require a qualitatively different reasoning capacity.
 
 ### 5. Diagnosis difficulty scales with organism complexity
 
-Claude Opus diagnosis across difficulty tiers (medium disease): 0.850 (easy) → 0.600 (medium) → 0.400 (hard). This is the cleanest signal of genuine reasoning difficulty in the benchmark — diagnosis requires forming a causal hypothesis about the malfunction, not just predicting steady-state outputs.
+Claude Opus diagnosis across difficulty tiers: 0.650 (easy) → 0.550 (medium) → 0.350 (hard). This is the cleanest signal of genuine reasoning difficulty in the benchmark — diagnosis requires forming a causal hypothesis about the malfunction, not just predicting steady-state outputs.
 
 Rescue tracks diagnosis closely:
 - Correct diagnosis (N=22 sessions): rescue fraction = 0.955
