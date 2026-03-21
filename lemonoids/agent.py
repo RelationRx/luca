@@ -1,11 +1,33 @@
 """Claude agent harness for Lemonoids reasoning benchmark."""
 from __future__ import annotations
 
+import hashlib
 import json
+import subprocess
 import time
 from typing import Any
 
 import anthropic
+
+# ---------------------------------------------------------------------------
+# Metadata helpers
+# ---------------------------------------------------------------------------
+
+
+def _git_commit() -> str | None:
+    """Return the current git HEAD commit hash, or None if unavailable."""
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL
+        ).decode().strip()
+    except Exception:
+        return None
+
+
+def _prompt_hash(prompt: str) -> str:
+    """Short SHA-256 hex digest of a prompt string."""
+    return hashlib.sha256(prompt.encode()).hexdigest()[:12]
+
 
 # ---------------------------------------------------------------------------
 # API call helper
@@ -619,9 +641,9 @@ def _run_agent_anthropic(
         active_tasks = frozenset({"predict", "diagnose", "rescue"})
 
     active_tools = _active_tool_list(disease_mode, active_tasks)
-    system_prompt = _build_system_prompt(disease_mode, active_tasks)
 
     # ── Log initialisation ────────────────────────────────────────────────
+
     log: dict[str, Any] = {
         "metadata": {
             "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
@@ -631,6 +653,10 @@ def _run_agent_anthropic(
             "budget": session.budget,
             "disease_mode": disease_mode,
             "active_tasks": sorted(active_tasks),
+            "generation_commit": _git_commit(),
+            "system_prompt_hash": _prompt_hash(system_prompt),
+            "max_tokens_per_turn": max_tokens_per_turn or 16384,
+            "max_turns": max_turns,
         },
         "turns": [],
         "summary": None,
@@ -696,6 +722,9 @@ def _run_agent_anthropic(
         tool_results: list[dict] = []
         turn_log: dict[str, Any] = {
             "turn": turn + 1,
+            "stop_reason": response.stop_reason,
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
             "agent_text": " ".join(
                 b.text for b in response.content if b.type == "text"
             ).strip() or None,
@@ -756,6 +785,9 @@ def _run_agent_anthropic(
                 messages.append({"role": "assistant", "content": response.content})
                 final_turn_log: dict[str, Any] = {
                     "turn": turn + 2 + cleanup_turn,
+                    "stop_reason": response.stop_reason,
+                    "input_tokens": response.usage.input_tokens,
+                    "output_tokens": response.usage.output_tokens,
                     "agent_text": " ".join(
                         b.text for b in response.content if b.type == "text"
                     ).strip() or None,
@@ -872,6 +904,10 @@ def _run_agent_openai(
             "budget": session.budget,
             "disease_mode": disease_mode,
             "active_tasks": sorted(active_tasks),
+            "generation_commit": _git_commit(),
+            "system_prompt_hash": _prompt_hash(system_prompt),
+            "max_tokens_per_turn": max_tokens_per_turn or 16384,
+            "max_turns": max_turns,
         },
         "turns": [],
         "summary": None,
@@ -1012,6 +1048,9 @@ def _run_agent_openai(
 
         turn_log: dict[str, Any] = {
             "turn": turn + 1,
+            "stop_reason": finish_reason,
+            "input_tokens": response.usage.prompt_tokens,
+            "output_tokens": response.usage.completion_tokens,
             "agent_text": msg.content or None,
             "tool_calls": [],
         }
@@ -1045,6 +1084,9 @@ def _run_agent_openai(
                 messages.append(msg)
                 final_turn_log: dict[str, Any] = {
                     "turn": turn + 2 + cleanup_turn,
+                    "stop_reason": response.choices[0].finish_reason,
+                    "input_tokens": response.usage.prompt_tokens,
+                    "output_tokens": response.usage.completion_tokens,
                     "agent_text": msg.content or None,
                     "tool_calls": [],
                     "note": "budget-exhausted cleanup turn",

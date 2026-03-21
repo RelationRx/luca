@@ -597,12 +597,22 @@ class ExperimentSession:
 
     def get_summary(self) -> dict[str, Any]:
         """Return all scores and budget usage."""
+        threshold = 0.10
         pred_summary = []
         for r in self._prediction_results:
+            task = self._tasks[r.task_id]
+            per_phenotype = {
+                label: {
+                    "ground_truth": round(task.ground_truth[label], 4),
+                    "prediction": round(r.prediction.get(label, 0.5), 4),
+                }
+                for label in task.ground_truth
+            }
             pred_summary.append({
                 "task_id": r.task_id,
                 "mse": round(r.mse, 4),
                 "accuracy": round(r.accuracy, 4),
+                "phenotypes": per_phenotype,
             })
 
         avg_mse = (
@@ -614,11 +624,17 @@ class ExperimentSession:
             if self._prediction_results else None
         )
 
+        baseline_phenotypes = {
+            k: round(v, 4) for k, v in self._compute_baseline_phenotypes().items()
+        }
+
         summary: dict[str, Any] = {
             "organism_id": self.organism.id,
             "budget_total": self.budget,
             "budget_used": self.budget_used,
             "active_tasks": sorted(self._active_tasks),
+            "accuracy_threshold": threshold,
+            "baseline_phenotypes": baseline_phenotypes,
             "prediction_results": pred_summary,
             "avg_mse": round(avg_mse, 4) if avg_mse is not None else None,
             "avg_accuracy": round(avg_acc, 4) if avg_acc is not None else None,
@@ -627,13 +643,39 @@ class ExperimentSession:
         }
 
         if self._is_disease:
+            org = self.organism
+            summary["aberrant_phenotypes"] = {
+                label: {
+                    "value": round(baseline_phenotypes[label], 4),
+                    "healthy_range": [
+                        round(org.healthy_phenotype_ranges[label][0], 4),
+                        round(org.healthy_phenotype_ranges[label][1], 4),
+                    ],
+                }
+                for label, val in baseline_phenotypes.items()
+                if not (
+                    org.healthy_phenotype_ranges[label][0]
+                    <= val
+                    <= org.healthy_phenotype_ranges[label][1]
+                )
+            }
+            summary["true_malfunction"] = [
+                {"target_name": m.target_name, "malfunction_type": m.type}
+                for m in self.organism.malfunctions
+            ]
             summary["malfunction_hypothesis"] = self._malfunction_guess
             summary["rescue_results"] = self._rescue_results
             summary["n_diagnosis_alternatives"] = self.organism.n_diagnosis_alternatives
 
+        # Ground truth network — always present for post-hoc analysis
+        gt_undir, gt_dir = self._ground_truth_network_edges()
+        summary["ground_truth_network"] = [
+            {"gene": gene, "phenotype": ph, "direction": direction}
+            for gene, ph, direction in sorted(gt_dir)
+        ]
+
         # Network reconstruction scoring
         if self._submitted_network is not None:
-            gt_undir, gt_dir = self._ground_truth_network_edges()
             sub_undir = {(e["gene"], e["phenotype"]) for e in self._submitted_network}
             sub_dir = {
                 (e["gene"], e["phenotype"], e["direction"])
@@ -641,6 +683,7 @@ class ExperimentSession:
                 if e.get("direction") is not None
             }
             summary["network_reconstruction"] = {
+                "submitted_edges": self._submitted_network,
                 "n_submitted": len(sub_undir),
                 "n_ground_truth": len(gt_undir),
                 "undirected": self._prf1(sub_undir, gt_undir),

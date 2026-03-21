@@ -181,6 +181,22 @@ def parse_seeds(seeds_args: list[str] | None, n: int) -> list[int]:
 
 
 # ---------------------------------------------------------------------------
+# Baseline log writer
+# ---------------------------------------------------------------------------
+
+
+def _write_baseline_log(log_path: str, model_name: str, seed: int, summary: dict) -> None:
+    """Write a minimal JSON log for heuristic/random baselines, matching the
+    structure written by run_agent() so all models have the same log format."""
+    import os
+    os.makedirs(os.path.dirname(os.path.abspath(log_path)), exist_ok=True)
+    log = {"metadata": {"model": model_name, "seed": seed, "max_turns": "n/a"}, "summary": summary}
+    with open(log_path, "w") as f:
+        import json as _json
+        _json.dump(log, f, indent=2)
+
+
+# ---------------------------------------------------------------------------
 # Single model evaluation
 # ---------------------------------------------------------------------------
 
@@ -220,8 +236,10 @@ def evaluate_model(
 
             if model_name == "random":
                 summary = run_random(session, active_tasks=active_tasks, seed=seed)
+                _write_baseline_log(log_path, model_name, seed, summary)
             elif model_name == "heuristic":
                 summary = run_heuristic(session, active_tasks=active_tasks)
+                _write_baseline_log(log_path, model_name, seed, summary)
             else:
                 summary = run_agent(
                     session,
@@ -248,27 +266,27 @@ def _composite_score(record: dict, disease: bool, active_tasks: frozenset[str]) 
     """
     Composite benchmark score (0–1, higher is better).
 
-    Only averages over components that were active in the session:
-      predict  → avg_accuracy
-      diagnose → diagnosis_score  (disease only)
-      rescue   → rescue_fraction  (disease only)
+    Averages over all active components. Missing disease components (model
+    failed to submit diagnosis or rescue) are treated as 0.0 — not attempting
+    a task counts as a failed attempt, not as an excluded component.
+
+      predict  → avg_accuracy         (0 if no predictions submitted)
+      diagnose → diagnosis_score      (disease only; 0 if no hypothesis)
+      rescue   → rescue_fraction      (disease only; 0 if no rescue attempt)
 
     MSE is reported separately as a secondary metric.
     """
-    components: list[float] = []
-    if "predict" in active_tasks:
-        acc = record.get("avg_accuracy")
-        if acc is not None:
-            components.append(acc)
-    if disease and "diagnose" in active_tasks:
-        diag = record.get("diagnosis_score")
-        if diag is not None:
-            components.append(diag)
-    if disease and "rescue" in active_tasks:
-        rescue = record.get("rescue_fraction")
-        if rescue is not None:
-            components.append(rescue)
-    return round(sum(components) / len(components), 4) if components else None
+    if "predict" not in active_tasks:
+        return None
+    acc = record.get("avg_accuracy")
+    if acc is None:
+        return None  # session failed completely (no predictions at all)
+    if not disease:
+        return round(acc, 4)
+    diag = record.get("diagnosis_score") if "diagnose" in active_tasks else None
+    rescue = record.get("rescue_fraction") if "rescue" in active_tasks else None
+    components = [acc, diag if diag is not None else 0.0, rescue if rescue is not None else 0.0]
+    return round(sum(components) / len(components), 4)
 
 
 def _make_record(seed, org, summary, model_name, disease, difficulty, active_tasks: frozenset[str]) -> dict[str, Any]:
@@ -291,6 +309,7 @@ def _make_record(seed, org, summary, model_name, disease, difficulty, active_tas
         best_rescue = max(
             (r.get("restored_fraction", 0.0) for r in rescue_results), default=None
         )
+        record["true_malfunction"] = summary.get("true_malfunction")
         record["diagnosis_score"] = hyp.get("score")
         record["rescue_fraction"] = best_rescue
         record["n_diagnosis_alternatives"] = summary.get("n_diagnosis_alternatives", 0)
