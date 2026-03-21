@@ -24,7 +24,7 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 - Prediction accuracy: fraction of phenotypes within **±0.10** of ground truth
 - Healthy composite = prediction accuracy
 - Disease composite = mean(prediction accuracy, diagnosis score, rescue fraction)
-- Diagnosis: 1.0 exact match (gene + malfunction type), 0.0 otherwise
+- Diagnosis: 1.0 exact match (gene + malfunction type), 0.5 correct gene wrong type, 0.0 wrong gene
 - Rescue: fraction of aberrant phenotypes restored to healthy range
 
 **Baselines**:

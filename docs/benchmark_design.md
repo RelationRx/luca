@@ -188,12 +188,13 @@ accuracy = max(0, 1 − MSE / 0.25)
 ```
 where MSE is the mean squared error across the 3 phenotype predictions and
 0.25 is the normalisation constant (worst-case MSE for a [0,1] output).
-Task score = 1 if prediction is within ±0.15 of ground truth on all phenotypes.
+Task score = fraction of phenotypes within ±0.10 of ground truth.
 
 **Diagnosis score** (disease mode):
 ```
-1.0  if correct malfunction target and type identified
-0.0  otherwise
+1.0  correct target AND correct malfunction type (exact match)
+0.5  correct target, wrong malfunction type (partial credit)
+0.0  wrong target
 ```
 
 **Rescue score** (disease mode):
