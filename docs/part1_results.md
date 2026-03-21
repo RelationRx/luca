@@ -166,17 +166,43 @@ Diagnosis by ambiguity level (medium disease, N=100 sessions across Claude model
 
 ### 6. Network reconstruction does not predict performance
 
-Pearson r(network_F1, prediction_accuracy) by model:
+Edge inference from perturbation experiments (mean over N=20 seeds, ground truth = 12.0 edges/organism):
 
-| Model | Medium r | Hard r | Medium net-F1 | Hard net-F1 |
-|-------|----------|--------|---------------|-------------|
-| claude-opus-4-6 | −0.30 | +0.18 | 0.754 | 0.404 |
-| claude-sonnet-4-6 | +0.09 | +0.26 | 0.710 | 0.396 |
-| gpt-5.1 | +0.01 | −0.02 | 0.644 | 0.392 |
-| gpt-4o | −0.16 | +0.02 | 0.270 | 0.165 |
-| gpt-4.1 | +0.21 | +0.46 | 0.109 | 0.300 |
+**Medium healthy:**
 
-Correlations are weak and inconsistent across models and tiers. Claude infers substantially better network structure than gpt-4o/4.1 (higher F1) but this does not reliably translate to prediction accuracy — Opus has a negative r on medium, suggesting its performance draws on something beyond explicit network reconstruction, possibly direct pattern matching from perturbation responses. gpt-5.1 achieves moderate network F1 (0.644 medium) despite weaker prediction accuracy, consistent with its context-exhaustion failures on disease mode. gpt-4.1 shows the strongest positive correlation on hard (r=+0.46) but from a low F1 baseline.
+| Model | Precision | Recall | F1 | Inferred edges |
+|-------|-----------|--------|----|---------------|
+| claude-opus-4-6 | 0.640 | **0.933** | **0.754** | 18.1 |
+| claude-sonnet-4-6 | 0.675 | 0.775 | 0.710 | 14.1 |
+| gpt-5.1 | 0.570 | 0.754 | 0.644 | 15.3 |
+| gpt-4o | 0.325 | 0.246 | 0.270 | 5.8 |
+| gpt-4.1 | 0.153 | 0.112 | 0.109 | 3.0 |
+
+**Hard healthy:**
+
+| Model | Precision | Recall | F1 | Inferred edges |
+|-------|-----------|--------|----|---------------|
+| claude-opus-4-6 | 0.265 | **0.752** | 0.390 | 34.0 |
+| claude-sonnet-4-6 | 0.277 | 0.675 | 0.390 | 30.0 |
+| gpt-5.1 | 0.257 | 0.719 | 0.376 | 30.7 |
+| gpt-4o | 0.128 | 0.205 | 0.153 | 10.1 |
+| gpt-4.1 | 0.227 | 0.441 | 0.294 | 20.1 |
+
+Edges are `(gene, phenotype, direction)` triples inferred from observed phenotype shifts >0.05 on single-gene BLOCK/BOOST experiments.
+
+On medium, Claude Opus achieves high recall (0.933) by over-inferring edges (18.1 inferred vs 12.0 ground truth), trading precision for coverage. On hard, precision collapses across all models — dense feedback and latent genes make phenotype shifts ambiguous, leading to many false positive edges (Opus: 34.0 inferred vs 12.2 ground truth). gpt-4o/4.1 run fewer experiments and infer fewer edges, explaining their low recall.
+
+**Correlation with prediction accuracy** (Pearson r):
+
+| Model | Medium r | Hard r |
+|-------|----------|--------|
+| claude-opus-4-6 | −0.30 | +0.18 |
+| claude-sonnet-4-6 | +0.09 | +0.26 |
+| gpt-5.1 | +0.01 | −0.02 |
+| gpt-4o | −0.16 | +0.02 |
+| gpt-4.1 | +0.21 | +0.46 |
+
+Correlations are weak and inconsistent — higher network F1 does not reliably predict better prediction accuracy. Opus has a negative r on medium despite the highest F1, suggesting its prediction performance draws on something beyond explicit edge reconstruction. Note: this metric only captures gene→phenotype edges; gene→gene regulatory edges are not recoverable from current logs (see Ideas).
 
 ### 7. Hypothesis quality (disease mode, qualitative)
 
