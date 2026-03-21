@@ -624,12 +624,17 @@ class ExperimentSession:
             if self._prediction_results else None
         )
 
+        baseline_phenotypes = {
+            k: round(v, 4) for k, v in self._compute_baseline_phenotypes().items()
+        }
+
         summary: dict[str, Any] = {
             "organism_id": self.organism.id,
             "budget_total": self.budget,
             "budget_used": self.budget_used,
             "active_tasks": sorted(self._active_tasks),
             "accuracy_threshold": threshold,
+            "baseline_phenotypes": baseline_phenotypes,
             "prediction_results": pred_summary,
             "avg_mse": round(avg_mse, 4) if avg_mse is not None else None,
             "avg_accuracy": round(avg_acc, 4) if avg_acc is not None else None,
@@ -638,6 +643,22 @@ class ExperimentSession:
         }
 
         if self._is_disease:
+            org = self.organism
+            summary["aberrant_phenotypes"] = {
+                label: {
+                    "value": round(baseline_phenotypes[label], 4),
+                    "healthy_range": [
+                        round(org.healthy_phenotype_ranges[label][0], 4),
+                        round(org.healthy_phenotype_ranges[label][1], 4),
+                    ],
+                }
+                for label, val in baseline_phenotypes.items()
+                if not (
+                    org.healthy_phenotype_ranges[label][0]
+                    <= val
+                    <= org.healthy_phenotype_ranges[label][1]
+                )
+            }
             summary["true_malfunction"] = [
                 {"target_name": m.target_name, "malfunction_type": m.type}
                 for m in self.organism.malfunctions

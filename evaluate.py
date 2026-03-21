@@ -190,7 +190,7 @@ def _write_baseline_log(log_path: str, model_name: str, seed: int, summary: dict
     structure written by run_agent() so all models have the same log format."""
     import os
     os.makedirs(os.path.dirname(os.path.abspath(log_path)), exist_ok=True)
-    log = {"metadata": {"model": model_name, "seed": seed}, "summary": summary}
+    log = {"metadata": {"model": model_name, "seed": seed, "max_turns": "n/a"}, "summary": summary}
     with open(log_path, "w") as f:
         import json as _json
         _json.dump(log, f, indent=2)
