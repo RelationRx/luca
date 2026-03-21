@@ -9,6 +9,13 @@ Add freely — entries don't need to be complete or fully formed.
 
 _What do we want to learn from this benchmark?_
 
+- **Threshold sensitivity analysis**: does the Claude > GPT performance gap hold at tighter
+  prediction accuracy thresholds (±0.08, ±0.07)? Current ±0.10 was chosen empirically because it
+  correctly exposes baselines as near-chance on hard (±0.15 inflated them), but the justification
+  is partly circular. Now computable post-hoc from logs (per-phenotype ground_truth/prediction
+  stored after PR #39) — no re-run needed. Key question: is the gap a robust finding or
+  threshold-dependent? Also worth checking relation to noise floor: σ=0.01 medium, 0.03 hard.
+
 - **Experimental bias / noisy readouts**: not all phenotype readouts may be true readouts — some
   could be indirect, noisy, or conditionally observable. How does this affect agent strategy and
   scoring? Could be modelled as readout noise, partial observability of phenotypes, or "false"
@@ -23,6 +30,18 @@ _What do we want to learn from this benchmark?_
   exhausted, latent genes, dense feedback). A successful agent needs an internal model.
   Key question: can we measure *what the agent knows* about the network, not just whether it
   succeeds at the task?
+
+- **Intervention type preferences**: do agents show a systematic preference for BLOCK vs BOOST vs DAMPEN?
+  Hypothesis: BLOCK dominates early (network discovery — silences a gene, reveals dependencies); BOOST/DAMPEN
+  appear later as hypothesis-testing moves. Opus healthy data already suggests near-exclusive BLOCK use.
+  Interesting follow-up: does BOOST/DAMPEN usage correlate with higher diagnosis accuracy in disease mode
+  (i.e. does targeted hypothesis-testing help)? Computable from existing session logs.
+
+- **Budget allocation timing**: at what experiment index does each model call `get_next_prediction_task()`?
+  Does submitting predictions earlier (less discovery) correlate with lower accuracy? Opus uses ~88% of
+  budget before predicting; GPT-4o stops at ~50%. Computable from existing session logs (look for
+  `get_next_prediction_task` tool calls and their experiment_idx at time of call). Could disentangle
+  whether the Opus/GPT gap is explained by discovery depth vs. reasoning quality.
 
 - **Context efficiency as a first-class metric**: measure how agents use their context window —
   tool calls per turn, total tokens consumed, redundant experiments (re-perturbing a gene already
@@ -69,12 +88,6 @@ _Things noticed during test drives, agent sessions, or data exploration worth fo
   (e.g. seed 14) because organism topology determines response verbosity, not model randomness.
   For the paper: report as a failure mode; note that Claude's conservative batching is implicitly
   more context-efficient. Potential fix: add per-turn experiment count guidance to the system prompt.
-
-- **seed=14 disease always fails**: `generate_disease_organism(seed=14, difficulty=medium)` raises
-  `RuntimeError` consistently across all models — the network is too stable and no malfunction
-  produces aberrant phenotypes after 10 generation attempts. Options: (a) exclude seed 14 from
-  disease sweeps and document it, or (b) replace with seed 20 to keep N=20. Affects all disease
-  results (19/20 seeds succeed). Address before paper submission.
 
 ---
 
