@@ -237,5 +237,11 @@ This is not a prompt artefact. The system prompt and `submit_malfunction_hypothe
 ## Open questions for Part 1
 
 - **Dataset statistics**: exact n_genes, n_phenotypes, n_prediction_tasks, n_diagnosis_alternatives distributions per tier — needed for paper §2.4. Compute from generation code.
+
 - **Easy organism additive tasks**: 3/20 easy seeds are solvable by additive prediction (by design — near-linear dynamics). Worth reporting in paper as a known property, not a flaw.
-- **Heuristic vs GPT on diagnosis**: the fact that exhaustive enumeration (heuristic, diag=0.35) beats language-based abduction (GPTs, diag≈0.05) is a strong claim. Worth a focused paragraph in the paper — implications for whether GPTs do genuine interventional reasoning.
+
+- **Heuristic diagnosis re-framing**: the original claim (heuristic beats all GPTs on diagnosis) is no longer supported — heuristic scores 0.100 on medium disease, below gpt-5.1 (0.200) and gpt-4.1 (0.167). The updated finding is more interesting: exhaustive enumeration is *insufficient* for diagnosis when signal malfunctions introduce ambiguity (heuristic can't distinguish PERSIST from LOCK_HI on a downstream gene). GPT-5.1 and gpt-4.1 score higher possibly by reasoning about malfunction type from the phenotype pattern rather than just localising the gene. Worth a focused paragraph in the paper.
+
+- **Signal malfunction — the disambiguating experiment**: no model across any seed attempted to activate a signal to check whether the effect compounds (which would distinguish PERSIST from LOCK_HI on a downstream gene). Open question: does explicit prompting to consider signals as malfunction candidates change diagnosis rates, or is the failure structural (agents can't form the right hypothesis without observing the signal's compounding effect)?
+
+- **Diagnosis type errors**: what fraction of 0.5 scores (correct gene, wrong malfunction type) are LOCK_HI/LOCK_LO confusions vs PERSIST misclassifications? Computable from session logs. Would reveal whether models identify the malfunctioning gene but fail to reason about the type — a weaker but distinct failure mode from wrong gene attribution.
