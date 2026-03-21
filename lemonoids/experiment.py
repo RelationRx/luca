@@ -646,9 +646,15 @@ class ExperimentSession:
             summary["rescue_results"] = self._rescue_results
             summary["n_diagnosis_alternatives"] = self.organism.n_diagnosis_alternatives
 
+        # Ground truth network — always present for post-hoc analysis
+        gt_undir, gt_dir = self._ground_truth_network_edges()
+        summary["ground_truth_network"] = [
+            {"gene": gene, "phenotype": ph, "direction": direction}
+            for gene, ph, direction in sorted(gt_dir)
+        ]
+
         # Network reconstruction scoring
         if self._submitted_network is not None:
-            gt_undir, gt_dir = self._ground_truth_network_edges()
             sub_undir = {(e["gene"], e["phenotype"]) for e in self._submitted_network}
             sub_dir = {
                 (e["gene"], e["phenotype"], e["direction"])
@@ -656,6 +662,7 @@ class ExperimentSession:
                 if e.get("direction") is not None
             }
             summary["network_reconstruction"] = {
+                "submitted_edges": self._submitted_network,
                 "n_submitted": len(sub_undir),
                 "n_ground_truth": len(gt_undir),
                 "undirected": self._prf1(sub_undir, gt_undir),
