@@ -236,7 +236,22 @@ This is not a prompt artefact. The system prompt and `submit_malfunction_hypothe
 
 ## Open questions for Part 1
 
-- **Dataset statistics**: exact n_genes, n_phenotypes, n_prediction_tasks, n_diagnosis_alternatives distributions per tier — needed for paper §2.4. Compute from generation code.
+- ~~**Dataset statistics**~~ — resolved, see table below.
+
+**Dataset statistics per tier** (N=20 seeds, canonical benchmark):
+
+| | Easy | Medium | Hard |
+|---|---|---|---|
+| Total genes | 20 | 20 | 20 |
+| Observable genes | 20 | 20 | 15 |
+| Latent genes | 0 | 0 | 5 |
+| Signals | 3 | 3 | 3 |
+| Phenotypes | 3 | 3 | 3 |
+| Prediction tasks | 2 | 2 | 2 |
+| n_diagnosis_alternatives (mean) | 0.05 | 0.50 | 1.25 |
+| n_diagnosis_alternatives (range) | 0–1 | 0–2 | 0–4 |
+
+`n_diagnosis_alternatives` = number of alternative malfunction targets that produce an observationally equivalent phenotype shift, making unambiguous diagnosis harder. Hard organisms have substantially more ambiguous disease states due to dense feedback and latent genes.
 
 - **Easy organism additive tasks**: 3/20 easy seeds are solvable by additive prediction (by design — near-linear dynamics). Worth reporting in paper as a known property, not a flaw.
 
