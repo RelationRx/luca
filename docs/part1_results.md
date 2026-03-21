@@ -141,6 +141,19 @@ Budget usage does not correlate with performance on hard (r ≈ 0.0–0.2): fail
 
 In disease mode, Claude re-tests previously blocked genes after observing the aberrant phenotype (adaptive behaviour, 20/20 sessions). GPT models do this in 0–1/20 sessions.
 
+**Budget usage across all six sweeps** (mean ± std, budget=31 for disease tiers):
+
+| Model | Easy/H | Med/H | Hard/H | Med/D | Easy/D | Hard/D |
+|-------|--------|-------|--------|-------|--------|--------|
+| claude-opus-4-6 | — | 88% | — | 81% | 83% ± 5% | 82% ± 8% |
+| claude-sonnet-4-6 | — | 81% | — | — | 78% ± 5% | 77% ± 6% |
+| gpt-5.1 | — | 85% | — | 29% | 35% ± 25% | 30% ± 31% |
+| gpt-4o | — | 50% | — | — | 26% ± 10% | 30% ± 17% |
+| gpt-4.1 | — | 63% | — | — | 26% ± 21% | 32% ± 25% |
+| heuristic | — | — | — | — | 68% ± 0% | 52% ± 1% |
+
+Claude uses ~80% of budget consistently across all tiers and modes. GPT models use 26–35% on disease — context exhaustion truncates sessions early, explaining the disease score collapse. Heuristic drops on hard disease (52%) because fewer unambiguous candidates remain to enumerate once signal malfunctions and latent gene interactions are present.
+
 **gpt-4.1 anomaly**: 11/20 disease seeds had zero experiments — the model read the organism description and submitted predictions and a hypothesis without any perturbation. This accidentally inflated its composite at ±0.15 (pred_acc from description alone can be high); at ±0.10 the anomaly disappears and gpt-4.1 correctly ranks below gpt-4o.
 
 ### 4. Prediction/diagnosis dissociation in GPT models
