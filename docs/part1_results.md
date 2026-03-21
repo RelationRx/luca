@@ -224,6 +224,8 @@ Two medium disease seeds (0 and 1) have signal malfunctions (thermal-pulse PERSI
 
 Models systematically frame malfunctions as gene-level even when the true cause is an external signal. The `n_diagnosis_alternatives` metric correctly flagged both seeds (value=2), validating the ambiguity measure — the signal malfunction is observationally indistinguishable from a specific gene malfunction from the agent's vantage point.
 
+This is not a prompt artefact. The system prompt and `submit_malfunction_hypothesis` tool definition both explicitly list signals as candidates alongside genes, and PERSIST is described as a distinct malfunction type. The bias is structural: a persistently active signal produces the same perturbation signature as a LOCK_HI on its most downstream gene target, because agents can activate signals but cannot block them. The only disambiguating experiment would be to *activate* the signal and observe whether the effect compounds — but no model across any seed attempted this. This represents an intentional source of diagnostic difficulty in the benchmark design, not a flaw, and `n_diagnosis_alternatives` correctly identifies it.
+
 ---
 
 ## Notes
