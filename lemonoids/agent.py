@@ -696,6 +696,9 @@ def _run_agent_anthropic(
         tool_results: list[dict] = []
         turn_log: dict[str, Any] = {
             "turn": turn + 1,
+            "stop_reason": response.stop_reason,
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
             "agent_text": " ".join(
                 b.text for b in response.content if b.type == "text"
             ).strip() or None,
@@ -756,6 +759,9 @@ def _run_agent_anthropic(
                 messages.append({"role": "assistant", "content": response.content})
                 final_turn_log: dict[str, Any] = {
                     "turn": turn + 2 + cleanup_turn,
+                    "stop_reason": response.stop_reason,
+                    "input_tokens": response.usage.input_tokens,
+                    "output_tokens": response.usage.output_tokens,
                     "agent_text": " ".join(
                         b.text for b in response.content if b.type == "text"
                     ).strip() or None,
@@ -1012,6 +1018,9 @@ def _run_agent_openai(
 
         turn_log: dict[str, Any] = {
             "turn": turn + 1,
+            "stop_reason": finish_reason,
+            "input_tokens": response.usage.prompt_tokens,
+            "output_tokens": response.usage.completion_tokens,
             "agent_text": msg.content or None,
             "tool_calls": [],
         }
@@ -1045,6 +1054,9 @@ def _run_agent_openai(
                 messages.append(msg)
                 final_turn_log: dict[str, Any] = {
                     "turn": turn + 2 + cleanup_turn,
+                    "stop_reason": response.choices[0].finish_reason,
+                    "input_tokens": response.usage.prompt_tokens,
+                    "output_tokens": response.usage.completion_tokens,
                     "agent_text": msg.content or None,
                     "tool_calls": [],
                     "note": "budget-exhausted cleanup turn",
