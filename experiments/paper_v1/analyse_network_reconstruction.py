@@ -166,6 +166,8 @@ def analyse_session(
     shift_threshold: float,
 ) -> dict | None:
     log = json.loads(log_path.read_text())
+    if "turns" not in log:
+        return None  # skip baseline logs (heuristic/random have no turns)
     meta = log.get("metadata", {})
     seed = meta.get("seed")
     model = meta.get("model", log_path.stem.split("_seed")[0])
