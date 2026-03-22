@@ -63,7 +63,7 @@ performance differences.
 | Model | Role | Notes |
 |-------|------|-------|
 | claude-sonnet-4-6 | Primary LLM agent | Full sweep, all N |
-| gpt-4o | Cross-family comparison | N=20–640; skip N=1280 (context risk) |
+| gpt-4o | Cross-family comparison | All N including 1280 (exploratory); fail-fast at 80% |
 | heuristic | Structured baseline | Full sweep |
 | random | Chance baseline | Full sweep |
 
@@ -72,16 +72,21 @@ GPT-4.1 and GPT-5.1 are excluded: GPT-4.1 is redundant given GPT-4o; GPT-5.1 has
 a known context exhaustion failure in disease mode at N≈15 and is likely to fail at
 large healthy N too.
 
+GPT-4o runs at all N including N=1280 (treated as exploratory). A **fail-fast** mechanism
+skips a model at all larger N values if it fails ≥80% of sessions at a given N
+(failure = null score or budget_used=0). This prevents wasting cost if context exhaustion
+kicks in at scale, while still allowing moderate failure rates through.
+
 Opus is excluded from the main sweep. Its stall at N≥640 (budget_used=0) is noted as
 a one-paragraph observation in the paper: "Opus's pre-tool reasoning scales superlinearly
 with N; at N≥640 it exhausts the 16384-token output limit before its first tool call."
 
 **Model budget (10 seeds each):**
 - Sonnet (all N): ~$490
-- GPT-4o (N=20–640): ~$220
+- GPT-4o (all N, if no fail-fast): ~$270
 - Heuristic + random: free
-- **Total estimate: ~$710** (lower bound; large-N sessions may cost 2–3× more due to
-  context accumulation)
+- **Total estimate: ~$760** (lower bound; large-N sessions may cost 2–3× more due to
+  context accumulation; fail-fast may reduce GPT-4o cost if it degrades at large N)
 
 ### Design
 | Parameter | Value |
