@@ -59,6 +59,7 @@ class ExperimentSession:
         self.organism = organism
         self.budget = budget if budget is not None else recommended_budget(organism)
         self.budget_used = 0
+        self._seed = seed  # stored for deterministic per-experiment RNG
         self._rng = np.random.default_rng(seed)
         self._rng_py = random.Random(seed)
 
@@ -142,7 +143,8 @@ class ExperimentSession:
                     self.organism,
                     interventions=interventions,
                     active_signals={},
-                    rng=np.random.default_rng(int(self._rng.integers(0, 2**31))),
+                    rng=np.random.default_rng([self._seed if self._seed is not None else 0,
+                                               65536 + i * 100 + _attempt]),
                 )
                 max_shift = max(
                     abs(result["phenotypes"].get(lbl, 0.5) - baseline.get(lbl, 0.5))
@@ -321,7 +323,8 @@ class ExperimentSession:
             self.organism,
             interventions=gene_interventions,
             active_signals=signal_overrides,
-            rng=self._rng,
+            rng=np.random.default_rng([self._seed if self._seed is not None else 0,
+                                       self.budget_used]),
         )
 
         self.budget_used += 1
@@ -481,7 +484,8 @@ class ExperimentSession:
             self.organism,
             interventions=gene_interventions,
             active_signals=signal_overrides,
-            rng=self._rng,
+            rng=np.random.default_rng([self._seed if self._seed is not None else 0,
+                                       self.budget_used]),
         )
         self.budget_used += 1
 
