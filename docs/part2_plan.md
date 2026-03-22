@@ -158,7 +158,7 @@ Figures:
 - [ ] Full scaling curve for Sonnet across N=20–1280 (10 seeds each)
 - [ ] RQ1 confirmed: Sonnet gap over heuristic widens with N (or characterised if not)
 - [ ] RQ2 confirmed: heuristic failure explained structurally
-- [ ] RQ5: strategy metrics computed and showing interpretable trends
+- [ ] RQ3: strategy metrics computed and showing interpretable trends
 - [ ] Paper section written and figures generated
 
 ---
