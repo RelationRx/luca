@@ -38,6 +38,20 @@ from evaluate import evaluate_model, print_summary, parse_seeds
 
 _write_lock = threading.Lock()
 
+# If a model's failure rate at a given N exceeds this, skip all larger N values.
+# A "failure" = composite_score is None or budget_used == 0.
+FAIL_FAST_THRESHOLD = 0.5
+
+
+def _failure_rate(records: list[dict]) -> float:
+    if not records:
+        return 1.0
+    failures = sum(
+        1 for r in records
+        if r.get("composite_score") is None or r.get("budget_used", 1) == 0
+    )
+    return failures / len(records)
+
 
 def _max_turns(n_genes: int) -> int:
     """Scale turn limit with network size: 50 base + N/4 extra turns."""
@@ -85,7 +99,7 @@ def run_sweep(
     parallel: bool = True,
     verbose: bool = False,
     max_tokens_per_turn: int | None = None,
-) -> None:
+) -> list[dict]:
     cfg = SWEEPS[sweep_name]
     seeds = cfg["seeds"][:n] if n else cfg["seeds"]
 
@@ -127,6 +141,7 @@ def run_sweep(
             f.write(json.dumps(r) + "\n")
 
     print(f"\nResults → {results_dir}/")
+    return all_records
 
 
 def main() -> None:
@@ -164,16 +179,40 @@ def main() -> None:
     else:
         sweep_names = list(SWEEPS.keys())
 
+    failed_models: set[str] = set()  # models that failed at a previous N
+
     for sweep_name in sweep_names:
+        cfg = SWEEPS[sweep_name]
         cfg_models = SWEEPS[sweep_name]["models"]
         models = args.models if args.models else cfg_models
-        run_sweep(
-            sweep_name, models,
+
+        # Drop models that failed at a smaller N
+        active_models = [m for m in models if m not in failed_models]
+        skipped = [m for m in models if m in failed_models]
+        if skipped:
+            print(f"\n[fail-fast] Skipping {skipped} at {sweep_name} — "
+                  f"too many failures at a smaller N.")
+        if not active_models:
+            print(f"[fail-fast] No models left to run at {sweep_name}. Stopping.")
+            break
+
+        sweep_records = run_sweep(
+            sweep_name, active_models,
             n=args.n,
             parallel=not args.no_parallel,
             verbose=args.verbose,
             max_tokens_per_turn=args.max_tokens,
         )
+
+        # Check failure rate per model and mark for skipping
+        for model in active_models:
+            recs = [r for r in (sweep_records or []) if r.get("model") == model]
+            rate = _failure_rate(recs)
+            if rate > FAIL_FAST_THRESHOLD:
+                print(f"\n[fail-fast] {model} failed {rate:.0%} of sessions at "
+                      f"{sweep_name} ({cfg['n_genes']} genes). "
+                      f"Skipping all larger N values.")
+                failed_models.add(model)
 
 
 if __name__ == "__main__":
