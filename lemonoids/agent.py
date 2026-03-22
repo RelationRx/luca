@@ -309,8 +309,7 @@ Strategy tips:
 - BLOCK and BOOST of the same gene producing opposite phenotype shifts is strong causal evidence.
 - Do not exhaust the full gene list — stop experimenting when you have a working causal model.
 
-Always call get_organism_info() first. Do NOT enumerate all genes in your reasoning text before \
-calling a tool — call the tool immediately and reason from its output."""
+Always call get_organism_info() first."""
 
 
 def _build_system_prompt(disease_mode: bool, active_tasks: frozenset[str]) -> str:
@@ -765,21 +764,15 @@ def _run_agent_anthropic(
 
         # Stall detection: max_tokens with no tool calls = model wrote >16384 tokens
         # of planning text without issuing any tool call (common for Opus at large N).
-        # Inject a nudge instead of an empty user message (which worsens the stall).
+        # Log the stall but do NOT nudge — letting the model fail is the correct
+        # benchmark behaviour; stalling at large N is itself a finding.
         if response.stop_reason == "max_tokens" and not tool_results:
             if verbose:
-                print("[agent] Stall detected (max_tokens, no tool calls). Injecting nudge.")
-            messages.append({
-                "role": "user",
-                "content": (
-                    "Your response was cut off before you called any tool. "
-                    "Please call a tool immediately — do not repeat your analysis. "
-                    "Start with get_organism_info or run_experiment."
-                ),
-            })
-        else:
-            # Add tool results to history
-            messages.append({"role": "user", "content": tool_results})
+                print("[agent] Stall detected (max_tokens, no tool calls).")
+            turn_log["stall"] = True
+
+        # Add tool results to history (empty list if stalled — loop will retry naturally)
+        messages.append({"role": "user", "content": tool_results})
 
         # Check budget
         remaining = session.budget - session.budget_used
