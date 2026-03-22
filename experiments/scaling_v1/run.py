@@ -40,7 +40,7 @@ _write_lock = threading.Lock()
 
 # If a model's failure rate at a given N exceeds this, skip all larger N values.
 # A "failure" = composite_score is None or budget_used == 0.
-FAIL_FAST_THRESHOLD = 0.5
+FAIL_FAST_THRESHOLD = 0.8
 
 
 def _failure_rate(records: list[dict]) -> float:
