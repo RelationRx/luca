@@ -7,26 +7,30 @@
 
 ## Motivation
 
-Part 1 established that Claude models outperform GPT and heuristic baselines on fixed-size
-organisms (N≈15 genes, medium difficulty). Part 2 asks: **does this advantage hold as the
-network grows?** If LLM agents are genuinely building causal models rather than pattern-matching,
+Part 1 established that LLM agents (Claude and GPT families) outperform heuristic baselines
+on fixed-size organisms (N≈15 genes, medium difficulty). Part 2 asks: **does this hold as
+networks grow?** If agents are genuinely building causal models rather than pattern-matching,
 their performance should scale more gracefully than a heuristic that can't represent nonlinear
-interactions.
+interactions. Including two model families (Claude Sonnet, GPT-4o) lets us test whether
+scaling behaviour is a property of capable LLMs generally.
 
 ---
 
 ## Research Questions
 
 ### RQ1 — Does LLM reasoning scale with network complexity?
-Does Sonnet's prediction accuracy hold up as N grows from 20 to 1280 genes? The heuristic
-uses an additive approximation that breaks on larger nonlinear networks — if the agent is
-doing genuine causal reasoning, it should increasingly outperform the heuristic at scale.
+Do LLM agents maintain high prediction accuracy as N grows from 20 to 1280 genes? We test
+two model families (Claude Sonnet, GPT-4o) against a heuristic baseline that uses an
+additive approximation — a strategy that breaks on larger nonlinear networks. If agents are
+doing genuine causal reasoning, performance should hold up or improve at scale while the
+heuristic degrades.
 
-**Expected finding:** Sonnet maintains high accuracy (≥0.85) across all N; heuristic stays
-near-chance at ±0.10; gap widens with N.
+**Expected finding:** LLM agents maintain high accuracy (≥0.85) across all N; heuristic
+stays near-chance at ±0.10; gap between LLMs and heuristic widens with N. Claude and GPT-4o
+may show different scaling profiles, providing a cross-family comparison.
 
 ### RQ2 — Where and why does the heuristic fail?
-Preliminary data shows heuristic near-chance (0.48–0.67) at ±0.10 across all N, and
+Preliminary data shows the heuristic near-chance (0.48–0.67) at ±0.10 across all N, and
 *random beats heuristic at every N*. This is a strong result: the additive prediction
 strategy actively fails, not just plateaus. Part 2 pins down the crossover and explains it
 structurally (nonlinear readout dynamics, multi-gene interactions in prediction tasks).
@@ -35,7 +39,7 @@ structurally (nonlinear readout dynamics, multi-gene interactions in prediction 
 issue is the prediction task design (cross-module double-gene interventions hit sigmoid
 nonlinearities), not organism size per se.
 
-### RQ5 — Does the agent's strategy change with N?
+### RQ3 — Does the agent's strategy change with N?
 Post-hoc analysis of session logs. Three metrics:
 
 1. **Budget allocation timing**: at what fraction of budget does the agent call
@@ -46,8 +50,10 @@ Post-hoc analysis of session logs. Three metrics:
    seen in the session. Does selectivity increase with N (agent learns to prune the
    search space)?
 
-**Expected finding:** agent becomes more selective at large N — earlier prediction
+**Expected finding:** agents become more selective at large N — earlier prediction
 commitment would be surprising; more redundancy would suggest a less coherent strategy.
+Cross-model comparison (Sonnet vs GPT-4o) may reveal whether strategy differences explain
+performance differences.
 
 ---
 
