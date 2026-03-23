@@ -52,6 +52,22 @@ _What do we want to learn from this benchmark?_
 
 ---
 
+## Figure Ideas
+
+_Additional figures for the paper, to be implemented in the paper repo._
+
+- **Difficulty scaling line plot**: performance (composite score) vs difficulty tier
+  (easy → medium → hard) as a line per model. Drives home the discrimination point more
+  viscerally than the heatmap — shows Claude's robustness vs GPT degradation as slope.
+  Both healthy and disease modes could be overlaid or shown as separate panels.
+
+- **Disease component radar/spider**: pred_acc / diagnosis / rescue as a radar chart per
+  model (medium disease). Visually captures the rescue-without-diagnosis dissociation —
+  the asymmetry between high rescue and low diagnosis is immediately apparent in polar
+  coordinates.
+
+---
+
 ## Experiment Ideas
 
 _Concrete things to run. Include model, difficulty, mode, and what we expect to see._
@@ -63,6 +79,14 @@ _Concrete things to run. Include model, difficulty, mode, and what we expect to 
   Extension: ask the agent to reconstruct the full adjacency matrix / edge list and compute
   precision/recall against ground truth. Stronger test than probe questions — requires a coherent
   internal model, not just correct answers to specific queries.
+
+- **Full adjacency matrix reconstruction** (offline, no API needed): current network analysis
+  only scores gene→phenotype edges. Gene→gene edges are not stored in session logs (experiment
+  results record phenotype values only, not gene states). Re-simulate each perturbation from
+  frozen organisms (generation freeze `v1-generation-freeze-2`) to get gene state shifts, then
+  compare agent-inferred edges (from hypothesis text) against the full ground truth adjacency
+  matrix. Stronger test than phenotype-edge F1 — requires a coherent internal GRN model.
+  Directly addresses the §6 finding that network F1 doesn't predict performance.
 
 - **Transfer tasks**: run an agent on a healthy organism, then immediately run it on the disease
   version of the same organism. Does prior knowledge help diagnosis speed and accuracy?

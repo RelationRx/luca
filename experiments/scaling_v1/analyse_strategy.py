@@ -35,17 +35,69 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).parent.parent.parent
 
 
+_IV_TYPES = {"BLOCK", "BOOST", "DAMPEN"}
+
 def _parse_interventions(inp: dict) -> dict[str, str]:
-    """Normalise intervention input to {gene_id: type}. Mirrors agent log format."""
-    if "interventions" in inp and isinstance(inp["interventions"], dict):
-        ivs = inp["interventions"]
-        result: dict[str, str] = {}
-        for g, v in ivs.items():
-            result[g] = v.get("type", "BLOCK") if isinstance(v, dict) else v
-        return result
-    if inp and all(isinstance(v, str) for v in inp.values()):
-        return dict(inp)
-    return {}
+    """Normalise intervention input to {gene_id: type}. Handles all observed formats."""
+    result: dict[str, str] = {}
+
+    def _add(gene: str, iv_type: str) -> None:
+        t = iv_type.upper()
+        if t in _IV_TYPES:
+            result[gene] = t
+
+    for key, val in inp.items():
+        key_up = key.upper()
+
+        # Direct IV type as key: {"BLOCK": ["G001"]} or {"block": ["G001"]}
+        if key_up in _IV_TYPES:
+            for g in (val if isinstance(val, list) else [val]):
+                _add(str(g), key_up)
+            continue
+
+        # gene_block / gene_blocks / gene_boost / gene_boosts / gene_dampen
+        for iv in _IV_TYPES:
+            if key_up in (f"GENE_{iv}", f"GENE_{iv}S"):
+                for g in (val if isinstance(val, list) else [val]):
+                    _add(str(g), iv)
+                break
+        else:
+            # Nested dict: {"interventions": {...}} or {"gene_interventions": {...}}
+            if isinstance(val, dict) and key_up in (
+                "INTERVENTIONS", "GENE_INTERVENTIONS", "GENES", "INTERVENTION"
+            ):
+                for g, v in val.items():
+                    g_up = g.upper()
+                    if g_up in _IV_TYPES:
+                        # inverted: {"BLOCK": ["G001"]}
+                        for gene in (v if isinstance(v, list) else [v]):
+                            _add(str(gene), g_up)
+                    else:
+                        _add(g, v.get("type", "BLOCK") if isinstance(v, dict) else str(v))
+
+            # List of dicts: [{"gene": "G001", "type": "BLOCK"}, ...]
+            elif isinstance(val, list) and key_up in (
+                "INTERVENTIONS", "GENE_INTERVENTIONS", "GENE_MODIFICATIONS",
+                "ADJUSTMENTS", "OPERATIONS"
+            ):
+                for item in val:
+                    if not isinstance(item, dict):
+                        continue
+                    gene = item.get("gene") or item.get("target")
+                    iv_type = (item.get("type") or item.get("modification")
+                               or item.get("action") or item.get("operation"))
+                    if gene and iv_type:
+                        _add(str(gene), str(iv_type))
+
+            # Single gene: {"gene_name": "G001", "perturbation_type": "BLOCK"}
+            elif key_up == "GENE_NAME" and "perturbation_type" in inp:
+                _add(str(val), str(inp["perturbation_type"]))
+
+            # Flat gene→type: {"G001": "BLOCK"}
+            elif isinstance(val, str) and val.upper() in _IV_TYPES:
+                _add(key, val)
+
+    return result
 
 
 def analyse_session(log_path: Path) -> dict | None:
