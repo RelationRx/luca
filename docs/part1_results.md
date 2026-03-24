@@ -241,6 +241,52 @@ This is not a prompt artefact. The system prompt and `submit_malfunction_hypothe
 
 ---
 
+## §9 Ambiguity vs diagnosis accuracy
+
+From `analyse_ambiguity.py` on all disease-mode session logs (240 sessions across
+A_medium_disease, C_easy_disease, C_hard_disease).
+
+**n_diagnosis_alternatives distribution:** 150 sessions with n=0 (unambiguous), 57 with
+n=1, 22 with n=2, 7 with n=3, 4 with n=4. The majority of organisms are unambiguous —
+ambiguity is a feature of hard-tier organisms and signal malfunction seeds.
+
+**Mean diagnosis score by ambiguity level (all models pooled):**
+
+| n_alternatives | Diagnosis score | n sessions |
+|----------------|-----------------|------------|
+| 0 | 0.387±0.485 | 150 |
+| 1 | 0.149±0.353 | 57 |
+| 2 | 0.227±0.429 | 22 |
+| 3 | 0.286±0.488 | 7 |
+| 4 | 0.500±0.577 | 4 |
+
+**Per-model at n=0 (unambiguous):**
+
+| Model | Diagnosis score (n=0) |
+|-------|-----------------------|
+| claude-opus-4-6 | 0.703±0.463 |
+| claude-sonnet-4-6 | 0.514±0.507 |
+| gpt-4.1 | 0.286±0.463 |
+| gpt-5.1 | 0.139±0.335 |
+| gpt-4o | 0.122±0.321 |
+
+The main finding: even at n=0 (no ambiguity — there is exactly one correct answer), GPT
+models score near zero while Claude models score 0.5–0.7. Ambiguity is not the primary
+driver of diagnosis failure for GPT models — they fail even on unambiguous organisms.
+For Claude models the performance at n=0 is meaningful (Opus 0.703), and drops sharply at
+n≥1 — consistent with genuine causal reasoning that gets confused by multiple valid
+explanations.
+
+The non-monotonic trend at high n_alternatives (n=3,4) is unreliable due to very small
+sample sizes (≤7 sessions). The actionable finding is the n=0 vs n≥1 contrast.
+
+**Diagnosis vs rescue dissociation:** The scatter plot (see `ambiguity_analysis.png`) shows
+dense clusters at (diagnosis=0, rescue=0.67) and (diagnosis=0, rescue=1.0), confirming
+that many sessions achieve full rescue without any diagnosis credit — agents compensate
+for the malfunction without identifying its source. This is most pronounced for GPT models.
+
+---
+
 ## Notes
 
 **On the diagnosis/rescue dissociation:** Diagnosis and rescue are correlated but not tightly. Rescue scores are consistently higher than diagnosis scores because the two tasks have different difficulty structures. Rescue is a *search* problem — find any intervention that restores aberrant phenotypes to healthy range. Partial credit is available (fraction of phenotypes restored), and many interventions have a stabilising effect even without identifying the true cause: in a densely connected network, blocking any hub gene near the malfunction often partially corrects downstream phenotypes. Claude models also re-test genes adaptively after observing aberrant phenotypes, which is effective even without a correct causal model. Diagnosis, by contrast, is an *identification* problem — commit to a specific gene (or signal) and a specific malfunction type (LOCK_HI / LOCK_LO / PERSIST). No partial credit for guessing the gene but not the type. This is a much harder abductive inference task, and the signal malfunction finding (§8) makes it harder still: all models systematically misattribute signal malfunctions to genes, because the perturbation signature is observationally indistinguishable.

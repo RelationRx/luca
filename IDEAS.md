@@ -43,6 +43,14 @@ _What do we want to learn from this benchmark?_
   `get_next_prediction_task` tool calls and their experiment_idx at time of call). Could disentangle
   whether the Opus/GPT gap is explained by discovery depth vs. reasoning quality.
 
+- **Knowledge vs. retrieval via gene naming**: genes are currently opaque IDs (G001, G002...)
+  preventing retrieval shortcuts. Two testable variants: (1) invented-but-suggestive names
+  (e.g. `repressor-alpha`, `flux-gate-3`) — agents can form functional priors but can't look
+  anything up; (2) real biology names (TP53, BRCA1, etc.) mapped onto the synthetic GRN —
+  directly measures how much retrieval from training data helps or hurts (wrong priors on a
+  synthetic network). Gap between opaque vs. named conditions isolates knowledge retrieval from
+  causal reasoning. Natural Part 3 extension; requires only a vocabulary swap in generation.
+
 - **Context efficiency as a first-class metric**: measure how agents use their context window —
   tool calls per turn, total tokens consumed, redundant experiments (re-perturbing a gene already
   observed), and information gained per budget unit. Motivated by gpt-5.1 disease failures: a
@@ -98,6 +106,26 @@ _Concrete things to run. Include model, difficulty, mode, and what we expect to 
   (e.g. nearest-neighbour in intervention space, linear regression from observed perturbations,
   random forest). Should live alongside `--heuristic` in `evaluate.py`. Gives a lower bound on
   what structured search buys vs. pure statistical pattern matching.
+
+- **Gene coverage as scaling metric** (post-hoc, no re-run): fraction of unique genes perturbed
+  at least once / total genes in organism. Distinct from redundancy (re-perturbations/total).
+  At N=1280 with budget ~1471, coverage must drop below 100% — if coverage correlates with score
+  this is the "exploration bottleneck" story. Computable from existing scaling_v1 session logs.
+
+- **Ablation: remove sources of hardness** — run medium difficulty with (a) `feedback_fraction=0`
+  and (b) `latent_fraction=0`, keeping all else equal. Generation already supports these params.
+  Show whether heuristic improves and whether LLMs improve differently. Cleanly isolates what
+  makes the task hard structurally. Run heuristic first (free), then LLMs if interesting.
+
+- **Budget scaling** — fix N (e.g. N=80 or N=160), vary budget at 0.5×, 1×, 2× the default.
+  Tests whether models are strategy-limited vs compute-limited: if 2× budget doesn't improve
+  score, the bottleneck is reasoning quality not exploration depth. Clean experiment, very
+  defensible to reviewers. Needs small `run.py` extension to override budget formula.
+
+- **Ambiguity vs diagnosis accuracy** (post-hoc, no re-run): `n_diagnosis_alternatives` is
+  already stored in Part 1 disease session logs. Plot x=ambiguity (number of plausible
+  malfunctions), y=diagnosis accuracy. Expect a sharp drop at high ambiguity. Connects to
+  identifiability theory and causal inference. Free to compute from existing results.
 
 ---
 
