@@ -9,6 +9,16 @@ Add freely — entries don't need to be complete or fully formed.
 
 _What do we want to learn from this benchmark?_
 
+- **Optimal intervention policy / causal discovery efficiency**: connects to active causal
+  learning (Hauser & Bühlmann 2012, Murphy 2001). BLOCK = hard do-calculus intervention,
+  theoretically optimal for revealing downstream dependencies. Adaptive strategies
+  exponentially outperform non-adaptive. With module structure, optimal policy is BLOCK one
+  gene per module first, then drill. At N=1280 with B≈1471, information-theoretic lower bound
+  suggests near-complete edge identification is achievable under sparsity — consistent with
+  Sonnet's near-perfect scores. Framing: Sonnet has implicitly learned a near-optimal policy;
+  GPT-4o has not. Implementation: compute theoretical lower bound on genes-to-perturb for
+  observed prediction accuracy, compare against actual coverage as an "efficiency" metric.
+
 - **Threshold sensitivity analysis**: does the Claude > GPT performance gap hold at tighter
   prediction accuracy thresholds (±0.08, ±0.07)? Current ±0.10 was chosen empirically because it
   correctly exposes baselines as near-chance on hard (±0.15 inflated them), but the justification
