@@ -1,6 +1,6 @@
 # Part 2 — Scaling Study Results
 
-**Last updated:** 2026-03-24
+**Last updated:** 2026-03-24 (coverage analysis added)
 **Design:** `docs/part2_plan.md`
 **Models:** claude-sonnet-4-6, gpt-4o, heuristic, random
 **Sweeps:** N=20, 40, 80, 160, 320, 640, 1280 — medium difficulty, healthy mode
@@ -149,6 +149,35 @@ commitment. GPT-4o does not adapt: it commits to prediction after minimal discov
 regardless of N, maintains mixed interventions, and does not reduce redundancy.
 This strategy gap explains the performance divergence.
 
+### §5 Gene coverage (exploration bottleneck)
+
+From `analyse_coverage.py` on session logs.
+
+| N | Sonnet coverage | Sonnet unique genes | GPT-4o coverage | GPT-4o unique genes |
+|---|-----------------|---------------------|-----------------|---------------------|
+| 20 | 1.000±0.000 | 20.0±0.0 | 0.415±0.108 | 8.3±2.2 |
+| 40 | 1.000±0.000 | 40.0±0.0 | 0.220±0.066 | 8.8±2.7 |
+| 80 | 1.000±0.000 | 80.0±0.0 | 0.126±0.065 | 10.1±5.2 |
+| 160 | 0.951±0.104 | 152.2±16.7 | 0.050±0.022 | 8.0±3.5 |
+| 320 | 0.963±0.117 | 308.2±37.3 | 0.018±0.012 | 5.8±3.8 |
+| 640 | 0.822±0.376 | 525.9±240.6 | 0.010±0.005 | 6.4±3.2 |
+| 1280 | 0.607±0.431 | 776.4±552.0 | 0.006±0.003 | 7.4±3.4 |
+
+Sonnet achieves **100% gene coverage at N≤80** — it perturbs every gene in the organism
+before committing to predictions. At larger N the budget no longer permits full coverage,
+but Sonnet still reaches 61% (776 genes) at N=1280. Coverage drives performance: at small
+N where coverage is complete, scores are high; where coverage is partial (N≥160) there is
+more variance (std 0.104–0.431).
+
+GPT-4o's coverage collapses immediately — it covers only ~42% at N=20 and just **0.6%
+(~7 genes) at N=1280**, regardless of the 1471-experiment budget available. This is the
+mechanistic explanation for its flat chance-level scores: GPT-4o is predicting with almost
+no information about the network, touching essentially the same handful of genes at every N.
+
+**Exploration bottleneck**: GPT-4o's failure is not capacity-limited (budget is ample) but
+strategy-limited — it stops exploring after ~15 experiments at any N. Sonnet's robustness
+is directly explained by maintaining meaningful coverage even as N grows.
+
 ---
 
 ## Open questions
@@ -158,7 +187,6 @@ This strategy gap explains the performance divergence.
 - GPT-4o's flat ~0.650 from N=40: is this exactly the 2/3 structural floor or slight
   variation? Std of 0.157 at N=40 suggests some sessions score higher — worth checking
   if any individual GPT-4o sessions achieve Sonnet-level scores.
-- Gene coverage (unique genes perturbed / N) not yet computed — would clarify whether
-  Sonnet's robustness is explained by maintaining coverage despite growing N.
+- Gene coverage computed (§5) — Sonnet 100% at N≤80, 61% at N=1280; GPT-4o 0.6% at N=1280.
 - Budget scaling experiment (fix N, vary budget) would test whether Sonnet is
   strategy-limited or compute-limited at large N.
