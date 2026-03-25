@@ -216,9 +216,23 @@ reveals at least three distinct patterns:
 
 The most striking contrast: **seed 7** (prospective=0.0, 5% coverage, 85 experiments) scores
 1.000; **seed 3** (prospective=1.0, 100% coverage, 191 experiments) is the only failure (0.833).
-Full exploration does not guarantee success. This suggests the single failure is a reasoning
-error in the prediction step, not an information gap — the organism's cross-module interaction
-was hard to predict even with complete network knowledge.
+Full exploration does not guarantee success.
+
+Inspecting seed 3's failure reveals why: the missed prediction task used interventions
+**DAMPEN G272 + BOOST G799**, and Sonnet predicted `displacement-score` as 0.413 vs
+ground truth 0.274 (error 0.14, just over the ±0.10 threshold). The other two phenotypes
+were predicted correctly. This is not an information gap — Sonnet had perturbed both G272
+and G799 before seeing the task (prospective=1.0, 100% coverage). The failure is a
+*reasoning* error: predicting the combined nonlinear effect of a DAMPEN+BOOST double
+intervention on a specific phenotype.
+
+This connects directly to the §4 strategy finding: Sonnet uses **97.7% BLOCK** at N=1280.
+BLOCK experiments are optimal for network *discovery* (hard do-calculus interventions that
+reveal downstream dependencies), but the prediction task required reasoning about DAMPEN
+and BOOST effects. With almost no DAMPEN observations in its experimental history, Sonnet
+had to extrapolate from BLOCK data — and got the nonlinear interaction wrong by a small
+margin. The failure is a consequence of Sonnet's own efficient exploration strategy, not
+organism complexity.
 
 **GPT-4o prospective hits collapse to 0.000 at N≥320** — it never reaches task-relevant
 genes during its brief exploration phase. There is no compensating targeted follow-up
