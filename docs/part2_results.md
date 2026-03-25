@@ -214,12 +214,49 @@ genes during its brief exploration phase. There is no compensating targeted foll
 (0.000 at N=160–640, 0.050 at N=1280 by chance). GPT-4o is effectively predicting blind
 at scale, with no perturbation data on the specific genes involved in the prediction tasks.
 
+### §6 Per-seed breakdown and benchmark design implications
+
+Per-seed scores for Sonnet at N=160 and N=1280 (the two highest-scoring N values):
+
+**N=160** (budget=191): seeds 0–4,6–9 score 1.000; seed 5 scores 0.833. Budget used: 98–139.
+
+**N=1280** (budget=1471): seeds 0–2,4–6,8–9 score 1.000; seed 3 scores 0.833. Budget used: 85–356.
+
+Both N values produce identical aggregate scores (0.983±0.053) via the same failure pattern:
+9/10 perfect, one seed scoring 0.833 (exactly one prediction task wrong).
+
+**N is not a good proxy for task difficulty**
+
+Sonnet performs identically at N=160 and N=1280 despite a 8× increase in organism size and
+a near-complete collapse in coverage fraction (95% → 61%). Adding genes does not make the
+prediction tasks harder — it increases exploration cost, which Sonnet absorbs by adapting
+its experiment budget. The task difficulty is set by the prediction task structure
+(which genes, which cross-module interactions), not by N.
+
+**Topology variance within a tier exceeds N effect**
+
+Budget usage at N=1280 varies 4× across seeds (85–356 experiments for identical scores).
+Some organisms are much harder to characterise than others within the same N. This variance
+is driven by organism topology — feedback fraction, latent gene fraction, module
+connectivity — not by N per se.
+
+**Implications for complexity tier design**
+
+The easy/medium/hard tiers (which vary feedback fraction, latent fraction, and module
+density) correctly target the structural parameters that drive genuine task difficulty.
+The scaling study tests something orthogonal: Sonnet's robustness to *exploration budget
+constraints*, not to *task difficulty*. These are distinct dimensions.
+
+The Part 1 hard tier results (Sonnet composite 0.61, diagnosis 0.35) are the real
+difficulty stress test. The scaling study shows Sonnet is robust to scale; it does not
+show the task is getting harder at large N.
+
 ---
 
 ## Open questions
 
-- Sonnet N=1280 at 0.983 (not 1.000 as in old pre-fix run) — two seeds below 1.000.
-  Worth checking which seeds and whether organism topology explains it.
+- Sonnet N=1280 at 0.983 — seed 3 is the single failure (0.833). Worth checking whether
+  this organism's topology explains it (high feedback/latent fraction, specific module layout).
 - GPT-4o's flat ~0.650 from N=40: is this exactly the 2/3 structural floor or slight
   variation? Std of 0.157 at N=40 suggests some sessions score higher — worth checking
   if any individual GPT-4o sessions achieve Sonnet-level scores.
