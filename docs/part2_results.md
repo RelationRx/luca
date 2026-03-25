@@ -203,11 +203,22 @@ At **N≤80**, Sonnet's prospective hit is 1.000 — it perturbs every task-rele
 before seeing any tasks. This follows directly from achieving 100% total coverage at
 small N, so task genes are hit by default.
 
-The more informative result is at **large N** where full coverage is impossible. At N=1280,
-Sonnet's prospective hit is 0.300 despite covering only 61% of genes overall — suggesting
-non-random structure in which genes Sonnet explores during discovery. The remaining 0.700
-is targeted follow-up after task reveal, reflecting a two-phase strategy: broad exploration
-first, then targeted confirmation once tasks are known.
+The more informative result is at **large N** where full coverage is impossible. The mean
+prospective hit of 0.300 at N=1280 (std=0.422) is misleading — the high variance signals
+heterogeneous behaviour across sessions, not a consistent strategy. Per-seed inspection
+reveals at least three distinct patterns:
+
+- **Explore-first** (seeds 3, 6): first task reveal at exp 94–181, 100% coverage, prospective=1.0
+- **Tasks-first, broad follow-up** (seeds 4, 5): first task reveal at exp 140–147, then
+  perturb extensively, achieving 100% coverage with prospective=0.0
+- **Tasks-first, targeted minimal** (seeds 1, 7, 9): first task at exp 69–138, only 85–168
+  experiments total, coverage 5–12%, prospective=0.0 — yet all score 1.000
+
+The most striking contrast: **seed 7** (prospective=0.0, 5% coverage, 85 experiments) scores
+1.000; **seed 3** (prospective=1.0, 100% coverage, 191 experiments) is the only failure (0.833).
+Full exploration does not guarantee success. This suggests the single failure is a reasoning
+error in the prediction step, not an information gap — the organism's cross-module interaction
+was hard to predict even with complete network knowledge.
 
 **GPT-4o prospective hits collapse to 0.000 at N≥320** — it never reaches task-relevant
 genes during its brief exploration phase. There is no compensating targeted follow-up
