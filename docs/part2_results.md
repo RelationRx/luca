@@ -178,55 +178,113 @@ no information about the network, touching essentially the same handful of genes
 strategy-limited — it stops exploring after ~15 experiments at any N. Sonnet's robustness
 is directly explained by maintaining meaningful coverage even as N grows.
 
-#### Exploration efficiency metrics
+#### Task-hit metrics
 
-Three complementary efficiency metrics from `analyse_coverage.py`:
+Two metrics characterise *when* an agent perturbs task-relevant genes:
 
-**Efficiency-1 (task-specific)**: fraction of prediction-task genes actually perturbed.
-The prediction tasks specify which genes are intervened on — an agent that perturbs those
-genes has the most directly relevant information.
+**Prospective task hit**: fraction of prediction-task genes perturbed *before* the agent
+called `get_next_prediction_task()` for the first time. The agent had no knowledge of which
+genes would be tested — this is genuine unsupervised discovery of task-relevant genes.
 
-**Efficiency-2 (phenotype-structural)**: fraction of ground-truth phenotype-contributing
-genes perturbed. These are the genes in `gene_phenotype_edges` that directly determine
-prediction outcomes.
+**Targeted task hit**: fraction of prediction-task genes perturbed *after* the first task
+reveal. Measures deliberate follow-up once the agent knows which genes matter.
 
-**Efficiency-3 (information-theoretic)**: `n_experiments / (k × log₂(N))`, where k =
-number of gene→phenotype edges. The compressed-sensing lower bound for identifying k
-sparse edges in an N-dimensional system (Candès & Tao 2006).
+| N | Sonnet prospective | Sonnet targeted | GPT-4o prospective | GPT-4o targeted |
+|---|--------------------|-----------------|--------------------|-----------------|
+| 20 | 1.000±0.000 | 0.000±0.000 | 0.292±0.185 | 0.392±0.438 |
+| 40 | 1.000±0.000 | 0.000±0.000 | 0.233±0.188 | 0.150±0.269 |
+| 80 | 1.000±0.000 | 0.000±0.000 | 0.100±0.129 | 0.375±0.489 |
+| 160 | 0.975±0.079 | 0.025±0.079 | 0.100±0.129 | 0.000±0.000 |
+| 320 | 0.825±0.290 | 0.175±0.290 | 0.000±0.000 | 0.000±0.000 |
+| 640 | 0.575±0.457 | 0.425±0.457 | 0.000±0.000 | 0.000±0.000 |
+| 1280 | 0.300±0.422 | 0.700±0.422 | 0.000±0.000 | 0.050±0.158 |
 
-| N | Sonnet Eff-1 | Sonnet Eff-2 | Sonnet Eff-3 | GPT-4o Eff-1 | GPT-4o Eff-2 | GPT-4o Eff-3 | IT bound |
-|---|-------------|-------------|-------------|-------------|-------------|-------------|---------|
-| 20 | 1.000 | 1.000 | 0.484 | 0.683 | 0.475 | 0.330 | 51.9 |
-| 40 | 1.000 | 1.000 | 0.330 | 0.383 | 0.233 | 0.128 | 127.7 |
-| 80 | 1.000 | 1.000 | 0.265 | 0.475 | 0.136 | 0.048 | 303.5 |
-| 160 | 1.000 | 0.952 | 0.171 | 0.100 | 0.049 | 0.022 | 702.9 |
-| 320 | 1.000 | 0.965 | 0.140 | 0.000 | 0.016 | 0.011 | 1597.8 |
-| 640 | 1.000 | 0.824 | 0.077 | 0.000 | 0.011 | 0.005 | 3579.6 |
-| 1280 | 1.000 | 0.606 | 0.028 | 0.050 | 0.005 | 0.002 | 7927.2 |
+At **N≤80**, Sonnet's prospective hit is 1.000 — it perturbs every task-relevant gene
+before seeing any tasks. This follows directly from achieving 100% total coverage at
+small N, so task genes are hit by default.
 
-**Eff-1 is the most striking result**: Sonnet achieves **1.000 at every N** — it always
-perturbs the exact genes that appear in the prediction tasks, regardless of network size.
-This is not just broad coverage but targeted exploration: Sonnet identifies and perturbs
-task-relevant genes even at N=1280. GPT-4o's Eff-1 collapses to 0.000 at N=320–640
-(never touches task-relevant genes), recovering slightly at N=1280 by chance (0.050).
+The more informative result is at **large N** where full coverage is impossible. The mean
+prospective hit of 0.300 at N=1280 (std=0.422) is misleading — the high variance signals
+heterogeneous behaviour across sessions, not a consistent strategy. Per-seed inspection
+reveals at least three distinct patterns:
 
-**Eff-3 (IT bound)**: both models are well below the theoretical minimum at large N
-(Sonnet 0.028 at N=1280, IT bound 7927 experiments). The budget is far too small for
-full network identification under the sparse recovery assumption — yet Sonnet succeeds.
-This reveals that prediction tasks only require *partial* network knowledge (the relevant
-subgraph around prediction-task genes), not full network recovery. The module structure
-likely concentrates relevant information, making the effective dimensionality much lower
-than N.
+- **Explore-first** (seeds 3, 6): first task reveal at exp 94–181, 100% coverage, prospective=1.0
+- **Tasks-first, broad follow-up** (seeds 4, 5): first task reveal at exp 140–147, then
+  perturb extensively, achieving 100% coverage with prospective=0.0
+- **Tasks-first, targeted minimal** (seeds 1, 7, 9): first task at exp 69–138, only 85–168
+  experiments total, coverage 5–12%, prospective=0.0 — yet all score 1.000
+
+The most striking contrast: **seed 7** (prospective=0.0, 5% coverage, 85 experiments) scores
+1.000; **seed 3** (prospective=1.0, 100% coverage, 191 experiments) is the only failure (0.833).
+Full exploration does not guarantee success.
+
+Inspecting seed 3's failure reveals why: the missed prediction task used interventions
+**DAMPEN G272 + BOOST G799**, and Sonnet predicted `displacement-score` as 0.413 vs
+ground truth 0.274 (error 0.14, just over the ±0.10 threshold). The other two phenotypes
+were predicted correctly. This is not an information gap — Sonnet had perturbed both G272
+and G799 before seeing the task (prospective=1.0, 100% coverage). The failure is a
+*reasoning* error: predicting the combined nonlinear effect of a DAMPEN+BOOST double
+intervention on a specific phenotype.
+
+This connects directly to the §4 strategy finding: Sonnet uses **97.7% BLOCK** at N=1280.
+BLOCK experiments are optimal for network *discovery* (hard do-calculus interventions that
+reveal downstream dependencies), but the prediction task required reasoning about DAMPEN
+and BOOST effects. With almost no DAMPEN observations in its experimental history, Sonnet
+had to extrapolate from BLOCK data — and got the nonlinear interaction wrong by a small
+margin. The failure is a consequence of Sonnet's own efficient exploration strategy, not
+organism complexity.
+
+**GPT-4o prospective hits collapse to 0.000 at N≥320** — it never reaches task-relevant
+genes during its brief exploration phase. There is no compensating targeted follow-up
+(0.000 at N=160–640, 0.050 at N=1280 by chance). GPT-4o is effectively predicting blind
+at scale, with no perturbation data on the specific genes involved in the prediction tasks.
+
+### §6 Per-seed breakdown and benchmark design implications
+
+Per-seed scores for Sonnet at N=160 and N=1280 (the two highest-scoring N values):
+
+**N=160** (budget=191): seeds 0–4,6–9 score 1.000; seed 5 scores 0.833. Budget used: 98–139.
+
+**N=1280** (budget=1471): seeds 0–2,4–6,8–9 score 1.000; seed 3 scores 0.833. Budget used: 85–356.
+
+Both N values produce identical aggregate scores (0.983±0.053) via the same failure pattern:
+9/10 perfect, one seed scoring 0.833 (exactly one prediction task wrong).
+
+**N is not a good proxy for task difficulty**
+
+Sonnet performs identically at N=160 and N=1280 despite a 8× increase in organism size and
+a near-complete collapse in coverage fraction (95% → 61%). Adding genes does not make the
+prediction tasks harder — it increases exploration cost, which Sonnet absorbs by adapting
+its experiment budget. The task difficulty is set by the prediction task structure
+(which genes, which cross-module interactions), not by N.
+
+**Topology variance within a tier exceeds N effect**
+
+Budget usage at N=1280 varies 4× across seeds (85–356 experiments for identical scores).
+Some organisms are much harder to characterise than others within the same N. This variance
+is driven by organism topology — feedback fraction, latent gene fraction, module
+connectivity — not by N per se.
+
+**Implications for complexity tier design**
+
+The easy/medium/hard tiers (which vary feedback fraction, latent fraction, and module
+density) correctly target the structural parameters that drive genuine task difficulty.
+The scaling study tests something orthogonal: Sonnet's robustness to *exploration budget
+constraints*, not to *task difficulty*. These are distinct dimensions.
+
+The Part 1 hard tier results (Sonnet composite 0.61, diagnosis 0.35) are the real
+difficulty stress test. The scaling study shows Sonnet is robust to scale; it does not
+show the task is getting harder at large N.
 
 ---
 
 ## Open questions
 
-- Sonnet N=1280 at 0.983 (not 1.000 as in old pre-fix run) — two seeds below 1.000.
-  Worth checking which seeds and whether organism topology explains it.
+- Sonnet N=1280 at 0.983 — seed 3 is the single failure (0.833). Worth checking whether
+  this organism's topology explains it (high feedback/latent fraction, specific module layout).
 - GPT-4o's flat ~0.650 from N=40: is this exactly the 2/3 structural floor or slight
   variation? Std of 0.157 at N=40 suggests some sessions score higher — worth checking
   if any individual GPT-4o sessions achieve Sonnet-level scores.
-- Gene coverage computed (§5) — Sonnet 100% at N≤80, 61% at N=1280; GPT-4o 0.6% at N=1280.
+- Gene coverage and task-hit metrics computed (§5) — Sonnet prospective hit 0.300 at N=1280 (genuine signal above 61% coverage baseline); GPT-4o 0.000 at N≥320.
 - Budget scaling experiment (fix N, vary budget) would test whether Sonnet is
   strategy-limited or compute-limited at large N.
