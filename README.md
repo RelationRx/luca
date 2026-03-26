@@ -55,7 +55,7 @@ LEMONOIDS is a benchmark for causal reasoning under a fixed experimental budget.
 
 | Component | Metric | Mode |
 |-----------|--------|------|
-| Prediction accuracy | MSE + fraction within ±0.10 threshold | Both |
+| Prediction accuracy | Fraction of predictions within ±0.10 of true value (MSE reported separately) | Both |
 | Causal hypothesis | Stored free text — qualitative review | Both |
 | Diagnosis | 1.0 exact · 0.5 right target wrong type · 0.0 wrong | Disease |
 | Rescue | Fraction of aberrant phenotypes restored to healthy range | Disease |
