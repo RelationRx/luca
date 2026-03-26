@@ -184,11 +184,9 @@ All scores are in [0, 1], higher is better.
 
 **Prediction accuracy** (per task):
 ```
-accuracy = max(0, 1 − MSE / 0.25)
+accuracy = (number of phenotypes within ±0.10 of ground truth) / n_phenotypes
 ```
-where MSE is the mean squared error across the 3 phenotype predictions and
-0.25 is the normalisation constant (worst-case MSE for a [0,1] output).
-Task score = fraction of phenotypes within ±0.10 of ground truth.
+MSE is also computed and logged per task but is not used in scoring.
 
 **Diagnosis score** (disease mode):
 ```
