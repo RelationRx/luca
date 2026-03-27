@@ -108,11 +108,12 @@ not hypothesis) still scores non-zero. gpt-4.1 disease composite (0.682) is infl
 9/20 seeds skip experiments entirely and submit predictions from description alone, which scores
 well on pred_acc but 0 on diagnosis/rescue. Sub-scores should be reported alongside composite.
 
-### Prediction accuracy threshold (±0.15)
-**Decision:** A prediction is "correct" if within 0.15 of the true phenotype value.
-**Why:** Phenotypes are in [0,1]; ±0.15 is roughly 15% of the full range. Loose enough that
-near-correct predictions aren't penalised as total failures, tight enough to distinguish genuine
-understanding from random guessing (which scores ~0.30 on accuracy with this threshold).
+### Prediction accuracy threshold (±0.10)
+**Decision:** A prediction is "correct" if within 0.10 of the true phenotype value.
+**Why:** Phenotypes are in [0,1]; ±0.10 is 10% of the full range. At ±0.15 the heuristic and
+random baselines scored artificially high on hard organisms (masking the Claude > GPT gap).
+Tightening to ±0.10 correctly exposes both baselines as near-chance on hard, validating that
+hard organisms require genuine causal reasoning. Changed from ±0.15 in PR #36.
 
 ---
 
