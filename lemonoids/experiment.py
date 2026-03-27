@@ -601,7 +601,6 @@ class ExperimentSession:
 
     def get_summary(self) -> dict[str, Any]:
         """Return all scores and budget usage."""
-        threshold = 0.10
         pred_summary = []
         for r in self._prediction_results:
             task = self._tasks[r.task_id]

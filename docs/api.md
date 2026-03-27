@@ -133,7 +133,7 @@ score = session.submit_prediction("task_00", {
     "expansion-rate": 0.72,
     "stress-index": 0.45,
 })
-# Returns: mse, accuracy (fraction within 0.15 threshold), per-phenotype details
+# Returns: mse, accuracy (fraction within 0.10 threshold), per-phenotype details
 ```
 
 **`submit_hypothesis(text)`** — 🆓 free

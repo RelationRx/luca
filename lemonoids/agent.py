@@ -696,7 +696,7 @@ def _run_agent_anthropic(
         response = _with_retry(
             client.messages.create, _anthropic_retryable,
             model=model,
-            max_tokens=16384,
+            max_tokens=max_tokens_per_turn or 16384,
             system=system_prompt,
             tools=active_tools,
             messages=messages,
@@ -1036,7 +1036,7 @@ def _run_agent_openai(
                 "content": (
                     "You stopped before completing the session. "
                     f"Please finish: {', '.join(missing)}. "
-                    "Call get_prediction_tasks() if you haven't yet, then submit_prediction() "
+                    "Call get_next_prediction_task() if you haven't yet, then submit_prediction() "
                     "for each task, and finally submit_hypothesis()."
                 ),
             })

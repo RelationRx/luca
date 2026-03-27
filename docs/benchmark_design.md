@@ -166,7 +166,7 @@ The agent interacts with an `ExperimentSession` via 7 tools:
 | `get_summary()` | Retrieve all scores (only meaningful at session end) |
 
 **Intervention types**: `BLOCK` (expression → 0), `BOOST` (expression → 1),
-`DAMPEN` (expression × 0.5).
+`DAMPEN` (clamps expression to ≤ 0.15).
 
 **Budget**: `n_genes + n_signals + 8` experiments total. Each `run_experiment`
 or `test_rescue` call costs 1 unit. Budget is shared across all tool calls in
