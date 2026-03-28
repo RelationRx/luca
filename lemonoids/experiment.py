@@ -631,6 +631,7 @@ class ExperimentSession:
             k: round(v, 4) for k, v in self._compute_baseline_phenotypes().items()
         }
 
+        threshold = 0.10
         summary: dict[str, Any] = {
             "organism_id": self.organism.id,
             "budget_total": self.budget,

@@ -9,7 +9,7 @@ For each seed × difficulty, runs three checks:
 
 2. ADDITIVITY CHECK
    For each prediction task, computes an additive prediction from noiseless
-   single-gene BLOCK effects and tests whether it falls within ±0.15 of
+   single-gene BLOCK effects and tests whether it falls within ±0.10 of
    ground truth for all phenotypes. If *all* tasks are additively solvable,
    the organism is functionally too easy for its tier — no causal reasoning
    required.
@@ -43,7 +43,7 @@ from lemonoids import generate_organism, ExperimentSession           # noqa: E40
 from lemonoids.dynamics import simulate_sigmoid, compute_phenotypes  # noqa: E402
 from lemonoids.generation import DIFFICULTY_PRESETS                  # noqa: E402
 
-ACCURACY_THRESHOLD = 0.15   # same threshold used in scoring
+ACCURACY_THRESHOLD = 0.10   # same threshold used in scoring
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +91,7 @@ def check_additivity(
 ) -> dict:
     """
     For each prediction task, test whether the additive model (sum of
-    single-gene BLOCK/BOOST effects) predicts within ±0.15 of ground truth.
+    single-gene BLOCK/BOOST effects) predicts within ±0.10 of ground truth.
 
     Returns dict with per-task results and summary flags.
     """
