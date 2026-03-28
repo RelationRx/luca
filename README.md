@@ -13,13 +13,13 @@ The world is **unknowable via retrieval** — gene names, module labels, signals
 1. **Made-up vocabulary** — gene IDs e.g `G001`, modules labeled `"charge-flow-regulator"`, signals e.g`"substrate-X"`. No real gene or pathway names. Distinguishes causal reasoning from retrieval.
 2. **Organism dynamics and complexity** — gene states follow `x_i(t+1) = σ(bias_i + Σ W_ij·x_j + signal_terms + ε)`, values in [0, 1] ([Mjolsness, Sharp & Reinitz, 1991](https://doi.org/10.1016/S0022-5193(05)80391-1); [Karlebach & Shamir, 2008](https://doi.org/10.1038/nrm2503)). Complexity is controlled along four axes:
 
-   | Tier | Alias | Observability | FFL density | Feedback density | Latent genes | Noise |
-   |------|-------|:---:|:---:|:---:|:---:|:---:|
-   | `easy` | `prokaryote` | 80 % | 7 % | 0 % | 0 % | 0.005 |
-   | `medium` | `simple_eukaryote` | 60 % | 13 % | 13 % | 0 % | 0.01 |
-   | `hard` | `complex_eukaryote` | 50 % | 20 % | 27 % | 25 % | 0.03 |
+   | Tier | Alias | Observability | FFL density | Feedback density | Latent genes | Noise σ | Steepness β |
+   |------|-------|:---:|:---:|:---:|:---:|:---:|:---:|
+   | `easy` | `prokaryote` | 80 % | 7 % | 0 % | 0 % | 0.005 | 0.7 |
+   | `medium` | `simple_eukaryote` | 60 % | 13 % | 13 % | 0 % | 0.01 | 1.0 |
+   | `hard` | `complex_eukaryote` | 50 % | 20 % | 27 % | 25 % | 0.03 | 2.0 |
 
-   **`medium` is the default** and defines the canonical benchmark split (seeds 0–19). FFL and feedback densities are fractions of `n_genes`, so complexity scales with organism size. Latent genes = hidden confounders never visible or targetable.
+   **`medium` is the default** and defines the canonical benchmark split (seeds 0–19). The canonical configuration uses N=20 genes, 4 modules, 3 phenotypes, 3 signals, and budget B=31. FFL and feedback densities are fractions of `n_genes`, so complexity scales with organism size. Latent genes = hidden confounders never visible or targetable. Steepness β controls sigmoid non-linearity — higher β makes dynamics harder to linearise.
 
 3. **Named phenotype readouts** — non-linear summaries of an organism state e.g `"expansion-rate"` depending on gene states. The agent sees readout names and values, not raw gene states.
 4. **JSON/YAML serialization** — organisms are fully serializable for reproducibility and offline evaluation.
@@ -46,21 +46,22 @@ LEMONOIDS is a benchmark for causal reasoning under a fixed experimental budget.
    | `DAMPEN` | Clamp gene to ≤ 0.15 |
    | signal `"activate"` | Amplify signal input to targets |
 
-2. **Predict** — answer **2 held-out prediction tasks** (configurable via `n_prediction_tasks`). Each task asks: *"what would the phenotypes be if gene X is blocked and gene Y is boosted simultaneously?"* — a combination the agent was not able to run directly. The agent must submit predicted phenotype values from its causal model.
-3. **Hypothesise** — submit a free-text causal summary of the network.
-4. **Diagnose** *(disease mode)* — identify the malfunctioning gene or signal and its type.
-5. **Rescue** *(disease mode)* — test an intervention that restores phenotypes to healthy ranges.
+2. **Predict** — answer **2 held-out prediction tasks** (configurable via `n_prediction_tasks`). Each task involves a multi-gene intervention the agent has not run directly; the agent must predict the resulting phenotype values from its causal model.
+3. **Diagnose** *(disease mode)* — identify the malfunctioning gene or signal and its malfunction type (LOCK_HI / LOCK_LO / PERSIST).
+4. **Rescue** *(disease mode)* — test an intervention that restores phenotypes to healthy ranges. Requires a diagnosis to be submitted first; the diagnosis score is withheld until session end.
+5. **Hypothesise** *(optional, unscored)* — submit a free-text causal summary of the network for qualitative review.
 
 **Scoring:**
 
 | Component | Metric | Mode |
 |-----------|--------|------|
 | Prediction accuracy | Fraction of predictions within ±0.10 of true value (MSE reported separately) | Both |
-| Causal hypothesis | Stored free text — qualitative review | Both |
 | Diagnosis | 1.0 exact · 0.5 right target wrong type · 0.0 wrong | Disease |
 | Rescue | Fraction of aberrant phenotypes restored to healthy range | Disease |
 
-> Prediction tasks are revealed one at a time — the next task only unlocks after the current one is submitted, preventing direct-measurement gaming. **Random baseline:** prediction MSE ≈ 0.08.
+**Composite score**: healthy = prediction accuracy; disease = mean(prediction accuracy, diagnosis score, rescue fraction).
+
+> Prediction tasks are revealed one at a time — the agent cannot see task 2 until task 1 is submitted, so the held-out interventions cannot be run directly before predicting. **Random baseline:** prediction MSE ≈ 0.08.
 
 > Modules are **hidden from the agent** — inferring functional groupings is part of the challenge.
 
