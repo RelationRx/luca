@@ -64,6 +64,28 @@ _Additional figures for the paper — implement in the paper repo._
 
 ---
 
+## Conflict-of-Interest Controls
+
+_Addresses potential reviewer concern that the benchmark was authored using Claude Code and may inadvertently favour Claude's reasoning style. Two distinct sub-questions; both deferred until after initial submission._
+
+- **Gemini as benchmark agent** (quantitative): run the full Part 1 sweep (or at minimum
+  `A_medium_healthy`, 20 seeds) with `gemini-2.5-pro` or `gemini-2.0-flash` as the agent.
+  If Gemini scores in a pattern consistent with the task requiring genuine causal reasoning
+  (e.g. scores correlate with difficulty tier, not with model family), it strengthens the
+  claim that the benchmark is not biased toward Claude's prompt style.
+  Implementation: add Gemini as a native provider in `lemonoids/agent.py` using the
+  OpenAI-compatible endpoint (`https://generativelanguage.googleapis.com/v1beta/openai/`)
+  with the existing `openai` SDK — no new dependency needed. Needs `GEMINI_API_KEY` in `.env`.
+  See plan file for full implementation notes.
+
+- **Gemini as design auditor** (qualitative): feed Gemini the system prompt, tool descriptions,
+  and 2–3 session logs (one Claude, one GPT, one heuristic) and ask it to identify any
+  structural biases in the task framing, scoring, or prompt language that might favour a
+  particular model family. This is a qualitative audit, not a scored experiment. Could be run
+  as a one-off before submission and summarised in a sentence in the paper or supplementary.
+
+---
+
 ## Extension Directions
 
 _For future work sections or follow-on papers. Not needed for this submission._
