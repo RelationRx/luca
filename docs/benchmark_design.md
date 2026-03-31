@@ -30,8 +30,9 @@ training data.
 - **Closed information environment**: the agent sees only what it chooses to
   measure. The simulated gene regulatory network (GRN) — the wiring diagram of
   which genes regulate which — is unknown to the agent; ground truth is never
-  revealed. Success requires building an internal causal model from perturbation
-  evidence.
+  revealed. Success requires reasoning from perturbation evidence — whether by
+  building a full internal causal model or by targeted inference about the
+  specific genes relevant to each prediction task.
 
 - **Verified difficulty**: every generated organism passes structural and
   functional checks (see §4) before use in experiments. Difficulty is a
