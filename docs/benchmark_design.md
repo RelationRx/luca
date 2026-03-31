@@ -146,13 +146,15 @@ automatically for larger networks:
 | `n_modules` | `max(4, round(n/5))` | 4 | 8 | 16 | 32 |
 | `n_signals` | `max(3, round(n/7))` | 3 | 6 | 11 | 23 |
 | Signal max targets | `max(3, round(n/7))` | 3 | 6 | 11 | 23 |
-| `n_phenotypes` | fixed | 3 | 3 | 3 | 3 |
-| `n_prediction_tasks` | fixed | 2 | 2 | 2 | 2 |
+| `n_phenotypes` | 3 (default) | 3 | 3 | 3 | 3 |
+| `n_prediction_tasks` | 2 (default) | 2 | 2 | 2 | 2 |
 | Budget | `n_genes + n_signals + 8` | 31 | 54 | 99 | 191 |
 
 The scaling rule keeps ~5 genes/module and ~1/7 signal coverage at any size.
-`n_phenotypes` and `n_prediction_tasks` are fixed by design — the benchmark
-interface is constant regardless of network size.
+`n_phenotypes` and `n_prediction_tasks` are configurable parameters of
+`generate_organism()` — they are held at 3 and 2 respectively across all
+paper v1 runs to keep the benchmark interface constant, but can be increased
+for future study designs.
 
 **Why `n_prediction_tasks = 2`**: two tasks per session is enough to test cross-module
 interaction reasoning (each task pairs genes from the same phenotype readout, forcing
