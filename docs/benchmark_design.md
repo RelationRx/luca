@@ -197,7 +197,7 @@ diagnosis ambiguity.
 3. **Latent relevance** (hard only): every latent gene shifts ≥1 phenotype by
    > 0.05 when blocked
 
-Verification results for n=20, seeds 0–19 (post PR #21):
+Verification results for n=20, seeds 0–19:
 
 | Tier | Pass rate | Notes |
 |------|-----------|-------|
