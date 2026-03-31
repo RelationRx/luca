@@ -14,6 +14,10 @@ Last updated: 2026-03-31. **Full benchmark run complete — 840/840 sessions (7 
 
 ## Composite Score (mean ± std)
 
+> **Reporting decision (2026-03-31):** For disease mode, composite is a summary convenience only.
+> The paper reports pred_acc / diagnosis / rescue as primary metrics. See Disease Mode Breakdown
+> table below. Composite alone masks partial-task completion (e.g. high pred_acc + zero diagnosis).
+
 | Model | Easy (healthy) | Medium (healthy) | Hard (healthy) | Medium (disease) | N ok (E/M/H/D) |
 |---|---|---|---|---|---|
 | heuristic | 0.717±0.159 | 0.725±0.132 | 0.717±0.176 | 0.553±0.193 | 20/20/20/19 |
@@ -21,10 +25,11 @@ Last updated: 2026-03-31. **Full benchmark run complete — 840/840 sessions (7 
 | claude-opus-4-6 | 1.000±0.000 | 0.983±0.050 | 0.908±0.111 | 0.907±0.134 | 20/20/20/18 |
 | gpt-4o | 0.975±0.060 | 0.843±0.090 | 0.833±0.132 | 0.478±0.138 | 20/17/19/18 |
 | gpt-4.1 | 0.941±0.098 | 0.833±0.136 | 0.756±0.159 | 0.567±0.215 | 17/18/15/**10** |
-| gpt-5.1 | 0.975±0.079 | 0.895±0.135 | 0.794±0.157 | 0.597±0.163 † | 20/19/17/**6** |
+| gpt-5.1 | 0.975±0.079 | 0.895±0.135 | 0.794±0.157 | — (excl.) | 20/19/17/**6** |
 
 > Seed 14 excluded from disease sweeps across all models — organism is too stable, no malfunction
 > produces aberrant phenotypes after 10 generation attempts (consistent `RuntimeError`).
+> gpt-5.1 disease excluded from paper table — see §6 and Disease Mode Breakdown note below.
 
 ---
 
