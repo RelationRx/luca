@@ -5,7 +5,7 @@ Not a polished results doc — write freely, entries in reverse chronological or
 
 ---
 
-Last updated: 2026-03-18. **Full benchmark run complete — 840/840 sessions (7 models × 6 sweeps × 20 seeds).** See §10 for 4-sweep results, §12 for easy/hard disease sweeps.
+Last updated: 2026-03-31. **Full benchmark run complete — 840/840 sessions (7 models × 6 sweeps × 20 seeds).** See §10 for 4-sweep results, §12 for easy/hard disease sweeps. See §14 for threshold sensitivity analysis.
 
 > **Note (2026-03-16):** All results in §1–6 were produced with the old generation code and are
 > **invalidated** by PR #21. The canonical benchmark re-run uses the plan in §9.
@@ -662,3 +662,51 @@ Phenotype values are in [0,1]. Noise σ per difficulty tier: easy=0.005, medium=
 **Open question (logged in IDEAS.md):** threshold sensitivity analysis — does the Claude > GPT gap hold at ±0.08 or ±0.07? Computable post-hoc from logs (per-phenotype ground_truth/prediction stored after PR #39).
 
 **Decision**: keep ±0.10 for all future runs.
+
+---
+
+## 14. Threshold Sensitivity Analysis (2026-03-31)
+
+**Script**: `experiments/paper_v1/threshold_sensitivity.py`
+**Method**: recomputes per-phenotype prediction accuracy at ±0.15, ±0.10, ±0.08, ±0.07, ±0.05
+from session logs (per-phenotype ground_truth/prediction pairs stored after PR #39).
+Covers B_easy_healthy, A_medium_healthy, B_hard_healthy, A_medium_disease (gpt-5.1 excluded).
+
+**Note on easy healthy n=17**: seeds 1, 17, 19 were run before per-phenotype logging was added
+(pre-PR #39). All 5 models missing the same 3 seeds — no bias. Other sweeps: n=20.
+
+### Results: Claude–Opus vs best-GPT prediction accuracy gap
+
+| Sweep          | ±0.15   | ±0.10   | ±0.08   | ±0.07   | ±0.05   |
+|----------------|---------|---------|---------|---------|---------|
+| Easy healthy   | +0.078  | +0.167  | +0.206  | +0.206  | +0.235  |
+| Medium healthy | +0.115  | +0.119  | +0.129  | +0.123  | +0.137  |
+| Hard healthy   | +0.096  | +0.070  | +0.088  | +0.044  | +0.044  |
+| Medium disease | +0.033  | +0.050  | +0.033  | +0.075  | +0.075  |
+
+(Positive = Claude leads. Best-GPT = max of gpt-5.1, gpt-4o, gpt-4.1 for each threshold.)
+
+### Findings
+
+1. **Medium healthy: gap is stable across all thresholds** (+0.115 → +0.137). The canonical
+   ±0.10 choice is not cherry-picked — the gap is essentially flat from ±0.15 down to ±0.05.
+
+2. **Easy healthy: gap widens as threshold tightens** (+0.078 at ±0.15 → +0.235 at ±0.05).
+   ±0.10 was actually a conservative choice on easy — Claude's advantage is stronger at precision.
+
+3. **Hard healthy: gap narrows slightly at very tight thresholds** (+0.096 at ±0.15, +0.044 at ±0.05).
+   Expected: noise σ=0.03 on hard makes sub-0.06 thresholds sensitive to measurement noise, not
+   just reasoning quality. Gap remains positive at all tested thresholds.
+
+4. **Medium disease: pred_acc gap is modest throughout**, consistent with the main disease finding
+   being in diagnosis score (Claude Opus 0.778 vs gpt-4o 0.056), not prediction accuracy.
+
+### Conclusion
+
+The Claude > GPT gap is robust to threshold choice on the discriminative regimes (medium, hard).
+The ±0.10 choice is well-calibrated: it is not the tightest plausible threshold, and the gap
+does not depend on it. This directly pre-empts the reviewer concern that ±0.10 was chosen
+post-hoc to sharpen results.
+
+**For the paper**: include the medium healthy sensitivity table (±0.15 → ±0.05) as a robustness
+check, likely in an appendix or footnote. Hard healthy can be noted with the noise-floor caveat.
