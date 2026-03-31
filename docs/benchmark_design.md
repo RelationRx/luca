@@ -185,7 +185,7 @@ diagnosis ambiguity.
 
 ## 6. Verification
 
-`experiments/paper_v1/verify_organisms.py` checks three properties per seed:
+`verify_organisms.py` checks three properties per seed:
 
 1. **Structural**: correct n_genes, n_latent, n_phenotypes per tier preset
 2. **Additivity**: prediction tasks not solvable by summing single-gene BLOCK
