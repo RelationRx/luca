@@ -45,7 +45,7 @@ LEMONOIDS is a benchmark for causal reasoning under a fixed experimental budget.
    |---|---|
    | `BLOCK` | Suppress gene to 0.0 |
    | `BOOST` | Saturate gene to 1.0 |
-   | `DAMPEN` | Clamp gene to ≤ 0.15 |
+   | `DAMPEN` | Clamp gene to ≤ 0.15 (partial suppression, distinct from full BLOCK) |
    | signal `"activate"` | Amplify signal input to targets |
 
 2. **Predict** — answer **2 held-out prediction tasks** (configurable via `n_prediction_tasks`). Each task involves a multi-gene intervention the agent has not run directly; the agent must predict the resulting phenotype values from its causal model.
