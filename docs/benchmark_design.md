@@ -122,21 +122,21 @@ At n=20 genes this produces:
 `generate_organism()` produces a deterministic organism from a `(seed, parameters)`
 pair. The 13 steps and their key guarantees:
 
-| Step | What happens | Key guarantee |
-|------|--------------|---------------|
-| 1 | Gene names G001–GXXX | |
-| 2 | Module partition (round-robin) | At least 1 gene per module |
-| 3 | GRN edges (Erdős–Rényi per module pair) | Density independent of n |
-| 4 | Inject FFLs (coherent A→B, A→C, B→C) | Count scales with n_genes |
-| 5 | Inject feedback loops (mutual activation) | Count scales with n_genes |
-| 6 | Assign signals | Count and target coverage scale with n_genes |
-| 7 | Sample per-gene biases | |
-| 8 | Select observable genes | ≥1 per module; fraction = observability |
-| 9 | Select latent gene candidates | From non-observable pool |
-| 10 | Build dynamics rule; simulate baseline | |
-| 11 | Build phenotype readouts (round-robin) | Every observable gene in exactly one readout; weight floor \|w\| ≥ 0.5 |
-| 12 | Latent gene relevance check | Each latent gene probed by BLOCK simulation; if \|shift\| ≤ 0.05 added directly to a readout |
-| 13 | Phenotype bias re-centering | `bias = −Σ(w_i × baseline_expr_i)` → every phenotype baseline = 0.5 |
+| Step | What happens | Why / Key guarantee |
+|------|--------------|---------------------|
+| 1 | Assign gene IDs (G001–GXXX) | Invented labels; no real gene names |
+| 2 | Partition genes into modules (round-robin) | Functional groupings; ≥1 gene per module guaranteed |
+| 3 | Sample GRN edges (Erdős–Rényi independently per module pair) | Intra-module density > inter-module density by design; density independent of n so complexity scales with tier parameters, not network size |
+| 4 | Inject feed-forward loops: coherent triples A→B, A→C, B→C | FFLs create indirect causal paths that amplify or buffer perturbations non-additively; count = round(ffl_fraction × n_genes) |
+| 5 | Inject feedback loops: mutual activation pairs A→B, B→A | Feedback creates history-dependence and potential bistability, making steady-state prediction harder; absent in easy tier |
+| 6 | Assign signals with random target gene sets | Each signal activates or inhibits a subset of genes; count and max targets scale with n_genes |
+| 7 | Sample per-gene biases from uniform distribution | Sets each gene's baseline activation level independently of the network |
+| 8 | Select observable genes (≥1 per module, up to observability × n_genes) | Ensures module coverage; done before dynamics so latent connectivity can be checked against the observable set |
+| 9 | Select latent gene candidates from non-observable pool | Latent genes are a subset of non-observable genes earmarked as guaranteed confounders (relevance enforced in step 12) |
+| 10 | Compile dynamics rule; simulate to steady state → baseline | Establishes the healthy baseline state all perturbations are measured relative to |
+| 11 | Build phenotype readouts (round-robin over observable genes) | Every observable gene assigned to exactly one phenotype readout; weight floor \|w\| ≥ 0.5 prevents nominally-present but silent contributions |
+| 12 | Latent gene relevance check | Each latent gene probed by BLOCK simulation; if \|phenotype shift\| ≤ 0.05, gene is added directly to a readout — guarantees every latent gene is a true confounder |
+| 13 | Phenotype bias re-centering | Set `bias_p = −Σ(w_pi × baseline_expr_i)` so every phenotype starts at exactly 0.5; prevents saturated baselines where individual knockouts are invisible |
 
 **Why steps 11–13 matter**: without them, organisms can have silent observable
 genes (no readout entry), trivially additive tasks (genes from different
