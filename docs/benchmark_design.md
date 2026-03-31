@@ -91,17 +91,17 @@ partition). Bias is set so the baseline phenotype = 0.5 (see §4, fix 5).
 
 Three tiers tuned to create a gradient from near-linear to highly nonlinear:
 
-| Parameter | Easy | Medium | Hard |
-|-----------|------|--------|------|
-| Observability | 0.80 | 0.60 | 0.50 |
-| Intra-module edge density | 0.25 | 0.40 | 0.50 |
-| Inter-module edge density | 0.04 | 0.08 | 0.15 |
-| Inhibition fraction | 0.20 | 0.30 | 0.40 |
-| FFLs (fraction × n_genes) | 0.07 (~1) | 0.13 (~3) | 0.20 (~4) |
-| Feedback loops (fraction × n_genes) | 0.0 | 0.13 (~3) | 0.27 (~5) |
-| Sigmoid steepness | 0.7 | 1.0 | 2.0 |
-| Noise σ | 0.005 | 0.01 | 0.03 |
-| Latent gene fraction | 0.0 | 0.0 | 0.25 |
+| Parameter | Description | Easy | Medium | Hard |
+|-----------|-------------|------|--------|------|
+| Observability | Fraction of genes the agent can target and observe. Non-observable genes still participate in GRN dynamics but are invisible to the agent. | 0.80 | 0.60 | 0.50 |
+| Intra-module edge density | Probability of a regulatory edge between two genes in the same functional module. Higher density = more local interactions. | 0.25 | 0.40 | 0.50 |
+| Inter-module edge density | Probability of a regulatory edge between genes in different modules. Controls cross-module coupling; low = near-independent modules. | 0.04 | 0.08 | 0.15 |
+| Inhibition fraction | Fraction of edges that are inhibitory (w < 0). Higher inhibition creates more complex, non-monotone response patterns. | 0.20 | 0.30 | 0.40 |
+| FFLs (fraction × n_genes) | Feed-forward loops injected into the GRN. A coherent FFL (A→B, A→C, B→C) creates sign-consistent indirect paths that amplify or buffer perturbation effects. | 0.07 (~1) | 0.13 (~3) | 0.20 (~4) |
+| Feedback loops (fraction × n_genes) | Mutual-activation feedback loops (A→B, B→A). Absent in easy — feedback creates bistability and history-dependence, making steady-state prediction harder. | 0.0 | 0.13 (~3) | 0.27 (~5) |
+| Sigmoid steepness (β) | Controls nonlinearity of the sigmoid. Low β ≈ linear response; high β ≈ switch-like. Drives the difficulty of reasoning about combined intervention effects. | 0.7 | 1.0 | 2.0 |
+| Noise σ | Std dev of Gaussian noise added to gene expression at steady state. Agents observe noisy measurements; ground truth for scoring is noiseless. | 0.005 | 0.01 | 0.03 |
+| Latent gene fraction | Fraction of genes that are non-observable AND guaranteed to shift ≥1 phenotype by >0.05 — true hidden confounders. Subset of non-observable genes; zero in easy/medium. | 0.0 | 0.0 | 0.25 |
 
 **Aliases**: `easy` = `prokaryote`, `medium` = `simple_eukaryote`,
 `hard` = `complex_eukaryote`. `medium` is the default and canonical tier.
@@ -111,7 +111,8 @@ At n=20 genes this produces:
 | | Easy | Medium | Hard |
 |---|---|---|---|
 | Observable genes | 16 | 12 | 10 |
-| Latent genes | 0 | 0 | 5 |
+| Latent genes (guaranteed confounders) | 0 | 0 | 5 |
+| Other non-observable genes | 4 | 8 | 5 |
 | GRN edges (typical) | ~26–42 | ~57–75 | ~87–121 |
 
 ---
