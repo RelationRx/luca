@@ -63,7 +63,7 @@ LEMONOIDS is a benchmark for causal reasoning under a fixed experimental budget.
 
 **Composite score**: healthy = prediction accuracy; disease = mean(prediction accuracy, diagnosis score, rescue fraction). In disease mode, sub-scores (pred_acc / diagnosis / rescue) are the primary reported metrics — the composite is a convenience summary.
 
-> Prediction tasks are revealed one at a time — the agent cannot see task 2 until task 1 is submitted, so the held-out interventions cannot be run directly before predicting. **Random baseline:** prediction MSE ≈ 0.08.
+> Prediction tasks are revealed one at a time — the agent cannot see task 2 until task 1 is submitted, so the held-out interventions cannot be run directly before predicting.
 
 > Modules are **hidden from the agent** — inferring functional groupings is part of the challenge.
 
