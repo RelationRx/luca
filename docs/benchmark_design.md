@@ -22,8 +22,8 @@ training data.
   biology terms appear. This prevents retrieval bias — a model cannot succeed
   by recalling real gene functions.
 
-- **Causal reasoning over correlation**: prediction tasks are designed to
-  require understanding of network structure, not just statistical associations.
+- **Causal reasoning over correlation**: prediction tasks (see §8) are designed
+  to require understanding of network structure, not just statistical associations.
   Shared-readout gene pairs interact non-linearly through the sigmoid; additive
   approximations systematically fail.
 
@@ -189,11 +189,11 @@ diagnosis ambiguity.
 
 1. **Structural**: correct n_genes, n_latent, n_phenotypes per tier preset
 2. **Additivity**: prediction tasks not solvable by summing single-gene BLOCK
-   effects (max error > 0.15 for ≥1 task). Note: this threshold (0.15) is
-   intentionally more generous than the scoring threshold (±0.10) — it screens
-   out only the most trivially additive organisms. Tasks that pass this check
-   may still be solvable additively at ±0.10; only medium/hard are guaranteed
-   non-trivial (see verification results below).
+   effects (max additive prediction error > 0.15 for ≥1 task). This threshold
+   is more generous than the scoring threshold (±0.10) — it screens out only
+   the most trivially additive organisms; only medium/hard are guaranteed
+   non-trivial (see verification results below). See §8 for the full prediction
+   task definition.
 3. **Latent relevance** (hard only): every latent gene shifts ≥1 phenotype by
    > 0.05 when blocked
 
@@ -227,11 +227,10 @@ The scaling rule keeps ~5 genes/module and ~1/7 signal coverage at any size.
 paper v1 runs to keep the benchmark interface constant, but can be increased
 for future study designs.
 
-**Why `n_prediction_tasks = 2`**: two tasks per session is enough to test cross-module
-interaction reasoning (each task pairs genes from the same phenotype readout, forcing
-non-additive inference) while keeping budget consumption modest. More tasks would either
-require more budget or leave less room for discovery experiments; fewer would make the
-prediction score too noisy (binary pass/fail per session).
+**Why `n_prediction_tasks = 2`**: two tasks provide enough signal to evaluate
+cross-module interaction reasoning (see §8) while keeping budget consumption modest.
+More tasks would require more budget or leave less room for discovery experiments;
+fewer would make the prediction score too noisy (binary pass/fail per session).
 
 **Why `budget = n_genes + n_signals + 8`**: the `n_genes + n_signals` term covers one
 experiment per targetable element — the minimal systematic sweep. The `+8` provides
@@ -260,6 +259,27 @@ The agent interacts with an `ExperimentSession` via 7 tools:
 
 **Intervention types**: `BLOCK` (expression → 0), `BOOST` (expression → 1),
 `DAMPEN` (clamps expression to ≤ 0.15 — a partial suppression, distinct from full BLOCK).
+
+### Prediction tasks
+
+Each prediction task specifies a multi-gene intervention the agent has not
+directly run, and asks the agent to predict the resulting steady-state phenotype
+values. Key properties:
+
+- **Held-out**: the exact intervention cannot be run before predicting — the
+  agent must infer outcomes from its causal model of the network.
+- **Sequential reveal**: tasks are released one at a time. Task 2 is not visible
+  until task 1 is submitted, so the agent cannot observe task 2's intervention
+  directly before predicting it.
+- **Non-trivial shift**: each task produces a ≥0.10 phenotype shift from
+  baseline — tasks cannot be answered by predicting the baseline value.
+- **Non-additive by design**: each task targets genes within the same phenotype
+  readout. Their combined effect is non-linear (sigmoid interaction), so summing
+  individual BLOCK/BOOST effects gives the wrong answer. Correct prediction
+  requires reasoning about interaction effects.
+- **Default n=2** per session (configurable; fixed at 2 for all paper v1 runs).
+
+Ground truth is computed noiselessly for scoring (see §9).
 
 **Budget**: `n_genes + n_signals + 8` experiments total (see §7 for rationale).
 Each `run_experiment` or `test_rescue` call costs 1 unit. Budget is shared across
