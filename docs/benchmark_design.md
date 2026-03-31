@@ -58,14 +58,23 @@ Signals         — external inputs that activate/inhibit target genes
 Phenotypes (3)  — observable outputs computed from a weighted sigmoid readout
 ```
 
-**Gene regulatory dynamics** follow a continuous sigmoid update rule:
+**Gene regulatory dynamics** follow a discrete-time synchronous sigmoid update rule
+(gene values are continuous in [0,1]; time steps are discrete):
 
 ```
-x_i(t+1) = sigmoid(bias_i + Σ_j w_ij · x_j(t) + signal_contrib_i(t))
+x_i(t+1) = sigmoid(bias_i + Σ_j w_ij · x_j(t) + signal_contrib_i(t)) + ε_i
 ```
 
-where `sigmoid(z, k) = 1 / (1 + exp(-k·z))` and `k` is the steepness
-parameter. The network is iterated to steady state before each measurement.
+where:
+- `sigmoid(z, k) = 1 / (1 + exp(-k·z))`, `k` = steepness (tier-dependent, see §3)
+- `w_ij` = regulatory weight from gene j to gene i (positive = activation, negative = inhibition)
+- `signal_contrib_i(t)` = sum of active signal strengths for signals targeting gene i
+- `ε_i ~ N(0, σ²)` = measurement noise added to the final converged state (σ tier-dependent)
+
+The network iterates until convergence (max |x(t+1) − x(t)| < tolerance, up to 500 steps).
+Convergence is not guaranteed for all topologies but is achieved in practice for the
+parameter ranges used. **Ground truth for scoring is computed at σ=0** (noiseless); agents
+observe the noisy steady state.
 
 **Phenotype readout** (computed independently of dynamics):
 
