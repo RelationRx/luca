@@ -10,8 +10,10 @@ behind design choices.
 ## 1. Purpose and Design Principles
 
 LEMONOIDS is a benchmark for evaluating whether LLM agents can perform
-**causal reasoning** over unknown biological systems, rather than pattern
-matching against training data.
+**causal reasoning** over unknown systems — synthetic networks with
+biological-style complexity (feedback loops, latent confounders, nonlinear
+dynamics) but invented vocabulary — rather than pattern matching against
+training data.
 
 **Core principles:**
 
