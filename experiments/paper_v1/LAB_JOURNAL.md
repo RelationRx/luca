@@ -12,11 +12,24 @@ Last updated: 2026-03-31. **Full benchmark run complete — 840/840 sessions (7 
 
 ---
 
-## Composite Score (mean ± std)
+## Canonical Results
+
+> **⚠ Deprecated summary tables (2026-03-31):** The old composite score table below was
+> computed at the ±0.15 threshold and is no longer authoritative. The Disease Mode Breakdown
+> table below it uses valid-seeds-only counts from an intermediate run.
+>
+> **Canonical reference: `docs/part1_results.md`** (stable as of 2026-03-21, all numbers at
+> ±0.10, all 6 sweeps × 7 models × 20 seeds). Confirmed against session logs by
+> `experiments/paper_v1/threshold_sensitivity.py`. Use `part1_results.md` for all paper
+> figures, tables, and cross-references.
+
+---
+
+### ⚠ Stale: Composite Score (±0.15 era — do not use for paper)
 
 > **Reporting decision (2026-03-31):** For disease mode, composite is a summary convenience only.
-> The paper reports pred_acc / diagnosis / rescue as primary metrics. See Disease Mode Breakdown
-> table below. Composite alone masks partial-task completion (e.g. high pred_acc + zero diagnosis).
+> The paper reports pred_acc / diagnosis / rescue as primary metrics.
+> Composite alone masks partial-task completion (e.g. high pred_acc + zero diagnosis).
 
 | Model | Easy (healthy) | Medium (healthy) | Hard (healthy) | Medium (disease) | N ok (E/M/H/D) |
 |---|---|---|---|---|---|

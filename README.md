@@ -21,6 +21,8 @@ The world is **unknowable via retrieval** — gene names, module labels, signals
 
    **`medium` is the default** and defines the canonical benchmark split (seeds 0–19). The canonical configuration uses N=20 genes, 4 modules, 3 phenotypes, 3 signals, and budget B=31. FFL and feedback densities are fractions of `n_genes`, so complexity scales with organism size. Latent genes = hidden confounders never visible or targetable. Steepness β controls sigmoid non-linearity — higher β makes dynamics harder to linearise.
 
+   > **Easy tier note**: 3/20 easy organisms have near-linear dynamics where prediction tasks are solvable by additive approximation. This is an inherent property of low-feedback networks, reported transparently. Medium and hard are fully non-trivial (0/20 additive tasks on medium and hard).
+
 3. **Named phenotype readouts** — non-linear summaries of an organism state e.g `"expansion-rate"` depending on gene states. The agent sees readout names and values, not raw gene states.
 4. **JSON/YAML serialization** — organisms are fully serializable for reproducibility and offline evaluation.
 5. **Disease mode** — organisms can be given a malfunction (LOCK_HI/LOCK_LO/PERSIST) that shifts phenotypes away from healthy ranges. Agents must diagnose and rescue.
@@ -43,7 +45,7 @@ LEMONOIDS is a benchmark for causal reasoning under a fixed experimental budget.
    |---|---|
    | `BLOCK` | Suppress gene to 0.0 |
    | `BOOST` | Saturate gene to 1.0 |
-   | `DAMPEN` | Clamp gene to ≤ 0.15 |
+   | `DAMPEN` | Clamp gene to ≤ 0.15 (partial suppression, distinct from full BLOCK) |
    | signal `"activate"` | Amplify signal input to targets |
 
 2. **Predict** — answer **2 held-out prediction tasks** (configurable via `n_prediction_tasks`). Each task involves a multi-gene intervention the agent has not run directly; the agent must predict the resulting phenotype values from its causal model.
@@ -59,9 +61,9 @@ LEMONOIDS is a benchmark for causal reasoning under a fixed experimental budget.
 | Diagnosis | 1.0 exact · 0.5 right target wrong type · 0.0 wrong | Disease |
 | Rescue | Fraction of aberrant phenotypes restored to healthy range | Disease |
 
-**Composite score**: healthy = prediction accuracy; disease = mean(prediction accuracy, diagnosis score, rescue fraction).
+**Composite score**: healthy = prediction accuracy; disease = mean(prediction accuracy, diagnosis score, rescue fraction). In disease mode, sub-scores (pred_acc / diagnosis / rescue) are the primary reported metrics — the composite is a convenience summary.
 
-> Prediction tasks are revealed one at a time — the agent cannot see task 2 until task 1 is submitted, so the held-out interventions cannot be run directly before predicting. **Random baseline:** prediction MSE ≈ 0.08.
+> Prediction tasks are revealed one at a time — the agent cannot see task 2 until task 1 is submitted, so the held-out interventions cannot be run directly before predicting.
 
 > Modules are **hidden from the agent** — inferring functional groupings is part of the challenge.
 

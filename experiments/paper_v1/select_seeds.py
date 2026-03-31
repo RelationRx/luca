@@ -33,7 +33,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from lemonoids import generate_organism, generate_disease_organism, ExperimentSession  # noqa: E402
 from lemonoids.dynamics import simulate_sigmoid, compute_phenotypes                    # noqa: E402
 from lemonoids.generation import DIFFICULTY_PRESETS                                    # noqa: E402
-from experiments.paper_v1.verify_organisms import verify_organism                      # noqa: E402
+from verify_organisms import verify_organism                                            # noqa: E402
 
 TARGET_SEEDS = 10
 MAX_SEEDS_TO_TRY = 60
