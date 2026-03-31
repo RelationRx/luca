@@ -14,6 +14,10 @@ Last updated: 2026-03-31. **Full benchmark run complete — 840/840 sessions (7 
 
 ## Composite Score (mean ± std)
 
+> **Reporting decision (2026-03-31):** For disease mode, composite is a summary convenience only.
+> The paper reports pred_acc / diagnosis / rescue as primary metrics. See Disease Mode Breakdown
+> table below. Composite alone masks partial-task completion (e.g. high pred_acc + zero diagnosis).
+
 | Model | Easy (healthy) | Medium (healthy) | Hard (healthy) | Medium (disease) | N ok (E/M/H/D) |
 |---|---|---|---|---|---|
 | heuristic | 0.717±0.159 | 0.725±0.132 | 0.717±0.176 | 0.553±0.193 | 20/20/20/19 |
@@ -21,10 +25,11 @@ Last updated: 2026-03-31. **Full benchmark run complete — 840/840 sessions (7 
 | claude-opus-4-6 | 1.000±0.000 | 0.983±0.050 | 0.908±0.111 | 0.907±0.134 | 20/20/20/18 |
 | gpt-4o | 0.975±0.060 | 0.843±0.090 | 0.833±0.132 | 0.478±0.138 | 20/17/19/18 |
 | gpt-4.1 | 0.941±0.098 | 0.833±0.136 | 0.756±0.159 | 0.567±0.215 | 17/18/15/**10** |
-| gpt-5.1 | 0.975±0.079 | 0.895±0.135 | 0.794±0.157 | 0.597±0.163 † | 20/19/17/**6** |
+| gpt-5.1 | 0.975±0.079 | 0.895±0.135 | 0.794±0.157 | — (excl.) | 20/19/17/**6** |
 
 > Seed 14 excluded from disease sweeps across all models — organism is too stable, no malfunction
 > produces aberrant phenotypes after 10 generation attempts (consistent `RuntimeError`).
+> gpt-5.1 disease excluded from paper table — see §6 and Disease Mode Breakdown note below.
 
 ---
 
@@ -710,3 +715,40 @@ post-hoc to sharpen results.
 
 **For the paper**: include the medium healthy sensitivity table (±0.15 → ±0.05) as a robustness
 check, likely in an appendix or footnote. Hard healthy can be noted with the noise-floor caveat.
+
+---
+
+## 15. Open Issues Before Submission (2026-03-31)
+
+Tracked here so nothing is lost between sessions. Update status as items are resolved.
+
+### Code / experiments
+
+- [ ] **ML baseline** (#4): implement linear regression + random forest baselines in `evaluate.py`
+  alongside `--heuristic`. Run on A_medium_healthy and B_hard_healthy (20 seeds each).
+  Gives reviewers a non-LLM data-driven lower bound. No API key needed for generation/heuristic.
+
+- [ ] **Gemini COI run** (#3): add Gemini as a provider in `lemonoids/agent.py` via the
+  OpenAI-compatible endpoint. Run A_medium_healthy (20 seeds) with `gemini-2.5-pro`.
+  Needs `GEMINI_API_KEY` in `.env`. Full plan in IDEAS.md (Conflict-of-Interest Controls).
+  Priority: high — conflict-of-interest is a harder reviewer objection to dismiss than baselines.
+
+### Paper framing (writing tasks, no code)
+
+- [ ] **Easy tier** (#9): frame easy as a ceiling/sanity check, not a discriminator. Note that
+  random baseline scores ~0.80 on easy — confirms all models have learned *something*, but
+  easy provides no signal between model families.
+
+- [ ] **Rescue without diagnosis** (#10): reframe as a finding, not a design flaw. Trial-and-error
+  rescue (exhaustive BLOCK sweep) is a distinct capability from causal diagnosis. The dissociation
+  (GPT rescue ~0.76–0.83, diagnosis ~0.06) reveals what GPT models can and cannot do.
+
+- [ ] **Heuristic < random on hard** (#14): explain clearly. Systematic BLOCK + additive prediction
+  commits to wrong predictions on high-feedback organisms where single-gene perturbations are
+  dominated by feedback effects. Not a benchmark design problem — it is the expected behaviour
+  of a linear model on a nonlinear system.
+
+- [ ] **Causal reasoning vs transferred heuristics** (#1): discussion section. Acknowledge that
+  invented vocabulary removes the retrieval confound but does not rule out general causal
+  heuristics transferred from biology/causal inference training data. Frame the Gemini COI run
+  as partial evidence; note as a limitation and future work direction.

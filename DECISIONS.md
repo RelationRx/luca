@@ -104,9 +104,13 @@ In disease mode, equal weighting across three tasks reflects that each is a dist
 (forward simulation, abductive diagnosis, intervention planning). Equal weights chosen over
 task-specific weights to avoid tuning decisions that would need justification.
 **Known issue:** Equal weighting means partial task completion (e.g. submitting predictions but
-not hypothesis) still scores non-zero. gpt-4.1 disease composite (0.682) is inflated by this —
-9/20 seeds skip experiments entirely and submit predictions from description alone, which scores
-well on pred_acc but 0 on diagnosis/rescue. Sub-scores should be reported alongside composite.
+not hypothesis) still scores non-zero. gpt-4.1 disease composite (0.567) is inflated by this —
+some seeds skip experiments entirely and submit predictions from description alone, which scores
+on pred_acc but 0 on diagnosis/rescue.
+**Decision (2026-03-31):** Report pred_acc, diagnosis, and rescue as primary metrics in all
+disease mode results tables; composite is a summary convenience only. This makes partial-task
+inflation transparent and lets readers assess each capability independently. The sub-scores are
+already computed and stored in all session logs — no re-runs needed.
 
 ### Prediction accuracy threshold (±0.10)
 **Decision:** A prediction is "correct" if within 0.10 of the true phenotype value.
