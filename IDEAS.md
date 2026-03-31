@@ -90,6 +90,23 @@ _Addresses potential reviewer concern that the benchmark was authored using Clau
 
 _For future work sections or follow-on papers. Not needed for this submission._
 
+- **Backwards organisms (structural prior control)**: invert all edge signs in the GRN
+  (activations → inhibitions and vice versa, plus sign-flip on biases to maintain baseline ≈ 0.5)
+  to create organisms whose dynamics systematically violate the structural intuitions a model
+  might have learned from real GRN literature. A model doing genuine causal inference from
+  perturbation experiments should score equally well on backwards organisms — it observes the
+  actual dynamics and updates regardless of prior expectations. A model anchoring on structural
+  priors (e.g. "blocking an activator reduces downstream") would be systematically wrong.
+  **What to measure**: score gap between normal and backwards organisms, per model. Claude gap ≈ 0,
+  GPT gap > 0 would be strong evidence that Claude's advantage reflects genuine inference rather
+  than transferred heuristics.
+  **Implementation**: generation-level parameter (invert edge weight signs post-sampling, re-center
+  phenotype biases). No new experiment infrastructure needed. Minimum sweep: A_medium_healthy,
+  20 seeds × 5 models. Pairs cleanly with the existing benchmark as a matched within-organism
+  comparison if the same seeds are used.
+  **Note**: inhibitory edges already exist (30–40% inhibition fraction), so a partial inversion
+  isn't novel enough — full inversion of all signs is needed to truly violate structural priors.
+
 - **Knowledge vs. retrieval via gene naming**: two testable variants beyond opaque IDs (G001,
   G002...): (1) invented-but-suggestive names (`repressor-alpha`, `flux-gate-3`) — agents form
   functional priors but can't look anything up; (2) real biology names (TP53, BRCA1) mapped onto
