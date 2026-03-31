@@ -21,6 +21,8 @@ The world is **unknowable via retrieval** — gene names, module labels, signals
 
    **`medium` is the default** and defines the canonical benchmark split (seeds 0–19). The canonical configuration uses N=20 genes, 4 modules, 3 phenotypes, 3 signals, and budget B=31. FFL and feedback densities are fractions of `n_genes`, so complexity scales with organism size. Latent genes = hidden confounders never visible or targetable. Steepness β controls sigmoid non-linearity — higher β makes dynamics harder to linearise.
 
+   > **Easy tier note**: 3/20 easy organisms have near-linear dynamics where prediction tasks are solvable by additive approximation. This is an inherent property of low-feedback networks, reported transparently. Medium and hard are fully non-trivial (0/20 additive tasks on medium and hard).
+
 3. **Named phenotype readouts** — non-linear summaries of an organism state e.g `"expansion-rate"` depending on gene states. The agent sees readout names and values, not raw gene states.
 4. **JSON/YAML serialization** — organisms are fully serializable for reproducibility and offline evaluation.
 5. **Disease mode** — organisms can be given a malfunction (LOCK_HI/LOCK_LO/PERSIST) that shifts phenotypes away from healthy ranges. Agents must diagnose and rescue.
