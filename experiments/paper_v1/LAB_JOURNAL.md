@@ -715,3 +715,40 @@ post-hoc to sharpen results.
 
 **For the paper**: include the medium healthy sensitivity table (±0.15 → ±0.05) as a robustness
 check, likely in an appendix or footnote. Hard healthy can be noted with the noise-floor caveat.
+
+---
+
+## 15. Open Issues Before Submission (2026-03-31)
+
+Tracked here so nothing is lost between sessions. Update status as items are resolved.
+
+### Code / experiments
+
+- [ ] **ML baseline** (#4): implement linear regression + random forest baselines in `evaluate.py`
+  alongside `--heuristic`. Run on A_medium_healthy and B_hard_healthy (20 seeds each).
+  Gives reviewers a non-LLM data-driven lower bound. No API key needed for generation/heuristic.
+
+- [ ] **Gemini COI run** (#3): add Gemini as a provider in `lemonoids/agent.py` via the
+  OpenAI-compatible endpoint. Run A_medium_healthy (20 seeds) with `gemini-2.5-pro`.
+  Needs `GEMINI_API_KEY` in `.env`. Full plan in IDEAS.md (Conflict-of-Interest Controls).
+  Priority: high — conflict-of-interest is a harder reviewer objection to dismiss than baselines.
+
+### Paper framing (writing tasks, no code)
+
+- [ ] **Easy tier** (#9): frame easy as a ceiling/sanity check, not a discriminator. Note that
+  random baseline scores ~0.80 on easy — confirms all models have learned *something*, but
+  easy provides no signal between model families.
+
+- [ ] **Rescue without diagnosis** (#10): reframe as a finding, not a design flaw. Trial-and-error
+  rescue (exhaustive BLOCK sweep) is a distinct capability from causal diagnosis. The dissociation
+  (GPT rescue ~0.76–0.83, diagnosis ~0.06) reveals what GPT models can and cannot do.
+
+- [ ] **Heuristic < random on hard** (#14): explain clearly. Systematic BLOCK + additive prediction
+  commits to wrong predictions on high-feedback organisms where single-gene perturbations are
+  dominated by feedback effects. Not a benchmark design problem — it is the expected behaviour
+  of a linear model on a nonlinear system.
+
+- [ ] **Causal reasoning vs transferred heuristics** (#1): discussion section. Acknowledge that
+  invented vocabulary removes the retrieval confound but does not rule out general causal
+  heuristics transferred from biology/causal inference training data. Frame the Gemini COI run
+  as partial evidence; note as a limitation and future work direction.
