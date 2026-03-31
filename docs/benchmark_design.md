@@ -122,6 +122,14 @@ At n=20 genes this produces:
 `generate_organism()` produces a deterministic organism from a `(seed, parameters)`
 pair. The 13 steps and their key guarantees:
 
+**Why this order?** Steps 1–7 establish structure before any simulation. Steps 8–9
+(observable/latent selection) must precede step 11 (phenotype readouts) — readouts
+are built exclusively from observable genes, and latent candidates are drawn from the
+non-observable pool, so both pools must be fixed first. Step 10 (baseline simulation)
+must precede steps 12–13, which use simulated phenotype values to verify latent
+relevance and re-centre biases. Step 13 must follow step 11 because it uses the
+finalised readout weights.
+
 | Step | What happens | Why / Key guarantee |
 |------|--------------|---------------------|
 | 1 | Assign gene IDs (G001–GXXX) | Invented labels; no real gene names |
