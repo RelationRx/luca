@@ -35,8 +35,11 @@ training data.
   specific genes relevant to each prediction task.
 
 - **Verified difficulty**: every generated organism passes structural and
-  functional checks (see §4) before use in experiments. Difficulty is a
-  property of the organism's topology, not a post-hoc label.
+  functional checks (see §4) before use in experiments. Difficulty is
+  determined by topological parameters — feedback density, observability,
+  latent gene fraction, sigmoid steepness — not by network size. Two organisms
+  with the same N can have very different difficulty; difficulty tiers are
+  defined by these structural axes, not as a post-hoc label.
 
 ---
 
