@@ -30,14 +30,20 @@ Last updated: 2026-03-18. **Full benchmark run complete — 840/840 sessions (7 
 
 ## Disease Mode Breakdown (medium, valid seeds only)
 
+> **Note (2026-03-31):** gpt-5.1 excluded from this table (only 4 valid seeds, selection-biased
+> toward easiest organisms). gpt-4.1 included with caveat (10/20 seeds). See §6 for context
+> exhaustion analysis; both models appear in the Failure Modes section of the paper.
+
 | Model | Pred acc | Diagnosis | Rescue | Composite | N valid |
 |---|---|---|---|---|---|
 | heuristic | 0.711 | 0.158 | 0.789 | 0.553 | 19 |
 | claude-sonnet-4-6 | 0.965 | 0.632 | 1.000 | 0.866 | 19 |
 | claude-opus-4-6 | 0.944 | 0.778 | 1.000 | 0.907 | 18 |
 | gpt-4o | 0.803 | 0.056 | 0.759 | 0.478 | 18 |
-| gpt-4.1 | 0.900 | 0.200 | 0.815 | 0.567 | 10 |
-| gpt-5.1 | 1.000 | 0.250 | 0.833 | 0.694 | 4 |
+| gpt-4.1 ‡ | 0.900 | 0.200 | 0.815 | 0.567 | 10 |
+
+> ‡ gpt-4.1: 10/20 valid seeds due to context exhaustion; scores may be upward-biased toward
+> simpler organisms. gpt-5.1 (6/20 valid) excluded entirely — see §6.
 
 ---
 
@@ -114,15 +120,13 @@ No per-turn output cap prevents this.
 Further re-runs are unlikely to help without architectural changes (e.g. history
 summarisation, truncating tool results). The failure mode is real and reproducible.
 
-**For the paper — two options:**
-- **Option A**: Report gpt-5.1 disease as 6/20, composite 0.597±0.163, with a prominent
-  caveat that N is too small for reliable comparison. Include in table with a dagger (†).
-- **Option B**: Exclude gpt-5.1 from the disease results table entirely; move it to a
-  failure-modes subsection as a case study of context exhaustion.
-
-Leaning toward **Option B**: the 6 valid seeds are likely the easiest organisms (selection
-bias), making the 0.597 score unrepresentative. The story is more honest as a failure mode
-than as a noisy data point.
+**Decision (2026-03-31): Option B.**
+Exclude gpt-5.1 from the disease results table entirely. Move to a "Failure Modes" subsection
+alongside gpt-4.1 (10/20) as a case study of context exhaustion under agentic conditions.
+Rationale: the 6 valid seeds are selection-biased toward the easiest organisms, making the
+0.597 composite unrepresentative. The story is more honest as a failure mode than as a noisy
+data point. The Claude vs. GPT disease gap is already demonstrated by gpt-4o (18/20,
+diagnosis=0.056) — gpt-5.1 is not needed to make the argument.
 
 ---
 
