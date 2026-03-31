@@ -40,7 +40,11 @@ The guarantee ensures every task requires genuine understanding of intervention 
 **Decision:** Budget = number of `run_experiment()` calls allowed (not tokens or time).
 **Why:** Makes the resource constraint explicit and model-agnostic. Agents must decide which
 experiments are most informative — this is the core reasoning challenge.
-Medium organisms: budget=31. Hard organisms: budget is tight relative to the search space.
+Formula: `n_genes + n_signals + 8`. At n=20 this gives budget=31 for all difficulty tiers
+(easy/medium/hard share the same n_genes and n_signals at the canonical design point).
+The budget is not tighter on hard — hard is harder because of network topology (more feedback,
+latent genes, nonlinearity), not because budget is reduced. The `+8` provides headroom for
+follow-up experiments beyond a full single-element sweep.
 
 ---
 
@@ -141,15 +145,19 @@ opus disease sweep lost 18/20 seeds to overload errors overnight.
 ## Baselines
 
 ### Heuristic: exhaustive BLOCK sweep
-**Decision:** Heuristic baseline systematically BLOCKs each gene one at a time and uses additive
-prediction. Uses a fixed budget of 21 experiments.
+**Decision:** Heuristic baseline systematically BLOCKs each observable gene one at a time
+and uses additive prediction. At n=20 medium (12 observable genes + 3 signals + some
+disease hypothesis probes), it uses approximately 15–21 experiments — well under the
+budget=31 ceiling. It does not adapt its experiment count to the budget.
 **Why:** Represents a principled non-LLM strategy — exhaustive enumeration rather than targeted
 reasoning. Its performance sets a floor: anything a model achieves beyond this requires
 genuine causal reasoning, not just systematic search.
-**Interesting finding:** Heuristic collapses below random on hard organisms (0.342 vs 0.483) —
-systematic BLOCK sweeps fail on high-feedback organisms where single-gene perturbations are
-dominated by feedback effects. Also beats all GPTs on disease diagnosis (0.35 diag) because
-exhaustive hypothesis enumeration is more reliable than language-based abduction for GPT models.
+**Interesting finding:** Heuristic collapses below random on hard organisms — systematic BLOCK
+sweeps fail on high-feedback organisms where single-gene perturbations are dominated by feedback
+effects. On medium disease, heuristic diagnosis = 0.100, below gpt-5.1 (0.200) and gpt-4.1
+(0.167) — exhaustive enumeration is insufficient when signal malfunctions introduce ambiguity
+that gene-level enumeration cannot resolve. (An earlier run recorded 0.35; superseded by the
+final run with corrected seed exclusions. See `docs/part1_results.md` §4.)
 
 ### Random baseline
 **Decision:** Predicts 0.5 everywhere, runs zero experiments, submits random hypothesis.
