@@ -243,22 +243,15 @@ suffix when exhausted (e.g. `"vortex-2"`), which occurs above n ≈ 100.
 
 ---
 
-## 8. Agent Interface
+## 8. Tasks and Scoring
 
-The agent interacts with an `ExperimentSession` via 7 tools:
+The benchmark defines up to three task types depending on mode:
 
-| Tool | What it does |
-|------|-------------|
-| `get_organism_info()` | Gene names, signals, observable phenotypes, budget, baseline phenotypes |
-| `run_experiment(interventions)` | Apply BLOCK/BOOST/DAMPEN to any genes; returns steady-state expressions + phenotypes |
-| `submit_prediction(task_id, values)` | Submit phenotype predictions for a prediction task |
-| `get_prediction_tasks()` | List prediction tasks (gene interventions to predict) |
-| `submit_malfunction_hypothesis(target, type)` | Commit to a diagnosis (disease mode); locked on first call |
-| `test_rescue(intervention)` | Test a corrective intervention against the disease state |
-| `get_summary()` | Retrieve all scores (only meaningful at session end) |
-
-**Intervention types**: `BLOCK` (expression → 0), `BOOST` (expression → 1),
-`DAMPEN` (clamps expression to ≤ 0.15 — a partial suppression, distinct from full BLOCK).
+| Task | Mode | Description |
+|------|------|-------------|
+| Predict | Both | Predict phenotype values for held-out multi-gene interventions |
+| Diagnose | Disease | Identify the malfunctioning gene/signal and malfunction type |
+| Rescue | Disease | Test a corrective intervention that restores phenotypes to healthy range |
 
 ### Prediction tasks
 
@@ -279,12 +272,46 @@ values. Key properties:
   requires reasoning about interaction effects.
 - **Default n=2** per session (configurable; fixed at 2 for all paper v1 runs).
 
-Ground truth is computed noiselessly for scoring (see §9).
+### Scoring
+
+All scores are in [0, 1], higher is better. Ground truth is computed noiselessly
+(`noise=False`) even though agents observe noisy measurements — scoring against a
+noisy target would make the benchmark stochastic across re-runs. At hard tier
+(σ=0.03), ±0.10 represents a ~3σ tolerance, so measurement noise alone is not
+penalised.
+
+| Task | Metric | How scored |
+|------|--------|------------|
+| Prediction | Accuracy | Fraction of phenotypes within ±0.10 of ground truth, averaged over tasks |
+| Diagnosis | Score | 1.0 exact (gene + type) · 0.5 correct gene wrong type · 0.0 wrong |
+| Rescue | Fraction | Fraction of aberrant phenotypes restored to healthy range |
+| Composite | — | Healthy: pred_acc · Disease: mean(pred_acc, diagnosis, rescue) |
+
+MSE is computed and logged per prediction task but is not used in final scoring.
+Scores are only revealed via `get_summary()` at session end.
+
+---
+
+## 9. Agent Interface
+
+The agent interacts with an `ExperimentSession` via 7 tools:
+
+| Tool | What it does |
+|------|-------------|
+| `get_organism_info()` | Gene names, signals, observable phenotypes, budget, baseline phenotypes |
+| `run_experiment(interventions)` | Apply BLOCK/BOOST/DAMPEN to any genes; returns steady-state expressions + phenotypes |
+| `submit_prediction(task_id, values)` | Submit phenotype predictions for a prediction task |
+| `get_prediction_tasks()` | List prediction tasks (gene interventions to predict) |
+| `submit_malfunction_hypothesis(target, type)` | Commit to a diagnosis (disease mode); locked on first call |
+| `test_rescue(intervention)` | Test a corrective intervention against the disease state |
+| `get_summary()` | Retrieve all scores (only meaningful at session end) |
+
+**Intervention types**: `BLOCK` (expression → 0), `BOOST` (expression → 1),
+`DAMPEN` (clamps expression to ≤ 0.15 — a partial suppression, distinct from full BLOCK).
 
 **Budget**: `n_genes + n_signals + 8` experiments total (see §7 for rationale).
-Each `run_experiment` or `test_rescue` call costs 1 unit. Budget is shared across
-all tool calls in the session. `get_organism_info()` and `get_prediction_tasks()`
-are free (do not consume budget).
+Each `run_experiment` or `test_rescue` call costs 1 unit. `get_organism_info()`
+and `get_prediction_tasks()` are free (do not consume budget).
 
 **LLM parameters**: all models run with `max_tokens=16384`, `temperature=1.0` (default).
 Tool calling uses the provider's native function-calling API. Each session is a fresh
@@ -295,48 +322,6 @@ produce phenotypes, that they have a budget of experiments, and that their goal 
 characterise the network well enough to predict novel intervention outcomes. The system
 prompt does not reveal network topology, gene functions, or any biology-domain knowledge.
 Full prompt text is in `lemonoids/agent.py`.
-
-**Modes**:
-- *Healthy*: tasks are `predict` only (2 prediction challenges)
-- *Disease*: tasks are `predict` + `diagnose` + `rescue`
-
----
-
-## 9. Scoring
-
-All scores are in [0, 1], higher is better.
-
-**Prediction accuracy** (per task):
-```
-accuracy = (number of phenotypes within ±0.10 of ground truth) / n_phenotypes
-```
-MSE is also computed and logged per task but is not used in scoring.
-
-**Diagnosis score** (disease mode):
-```
-1.0  correct target AND correct malfunction type (exact match)
-0.5  correct target, wrong malfunction type (partial credit)
-0.0  wrong target
-```
-
-**Rescue score** (disease mode):
-```
-fraction of aberrant phenotypes restored to healthy range by the proposed intervention
-```
-
-**Composite score**: unweighted mean of all active task components.
-- Healthy: composite = prediction accuracy
-- Disease: composite = mean(prediction accuracy, diagnosis, rescue)
-
-**Ground truth is computed noiselessly** (`noise=False`) from the true organism dynamics,
-even though agents observe noisy measurements (σ=0.005–0.03 depending on tier). This means
-the ±0.10 threshold is measured against the true phenotype value, not the agent's noisy
-observation. Rationale: scoring against a noisy target would make the benchmark itself
-stochastic and unreproducible across re-runs; scoring against ground truth gives a clean
-measure of prediction quality. At hard tier (σ=0.03), ±0.10 represents a ~3σ tolerance —
-generous enough that measurement noise alone is not penalised.
-
-Scores are only revealed via `get_summary()` at session end.
 
 ---
 
