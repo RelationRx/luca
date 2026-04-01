@@ -290,8 +290,8 @@ The risk is generation code changes invalidating results (as happened with PR #2
 - Each results JSONL records the git commit hash at run time (via `run.py` metadata).
 - If generation code must change before paper submission, re-run all sweeps and update the tag.
 
-No organism serialisation is needed. If reviewers want to inspect specific organisms, they can
-re-generate from seed + difficulty using the tagged code.
+No organism serialisation is needed. Any specific organism can be re-generated from seed +
+difficulty using the tagged code.
 
 ### Assumptions
 
@@ -723,8 +723,8 @@ Covers B_easy_healthy, A_medium_healthy, B_hard_healthy, A_medium_disease (gpt-5
 
 The Claude > GPT gap is robust to threshold choice on the discriminative regimes (medium, hard).
 The ±0.10 choice is well-calibrated: it is not the tightest plausible threshold, and the gap
-does not depend on it. This directly pre-empts the reviewer concern that ±0.10 was chosen
-post-hoc to sharpen results.
+does not depend on it. The ±0.10 choice is not post-hoc: the gap is stable
+across a wide range of thresholds.
 
 **For the paper**: include the medium healthy sensitivity table (±0.15 → ±0.05) as a robustness
 check, likely in an appendix or footnote. Hard healthy can be noted with the noise-floor caveat.
@@ -739,12 +739,12 @@ Tracked here so nothing is lost between sessions. Update status as items are res
 
 - [ ] **ML baseline** (#4): implement linear regression + random forest baselines in `evaluate.py`
   alongside `--heuristic`. Run on A_medium_healthy and B_hard_healthy (20 seeds each).
-  Gives reviewers a non-LLM data-driven lower bound. No API key needed for generation/heuristic.
+  Provides a non-LLM data-driven lower bound. No API key needed for generation/heuristic.
 
 - [ ] **Gemini COI run** (#3): add Gemini as a provider in `lemonoids/agent.py` via the
   OpenAI-compatible endpoint. Run A_medium_healthy (20 seeds) with `gemini-2.5-pro`.
   Needs `GEMINI_API_KEY` in `.env`. Full plan in IDEAS.md (Conflict-of-Interest Controls).
-  Priority: high — conflict-of-interest is a harder reviewer objection to dismiss than baselines.
+  Priority: high — conflict-of-interest is a harder concern to address than missing baselines.
 
 ### Paper framing (writing tasks, no code)
 
