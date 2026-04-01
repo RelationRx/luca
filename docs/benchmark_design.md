@@ -1,9 +1,9 @@
 # LEMONOIDS Benchmark Design
 
 A reference document for the benchmark's design decisions, parameters, and
-invariants. Intended for contributors, reviewers, and anyone extending the
-codebase — not a substitute for the paper, but the place to find the *why*
-behind design choices.
+invariants. Intended for contributors and anyone extending the codebase —
+not a substitute for the paper, but the place to find the *why* behind
+design choices.
 
 ---
 
@@ -371,7 +371,6 @@ tables are in `docs/part1_results.md` (Part 1) and `docs/part2_results.md` (scal
 ## 12. Limitations and Extensions
 
 Known limitations of the current design, and planned or proposed extensions.
-Organised by the reviewer concern each addresses.
 
 ### Network realism
 

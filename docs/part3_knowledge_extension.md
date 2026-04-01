@@ -131,9 +131,11 @@ with complexity?
 
 ## Connection to the paper narrative
 
-This extension addresses a gap that reviewers of Parts 1/2 will likely raise:
-*"What happens if models had some domain knowledge? Is the benchmark too
-divorced from how science actually works?"*
+This extension addresses a natural open question: what happens when models
+have access to some domain knowledge? Is pure causal reasoning from scratch
+the right frame, or does the benchmark need to account for how science
+actually works — where researchers draw on prior knowledge alongside
+experimental evidence?
 
 The answer is: Part 3 tests exactly that, and the prediction is that knowledge
 helps above the threshold, not below — which would be a strong result about
