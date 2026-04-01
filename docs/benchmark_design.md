@@ -365,3 +365,99 @@ non-determinism across processes (fixed in PR #28).
 
 **Results**: raw session logs are stored locally (gitignored). Canonical results
 tables are in `docs/part1_results.md` (Part 1) and `docs/part2_results.md` (scaling).
+
+---
+
+## 12. Limitations and Extensions
+
+Known limitations of the current design, and planned or proposed extensions.
+Organised by the reviewer concern each addresses.
+
+### Network realism
+
+The synthetic GRNs use invented vocabulary and randomly sampled topology, but
+their structural parameters (FFL frequency, feedback density, degree distributions)
+have not been systematically compared to real biological GRN databases
+(e.g. RegulonDB, BioGRID). The claim of "biological-style complexity" rests on
+the use of established GRN dynamics models (Mjolsness et al. 1991; Karlebach &
+Shamir 2008) and qualitatively plausible parameter ranges, not on a quantitative
+topology match.
+
+**Planned**: a topology validation study comparing generated network statistics to
+real GRN databases at equivalent network sizes. This would strengthen the
+biological plausibility claim without changing the benchmark itself.
+
+### Reasoning patterns vs. retrieval
+
+Invented vocabulary removes factual retrieval bias, but does not eliminate the
+possibility that models have encountered structurally similar causal reasoning
+problems in training (e.g. synthetic causal graphs, textbook perturbation
+exercises). A model could be pattern-matching a known reasoning strategy rather
+than performing novel inference.
+
+**Planned**: *backwards organisms* — organisms where the expected direction of
+regulatory effects is systematically inverted relative to typical GRN conventions.
+A model relying on learned reasoning heuristics would perform worse on backwards
+organisms; a model reasoning from perturbation evidence would not. See IDEAS.md
+for design notes.
+
+### Prompt sensitivity
+
+All models are evaluated with the same system prompt (see §9). Model rankings
+could shift under different prompt phrasings, levels of task specification, or
+chain-of-thought encouragement. Prompt sensitivity is a known confound for LLM
+benchmarks and has not been ablated here.
+
+**Acknowledged limitation**: the benchmark tests agent performance under a fixed,
+reasonable prompt, not best-possible performance for each model. A prompt
+sensitivity ablation (varying phrasing and instruction detail across a small seed
+set) would bound this confound.
+
+### Statistical power
+
+20 seeds per model × sweep gives limited statistical power, particularly at hard
+tier where scores are low and variance is high. No confidence intervals are
+reported in the current results tables.
+
+**Planned**: bootstrap confidence intervals on all aggregate metrics. No re-runs
+required — intervals can be computed from existing session logs.
+
+### No human baseline
+
+Without a human baseline, it is unclear whether the hard tier is hard for humans
+or only for current LLMs. A human baseline on a small seed set (5–10 organisms)
+would calibrate difficulty and make the benchmark's discriminative range
+interpretable.
+
+**Planned**: single-session human evaluation on hard tier seeds, using the same
+tool interface as LLM agents.
+
+### Synchronous discrete-time dynamics
+
+The GRN uses synchronous discrete-time updates, which differ from real biological
+GRNs (continuous, asynchronous, stochastic at the molecular level). This is a
+deliberate modelling choice for tractability and reproducibility: the benchmark
+tests an agent's ability to reason about a well-defined formal system, not to
+simulate real biology. Agents are given the update rule; there is no hidden
+biological realism the model needs to recover.
+
+**Extension**: asynchronous update variants would test robustness of agent
+strategies to dynamics model mismatch.
+
+### Easy tier as discriminator
+
+The easy tier produces near-linear organisms where the random baseline scores
+~0.80 composite. This makes easy a weak discriminator between models. It is
+useful as a sanity check (any model should score above random) and as a floor
+for interpretation, but paper results and comparisons focus on medium and hard.
+3/20 easy organisms have near-additive prediction tasks — an inherent property
+of low-feedback networks, reported transparently (see §6).
+
+### Prior knowledge integration
+
+The current benchmark makes all prior knowledge uninformative by design. A
+natural extension is to test whether agents can integrate synthetic prior
+knowledge (organism-family datasheets in invented vocabulary) with perturbation
+evidence, and whether knowledge helps most where pure causal reasoning fails —
+i.e. at high complexity. See `docs/part3_knowledge_extension.md` for a full
+design proposal.
