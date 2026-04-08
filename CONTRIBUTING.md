@@ -1,4 +1,17 @@
-# Contributing to LEMONOIDS
+# Contributing to LUCA
+
+We welcome contributions — the easiest way to help is to **use the benchmark** and share what you find.
+
+## Ways to contribute
+
+Browse [open issues](../../issues) for specific tasks. Most are self-contained and optional:
+
+- **Getting started** — run the benchmark, try the BYOA interface, report any friction
+- **Add a model** — run your favourite LLM (Gemini, Qwen, Llama, etc.) and share session logs
+- **Add a baseline** — implement a non-LLM baseline (linear regression, kNN, random forest)
+- **Analysis** — post-hoc analyses computable from existing session logs (no re-runs needed)
+
+No contribution is too small. Even a bug report or a note about unclear docs is useful.
 
 ## Setup
 
@@ -66,6 +79,15 @@ experiments/my_experiment/
 ```
 
 Experiment scripts and summary `.jsonl` files are tracked. Per-session logs (`logs/`) and figures (`*.png`) are gitignored.
+
+## Submitting results
+
+If you run a new model or baseline, the most useful thing to submit is:
+1. Session logs (JSONL files from `experiments/`)
+2. Model identifier and provider
+3. Any notes on integration (did tool calling work? any quirks?)
+
+Open a PR or attach logs to the relevant issue.
 
 ## Questions
 
