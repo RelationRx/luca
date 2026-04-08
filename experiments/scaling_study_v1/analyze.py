@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Analyze LEMONOIDS scaling study results from results.jsonl.
+"""Analyze LUCA scaling study results from results.jsonl.
 
 Usage:
     python analyze.py          # plain-text pivot table + threshold summary
@@ -191,7 +191,7 @@ def budget_threshold_summary(records: list[dict], csv_mode: bool = False) -> Non
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Analyze LEMONOIDS scaling study results")
+    parser = argparse.ArgumentParser(description="Analyze LUCA scaling study results")
     parser.add_argument(
         "--csv", action="store_true",
         help="Output comma-separated format for spreadsheet import",

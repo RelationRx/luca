@@ -1,4 +1,4 @@
-"""LEMONOIDS organism inspector — terminal (rich) + matplotlib graph."""
+"""LUCA organism inspector — terminal (rich) + matplotlib graph."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -49,7 +49,7 @@ def _print_rich(org: "Organism", console) -> None:
 
     # ── Header ──────────────────────────────────────────────────────────────
     console.print(Panel(
-        f"[bold yellow]🍋 LEMONOIDS[/bold yellow]  [dim white]{org.id}[/dim white]\n"
+        f"[bold yellow]🍋 LUCA[/bold yellow]  [dim white]{org.id}[/dim white]\n"
         f"  seed [cyan]{org.seed}[/cyan]  ·  "
         f"[bold green]{len(org.genes)}[/bold green] genes  ·  "
         f"[bold blue]{len(org.modules)}[/bold blue] modules  ·  "
@@ -135,7 +135,7 @@ def _print_plain(org: "Organism") -> None:
     from .dynamics import compute_phenotypes
 
     observable_set = set(org.observable_genes)
-    print(f"\n🍋 LEMONOIDS  {org.id}  seed={org.seed}")
+    print(f"\n🍋 LUCA  {org.id}  seed={org.seed}")
     print(f"  {len(org.genes)} genes · {len(org.modules)} modules · "
           f"{len(org.relations)} edges · {len(org.signals)} signals · "
           f"{len(org.phenotypes)} phenotypes · "
@@ -205,7 +205,7 @@ def _print_disease_rich(org: "Organism", console) -> None:
     )
     n_edges = len(org.relations)
     console.print(Panel(
-        f"[bold yellow]🍋 LEMONOIDS — DISEASE ORGANISM[/bold yellow]  [dim white]{org.id}[/dim white]\n"
+        f"[bold yellow]🍋 LUCA — DISEASE ORGANISM[/bold yellow]  [dim white]{org.id}[/dim white]\n"
         f"  seed [cyan]{org.seed}[/cyan]  ·  "
         f"[bold green]{len(org.genes)}[/bold green] genes  ·  "
         f"[bold blue]{len(org.modules)}[/bold blue] modules  ·  "
@@ -341,7 +341,7 @@ def _print_disease_plain(org: "Organism") -> None:
     gene_id_to_name = {g.id: g.name for g in org.genes}
     ct_label = org.cell_type.label if org.cell_type else "unknown"
 
-    print(f"\n🍋 LEMONOIDS — DISEASE ORGANISM  {org.id}  seed={org.seed}")
+    print(f"\n🍋 LUCA — DISEASE ORGANISM  {org.id}  seed={org.seed}")
     print(f"  {len(org.genes)} genes · {len(org.modules)} modules · "
           f"{len(org.relations)} edges · {len(org.signals)} signals · "
           f"{len(org.phenotypes)} phenotypes · "
@@ -436,7 +436,7 @@ def plot_organism(
         ax.set_facecolor(PANEL_BG)
 
     fig.suptitle(
-        f"LEMONOIDS  ·  {org.id}  ·  seed={org.seed}",
+        f"LUCA  ·  {org.id}  ·  seed={org.seed}",
         color="#FFC107", fontsize=14, fontweight="bold", y=0.99,
     )
 
@@ -705,7 +705,7 @@ def plot_disease_organism(
         ax.set_facecolor(PANEL_BG)
 
     fig.suptitle(
-        f"LEMONOIDS Disease  ·  {org.id}  ·  {ct_label}  ·  seed={org.seed}\n"
+        f"LUCA Disease  ·  {org.id}  ·  {ct_label}  ·  seed={org.seed}\n"
         f"Malfunction: {malfunction_strs}",
         color="#EF5350", fontsize=11, fontweight="bold", y=0.99,
     )

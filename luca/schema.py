@@ -1,4 +1,4 @@
-"""Dataclass schema for Lemonoids organisms."""
+"""Dataclass schema for LUCA organisms."""
 from __future__ import annotations
 
 import json

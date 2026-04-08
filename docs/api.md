@@ -1,9 +1,9 @@
-# 🍋 LEMONOIDS — API Reference
+# 🍋 LUCA — API Reference
 
 ## `generate_organism()`
 
 ```python
-from lemonoids import generate_organism
+from luca import generate_organism
 
 org = generate_organism(
     n_genes=20,
@@ -40,7 +40,7 @@ org3 = Organism.from_yaml(yaml_str)
 ## `generate_disease_organism()`
 
 ```python
-from lemonoids import generate_disease_organism
+from luca import generate_disease_organism
 
 org = generate_disease_organism(
     n_genes=15,
@@ -61,7 +61,7 @@ Generates a healthy organism, assigns a `CellType`, then applies a malfunction (
 Additional fields on a disease `Organism`: `cell_type`, `healthy_baseline`, `healthy_phenotype_ranges`, `malfunctions`.
 
 ```python
-from lemonoids.inspect import plot_disease_organism, plot_disease_comparison
+from luca.inspect import plot_disease_organism, plot_disease_comparison
 
 plot_disease_organism(org, save_path="disease.png")
 # Single-panel: gene activity + phenotype bars, disease state coloured,
@@ -76,7 +76,7 @@ plot_disease_comparison(org, save_path="compare.png")
 ## `ExperimentSession`
 
 ```python
-from lemonoids import ExperimentSession
+from luca import ExperimentSession
 
 session = ExperimentSession(
     org,
@@ -170,7 +170,7 @@ summary = session.get_summary()
 ## `run_agent()`
 
 ```python
-from lemonoids import run_agent
+from luca import run_agent
 
 summary = run_agent(
     session,
@@ -208,7 +208,7 @@ When `log_path` is provided, a structured JSON log is written with per-turn reas
 ## Diagnostic Reports
 
 ```python
-from lemonoids.report import print_session_trace, export_session_html
+from luca.report import print_session_trace, export_session_html
 import json
 
 with open("logs/run.json") as f:
@@ -234,7 +234,7 @@ export_session_html(log, "run.html")  # self-contained dark-theme HTML report
 ## `generate_dataset()`
 
 ```python
-from lemonoids import generate_dataset
+from luca import generate_dataset
 
 paths = generate_dataset(
     n_organisms=50,

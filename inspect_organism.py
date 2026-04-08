@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""🍋 LEMONOIDS — organism inspector CLI.
+"""🍋 LUCA — organism inspector CLI.
 
 Usage:
     python inspect_organism.py
@@ -26,13 +26,13 @@ if os.path.exists(_env_path):
                 _k, _, _v = _line.partition("=")
                 os.environ.setdefault(_k.strip(), _v.strip())
 
-from lemonoids import generate_organism, generate_disease_organism
-from lemonoids.inspect import print_organism, print_disease_organism, plot_organism, plot_disease_organism, plot_disease_comparison
+from luca import generate_organism, generate_disease_organism
+from luca.inspect import print_organism, print_disease_organism, plot_organism, plot_disease_organism, plot_disease_comparison
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="🍋 LEMONOIDS organism inspector",
+        description="🍋 LUCA organism inspector",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--seed", type=int, default=42, help="Organism seed")
@@ -89,13 +89,13 @@ def main() -> None:
 
     # ── Replay mode ──────────────────────────────────────────────────────────
     if args.replay:
-        from lemonoids import ExperimentSession
-        from lemonoids.agent import run_agent
+        from luca import ExperimentSession
+        from luca.agent import run_agent
 
         import json as _json
-        from lemonoids.report import print_session_trace, export_session_html
+        from luca.report import print_session_trace, export_session_html
 
-        from lemonoids.experiment import recommended_budget
+        from luca.experiment import recommended_budget
         budget = args.budget if args.budget is not None else recommended_budget(org)
         session = ExperimentSession(org, budget=budget, seed=args.seed)
         print(f"Running agent session (budget={budget}, disease={args.disease})…")

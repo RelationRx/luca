@@ -15,14 +15,14 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Make lemonoids importable from the repo root
+# Make luca importable from the repo root
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
-from lemonoids.generation import generate_disease_organism
-from lemonoids.experiment import ExperimentSession, recommended_budget
-from lemonoids.agent import run_agent
-from lemonoids.report import export_session_html
+from luca.generation import generate_disease_organism
+from luca.experiment import ExperimentSession, recommended_budget
+from luca.agent import run_agent
+from luca.report import export_session_html
 
 # ---------------------------------------------------------------------------
 # Grid definition
@@ -148,7 +148,7 @@ def extract_metrics(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="LEMONOIDS scaling study sweep")
+    parser = argparse.ArgumentParser(description="LUCA scaling study sweep")
     parser.add_argument(
         "--dry-run", action="store_true",
         help="Print the full grid without making API calls",

@@ -1,4 +1,4 @@
-# LEMONOIDS Part 3 — Knowledge Integration Extension
+# LUCA Part 3 — Knowledge Integration Extension
 
 **Status**: Research note / idea stage. Not included in current paper.
 **Prerequisites**: Parts 1 and 2 complete.
@@ -10,7 +10,7 @@
 Parts 1 and 2 establish two things:
 
 1. There is a complexity threshold (some N, some feedback density) above which
-   current models fail at causal reasoning in LEMONOIDS.
+   current models fail at causal reasoning in LUCA.
 2. Below that threshold, models differ in *how* they reason — some do systematic
    exploration, some jump to priors, some enumerate exhaustively.
 

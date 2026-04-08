@@ -1,7 +1,7 @@
 """Tests for organism generation."""
 import pytest
-from lemonoids import generate_organism, generate_disease_organism
-from lemonoids.dynamics import compute_phenotypes
+from luca import generate_organism, generate_disease_organism
+from luca.dynamics import compute_phenotypes
 
 
 def test_generate_organism_defaults():
@@ -129,7 +129,7 @@ def test_diagnosis_ambiguity_serializes():
 
 def test_disease_detectability_guarantee():
     """Every disease organism must have ≥1 aberrant phenotype AND a rescuable malfunction."""
-    from lemonoids.dynamics import compute_phenotypes, simulate_sigmoid
+    from luca.dynamics import compute_phenotypes, simulate_sigmoid
     import numpy as np
 
     for seed in range(5):

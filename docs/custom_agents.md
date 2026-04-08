@@ -1,6 +1,6 @@
 # Bring Your Own Agent
 
-LEMONOIDS supports custom agents via a simple Python callable interface. You can benchmark any agent — rule-based, LLM-powered, or otherwise — against the same organisms and scoring as the built-in models.
+LUCA supports custom agents via a simple Python callable interface. You can benchmark any agent — rule-based, LLM-powered, or otherwise — against the same organisms and scoring as the built-in models.
 
 ---
 

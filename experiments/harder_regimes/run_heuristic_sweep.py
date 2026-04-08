@@ -35,8 +35,8 @@ import numpy as np
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
-from lemonoids.generation import generate_disease_organism
-from lemonoids.experiment import ExperimentSession, recommended_budget
+from luca.generation import generate_disease_organism
+from luca.experiment import ExperimentSession, recommended_budget
 
 # ---------------------------------------------------------------------------
 # Grid (same as run_sweep.py)
@@ -324,7 +324,7 @@ def already_recorded(n: int, diff: str, seed: int, mult: float) -> bool:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="LEMONOIDS harder_regimes heuristic sweep")
+    parser = argparse.ArgumentParser(description="LUCA harder_regimes heuristic sweep")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--arm", choices=["A", "B"], default=None)
     parser.add_argument("--verbose", action="store_true")

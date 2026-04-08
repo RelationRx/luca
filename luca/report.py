@@ -1,4 +1,4 @@
-"""Session diagnostic tools for Lemonoids experiments."""
+"""Session diagnostic tools for LUCA experiments."""
 from __future__ import annotations
 
 import json
@@ -555,7 +555,7 @@ def _build_html(log: dict) -> str:
         f"<style>{_CSS}</style>",
         f"<script>{_JS}</script>",
         "</head><body>",
-        "<h1>🍋 LEMONOIDS Session Report</h1>",
+        "<h1>🍋 LUCA Session Report</h1>",
         f"<div class='meta'>"
         f"{meta.get('organism_id','?')}  ·  seed={meta.get('seed','?')}  ·  "
         f"budget={meta.get('budget','?')}  ·  <b>{disease_str}</b>  ·  "

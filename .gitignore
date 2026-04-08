@@ -20,7 +20,7 @@ CLAUDE.md
 
 # Top-level logs directory
 logs/
-lemonoids_dataset/
+luca_dataset/
 
 # Evaluation output (regenerate locally)
 results/

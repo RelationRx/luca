@@ -152,7 +152,7 @@ Figures:
 3. *Optional*: heuristic failure decomposition (prediction error by phenotype type).
 
 ### Step 6 — Update paper
-- Fill in Part 2 placeholder in `lemonoids-paper/main.tex`
+- Fill in Part 2 placeholder in `luca-paper/main.tex`
 - Add scaling figure
 - Update LAB_JOURNAL.md §13 with final results
 

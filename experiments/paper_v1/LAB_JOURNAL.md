@@ -150,7 +150,7 @@ diagnosis=0.056) — gpt-5.1 is not needed to make the argument.
 
 ## 7. Organism Generation Quality (PR #21, 2026-03-16)
 
-Four artefacts identified and fixed in `lemonoids/generation.py` and `lemonoids/experiment.py`.
+Four artefacts identified and fixed in `luca/generation.py` and `luca/experiment.py`.
 
 ### Pipeline overview (post-fix)
 
@@ -285,8 +285,8 @@ difficulty)` is fully deterministic: seed + parameters → organism. The seed li
 The risk is generation code changes invalidating results (as happened with PR #21). Guard:
 
 - Generation code frozen at git tag **`v1-generation-freeze-2`** (commit `57f7be7`, 2026-03-17).
-- All Part 1 runs must use this tag or a later commit that does not touch `lemonoids/generation.py`
-  or `lemonoids/experiment.py`.
+- All Part 1 runs must use this tag or a later commit that does not touch `luca/generation.py`
+  or `luca/experiment.py`.
 - Each results JSONL records the git commit hash at run time (via `run.py` metadata).
 - If generation code must change before paper submission, re-run all sweeps and update the tag.
 
@@ -386,7 +386,7 @@ Full run complete: 7 models × 4 sweeps × 20 seeds = **560/560 sessions, all N=
 Generation frozen at `v1-generation-freeze-2` (commit `57f7be7`).
 
 Fixes applied during this run:
-- Early-stop bug fixed in `lemonoids/agent.py` (gpt-5.1/gpt-4.1 exiting before submitting; now nudged to complete).
+- Early-stop bug fixed in `luca/agent.py` (gpt-5.1/gpt-4.1 exiting before submitting; now nudged to complete).
 - HTTP 500/529/503 overload retries added to `_with_retry` (opus disease seeds required up to 10 retry attempts each due to persistent API overloads on 2026-03-17/18).
 
 **2026-03-20 update**: All accuracy values recomputed at **±0.10 threshold** (was ±0.15). LLM values recomputed from session logs; heuristic/random baselines re-run. See PR #36 (`fix/accuracy-threshold`).
@@ -782,7 +782,7 @@ Tracked here so nothing is lost between sessions. Update status as items are res
   alongside `--heuristic`. Run on A_medium_healthy and B_hard_healthy (20 seeds each).
   Provides a non-LLM data-driven lower bound. No API key needed for generation/heuristic.
 
-- [ ] **Gemini COI run** (#3): add Gemini as a provider in `lemonoids/agent.py` via the
+- [ ] **Gemini COI run** (#3): add Gemini as a provider in `luca/agent.py` via the
   OpenAI-compatible endpoint. Run A_medium_healthy (20 seeds) with `gemini-2.5-pro`.
   Needs `GEMINI_API_KEY` in `.env`. Full plan in IDEAS.md (Conflict-of-Interest Controls).
   Priority: high — conflict-of-interest is a harder concern to address than missing baselines.

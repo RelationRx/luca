@@ -1,4 +1,4 @@
-"""Procedural organism generation for Lemonoids."""
+"""Procedural organism generation for LUCA."""
 from __future__ import annotations
 
 import math
