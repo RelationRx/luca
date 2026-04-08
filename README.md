@@ -1,4 +1,4 @@
-# 🍋 LUCA
+# LUCA
 
 **Synthetic organism reasoning benchmark for LLM agents**
 ![Example organism — seed 42](assets/org42.png)

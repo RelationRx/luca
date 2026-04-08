@@ -49,7 +49,7 @@ def _print_rich(org: "Organism", console) -> None:
 
     # ── Header ──────────────────────────────────────────────────────────────
     console.print(Panel(
-        f"[bold yellow]🍋 LUCA[/bold yellow]  [dim white]{org.id}[/dim white]\n"
+        f"[bold yellow]LUCA[/bold yellow]  [dim white]{org.id}[/dim white]\n"
         f"  seed [cyan]{org.seed}[/cyan]  ·  "
         f"[bold green]{len(org.genes)}[/bold green] genes  ·  "
         f"[bold blue]{len(org.modules)}[/bold blue] modules  ·  "
@@ -135,7 +135,7 @@ def _print_plain(org: "Organism") -> None:
     from .dynamics import compute_phenotypes
 
     observable_set = set(org.observable_genes)
-    print(f"\n🍋 LUCA  {org.id}  seed={org.seed}")
+    print(f"\nLUCA  {org.id}  seed={org.seed}")
     print(f"  {len(org.genes)} genes · {len(org.modules)} modules · "
           f"{len(org.relations)} edges · {len(org.signals)} signals · "
           f"{len(org.phenotypes)} phenotypes · "
@@ -205,7 +205,7 @@ def _print_disease_rich(org: "Organism", console) -> None:
     )
     n_edges = len(org.relations)
     console.print(Panel(
-        f"[bold yellow]🍋 LUCA — DISEASE ORGANISM[/bold yellow]  [dim white]{org.id}[/dim white]\n"
+        f"[bold yellow]LUCA — DISEASE ORGANISM[/bold yellow]  [dim white]{org.id}[/dim white]\n"
         f"  seed [cyan]{org.seed}[/cyan]  ·  "
         f"[bold green]{len(org.genes)}[/bold green] genes  ·  "
         f"[bold blue]{len(org.modules)}[/bold blue] modules  ·  "
@@ -341,7 +341,7 @@ def _print_disease_plain(org: "Organism") -> None:
     gene_id_to_name = {g.id: g.name for g in org.genes}
     ct_label = org.cell_type.label if org.cell_type else "unknown"
 
-    print(f"\n🍋 LUCA — DISEASE ORGANISM  {org.id}  seed={org.seed}")
+    print(f"\nLUCA — DISEASE ORGANISM  {org.id}  seed={org.seed}")
     print(f"  {len(org.genes)} genes · {len(org.modules)} modules · "
           f"{len(org.relations)} edges · {len(org.signals)} signals · "
           f"{len(org.phenotypes)} phenotypes · "

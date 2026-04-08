@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""🍋 LUCA — organism inspector CLI.
+"""LUCA — organism inspector CLI.
 
 Usage:
     python inspect_organism.py
@@ -32,7 +32,7 @@ from luca.inspect import print_organism, print_disease_organism, plot_organism, 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="🍋 LUCA organism inspector",
+        description="LUCA organism inspector",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--seed", type=int, default=42, help="Organism seed")
