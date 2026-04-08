@@ -1,7 +1,7 @@
 """Tests for ExperimentSession."""
 import pytest
-from lemonoids import generate_organism, generate_disease_organism, ExperimentSession
-from lemonoids.experiment import recommended_budget
+from luca import generate_organism, generate_disease_organism, ExperimentSession
+from luca.experiment import recommended_budget
 
 
 def test_recommended_budget_scales():
@@ -145,7 +145,7 @@ def test_resolve_interventions_error_on_latent():
     org = generate_organism(seed=0)
     session = ExperimentSession(org, budget=5)
     if org.latent_genes:
-        from lemonoids.schema import Gene
+        from luca.schema import Gene
         latent_id = org.latent_genes[0]
         latent_name = next(g.name for g in org.genes if g.id == latent_id)
         result = session._resolve_interventions({latent_name: {"type": "BLOCK"}})

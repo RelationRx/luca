@@ -1,4 +1,4 @@
-# LEMONOIDS Benchmark Design
+# LUCA Benchmark Design
 
 A reference document for the benchmark's design decisions, parameters, and
 invariants. Intended for contributors and anyone extending the codebase —
@@ -9,7 +9,7 @@ design choices.
 
 ## 1. Purpose and Design Principles
 
-LEMONOIDS is a benchmark for evaluating whether LLM agents can perform
+LUCA is a benchmark for evaluating whether LLM agents can perform
 **causal reasoning** over unknown systems — synthetic networks with
 biological-style complexity (feedback loops, latent confounders, nonlinear
 dynamics) but invented vocabulary — rather than pattern matching against
@@ -321,7 +321,7 @@ context — no memory carried across seeds.
 produce phenotypes, that they have a budget of experiments, and that their goal is to
 characterise the network well enough to predict novel intervention outcomes. The system
 prompt does not reveal network topology, gene functions, or any biology-domain knowledge.
-Full prompt text is in `lemonoids/agent.py`.
+Full prompt text is in `luca/agent.py`.
 
 ---
 

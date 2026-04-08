@@ -1,4 +1,4 @@
-"""Continuous sigmoid simulation for Lemonoids organisms."""
+"""Continuous sigmoid simulation for LUCA organisms."""
 from __future__ import annotations
 
 import math

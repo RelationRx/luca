@@ -1,4 +1,4 @@
-# LEMONOIDS — Design Notes & Open Questions
+# LUCA — Design Notes & Open Questions
 
 ---
 
@@ -95,20 +95,20 @@ Rather than using n_genes as the only complexity axis, modulate via **network st
 
 ### Owkin ZERO (blog post, may become preprint)
 - Synthetic GRNs, RL post-training on Qwen3, passive single-turn edge identification
-- Different question: "can RL teach causal reasoning?" vs. LEMONOIDS: "how does an agent reason under budget constraints?"
+- Different question: "can RL teach causal reasoning?" vs. LUCA: "how does an agent reason under budget constraints?"
 - No active experiment design, no budget, single task
 - Cite as parallel motivation, not competitor
 
 ### TinyMoves (our preprint, arXiv 2602.09801)
 - Move-based hypothesis refinement, game framework
-- LEMONOIDS is the benchmark TinyMoves needs; natural connection
-- TinyMoves agent as a structured baseline for LEMONOIDS experiments
+- LUCA is the benchmark TinyMoves needs; natural connection
+- TinyMoves agent as a structured baseline for LUCA experiments
 
 ---
 
 ## Open Questions
 
-- [ ] Should LEMONOIDS use abstract vocabulary throughout (no biological terms)?
+- [ ] Should LUCA use abstract vocabulary throughout (no biological terms)?
 - [ ] How to control organism difficulty within a given n?
 - [ ] Should rescue cost more or be redesigned entirely?
 - [ ] How many prediction tasks should scale with n?

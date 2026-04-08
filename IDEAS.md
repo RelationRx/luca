@@ -1,4 +1,4 @@
-# LEMONOIDS — Research Ideas & Experiment Log
+# LUCA — Research Ideas & Experiment Log
 
 A living document for research questions, experiment ideas, and observations.
 Add freely — entries don't need to be complete or fully formed.
@@ -73,7 +73,7 @@ _Addresses the concern that the benchmark was authored using Claude Code and may
   If Gemini scores in a pattern consistent with the task requiring genuine causal reasoning
   (e.g. scores correlate with difficulty tier, not with model family), it strengthens the
   claim that the benchmark is not biased toward Claude's prompt style.
-  Implementation: add Gemini as a native provider in `lemonoids/agent.py` using the
+  Implementation: add Gemini as a native provider in `luca/agent.py` using the
   OpenAI-compatible endpoint (`https://generativelanguage.googleapis.com/v1beta/openai/`)
   with the existing `openai` SDK — no new dependency needed. Needs `GEMINI_API_KEY` in `.env`.
   See plan file for full implementation notes.

@@ -1,5 +1,5 @@
 """
-LEMONOIDS benchmark evaluation script.
+LUCA benchmark evaluation script.
 
 Usage:
     # Run a single model on canonical seeds (0–19)
@@ -246,7 +246,7 @@ def evaluate_model(
     if active_tasks is None:
         active_tasks = frozenset({"predict", "diagnose", "rescue"})
 
-    from lemonoids import (
+    from luca import (
         generate_organism, generate_disease_organism, ExperimentSession, run_agent
     )
 
@@ -401,7 +401,7 @@ def print_summary(model_name: str, records: list[dict], disease: bool) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="LEMONOIDS benchmark evaluation",
+        description="LUCA benchmark evaluation",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )

@@ -40,4 +40,4 @@ python experiments/scaling_study_v1/fig_paper_main.py
 
 > Session logs are gitignored. To share a specific run, copy the relevant
 > `logs/*.json` file out and attach it separately, or use
-> `lemonoids.report.export_session_html()` to produce a standalone HTML report.
+> `luca.report.export_session_html()` to produce a standalone HTML report.

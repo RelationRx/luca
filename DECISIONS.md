@@ -1,4 +1,4 @@
-# LEMONOIDS — Design Decisions
+# LUCA — Design Decisions
 
 A record of significant design choices: what was decided, why, and what was rejected.
 Add entries here when a non-obvious decision is made that future contributors would wonder about.

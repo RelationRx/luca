@@ -1,4 +1,4 @@
-# LEMONOIDS Part 1 — Benchmark Validation Results
+# LUCA Part 1 — Benchmark Validation Results
 
 Technical reference for the Part 1 benchmark results. Stable as of 2026-03-21.
 For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md`.

@@ -1,4 +1,4 @@
-"""LEMONOIDS demo — walks through the benchmark step by step.
+"""LUCA demo — walks through the benchmark step by step.
 
 Usage:
     python demo.py                        # walkthrough + sanity checks
@@ -20,8 +20,8 @@ if os.path.exists(_env_path):
                 _k, _, _v = _line.partition("=")
                 os.environ.setdefault(_k.strip(), _v.strip())
 
-from lemonoids import generate_organism, generate_disease_organism, ExperimentSession
-from lemonoids.agent import run_agent
+from luca import generate_organism, generate_disease_organism, ExperimentSession
+from luca.agent import run_agent
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +59,7 @@ def walkthrough() -> None:
     print(f"Signals:   {len(org.signals)}")
     print(f"Phenotypes:{len(org.phenotypes)}  — {', '.join(p.label for p in org.phenotypes)}")
     print(f"\nBaseline phenotypes (what the agent sees at t=0):")
-    from lemonoids.dynamics import compute_phenotypes
+    from luca.dynamics import compute_phenotypes
     baseline = compute_phenotypes(org, org.baseline_state, noise=False)
     for label, val in baseline.items():
         print(f"  {label}: {val:.3f}")
@@ -106,7 +106,7 @@ def walkthrough() -> None:
     disease_org = generate_disease_organism(seed=42)
     print(f"Cell type: {disease_org.cell_type.label}")
     print(f"Malfunction: {disease_org.malfunctions[0].description}")
-    from lemonoids.dynamics import compute_phenotypes as cp
+    from luca.dynamics import compute_phenotypes as cp
     disease_phenos = cp(disease_org, disease_org.baseline_state, noise=False)
     print(f"\nPhenotypes vs healthy ranges:")
     for p in disease_org.phenotypes:
@@ -132,9 +132,9 @@ def walkthrough() -> None:
     assert org.id == org2.id, "JSON round-trip failed"
 
     import os
-    from lemonoids import generate_dataset
+    from luca import generate_dataset
     paths = generate_dataset(n_organisms=3, experiments_per_organism=2,
-                             output_path="/tmp/lemonoids_test_dataset", seed=7)
+                             output_path="/tmp/luca_test_dataset", seed=7)
     with open(paths["organisms"]) as f:
         orgs_data = json.load(f)
     with open(paths["experiments"]) as f:
@@ -154,7 +154,7 @@ def walkthrough() -> None:
 # ---------------------------------------------------------------------------
 
 def _save_logs(log_path: str) -> None:
-    from lemonoids.report import export_session_html
+    from luca.report import export_session_html
     html_path = log_path.replace(".json", ".html")
     with open(log_path) as f:
         log = json.load(f)

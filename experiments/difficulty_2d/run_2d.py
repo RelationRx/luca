@@ -19,11 +19,11 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
-from lemonoids.generation import generate_disease_organism, DIFFICULTY_PRESETS
-from lemonoids.experiment import ExperimentSession, recommended_budget
-from lemonoids.agent import run_agent
-from lemonoids.report import export_session_html
-from lemonoids.dynamics import compute_phenotypes
+from luca.generation import generate_disease_organism, DIFFICULTY_PRESETS
+from luca.experiment import ExperimentSession, recommended_budget
+from luca.agent import run_agent
+from luca.report import export_session_html
+from luca.dynamics import compute_phenotypes
 
 # ---------------------------------------------------------------------------
 # Grid

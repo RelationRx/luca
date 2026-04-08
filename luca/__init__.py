@@ -1,4 +1,4 @@
-"""LEMONOIDS — Synthetic organism reasoning benchmark for LLM agents."""
+"""LUCA — Synthetic organism reasoning benchmark for LLM agents."""
 from .generation import generate_organism, generate_disease_organism
 from .experiment import ExperimentSession
 from .dataset import generate_dataset

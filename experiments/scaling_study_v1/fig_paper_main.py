@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Mock main figure for the LEMONOIDS paper.
+Mock main figure for the LUCA paper.
 
 Central claim: diagnosis and prediction dissociate under budget constraints.
   • Recognition tasks (diagnosis, rescue) are flat — budget-insensitive.

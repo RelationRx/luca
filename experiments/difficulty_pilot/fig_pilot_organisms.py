@@ -21,9 +21,9 @@ import numpy as np
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
-from lemonoids.generation import generate_disease_organism, DIFFICULTY_PRESETS
-from lemonoids.dynamics import compute_phenotypes
-from lemonoids.inspect import MODULE_HEX
+from luca.generation import generate_disease_organism, DIFFICULTY_PRESETS
+from luca.dynamics import compute_phenotypes
+from luca.inspect import MODULE_HEX
 
 # ---------------------------------------------------------------------------
 # Config
@@ -73,7 +73,7 @@ fig.patch.set_facecolor(BG)
 
 fig.text(
     0.5, 0.985,
-    "LEMONOIDS — Organism Difficulty Tiers  ·  n_genes=20, seed=0",
+    "LUCA — Organism Difficulty Tiers  ·  n_genes=20, seed=0",
     ha="center", va="top",
     color="#FFC107", fontsize=14, fontweight="bold",
 )

@@ -34,7 +34,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from lemonoids import generate_organism  # noqa: E402
+from luca import generate_organism  # noqa: E402
 
 # ---------------------------------------------------------------------------
 

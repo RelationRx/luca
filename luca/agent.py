@@ -1,4 +1,4 @@
-"""Claude agent harness for Lemonoids reasoning benchmark."""
+"""Claude agent harness for LUCA reasoning benchmark."""
 from __future__ import annotations
 
 import hashlib
@@ -625,7 +625,7 @@ def _run_agent_anthropic(
     max_tokens_per_turn: int | None = None,
 ) -> dict[str, Any]:
     """
-    Run an Anthropic Claude model on a Lemonoids ExperimentSession.
+    Run an Anthropic Claude model on a LUCA ExperimentSession.
 
     disease_mode: if None, auto-detected from session.is_disease.
     log_path: if provided, write a structured JSON log to this path.
@@ -887,7 +887,7 @@ def _run_agent_openai(
     display_name: str | None = None,
 ) -> dict[str, Any]:
     """
-    Run an OpenAI model on a Lemonoids ExperimentSession.
+    Run an OpenAI model on a LUCA ExperimentSession.
 
     Requires OPENAI_API_KEY in the environment (or pass api_key for
     third-party OpenAI-compatible endpoints like Together AI).
@@ -1187,7 +1187,7 @@ def run_agent(
     max_tokens_per_turn: int | None = None,
 ) -> dict[str, Any]:
     """
-    Run an LLM agent on a Lemonoids ExperimentSession.
+    Run an LLM agent on a LUCA ExperimentSession.
 
     Automatically routes to the correct provider based on the model name:
     - claude-*                        → Anthropic API  (requires ANTHROPIC_API_KEY)

@@ -1,11 +1,11 @@
 """Tests for agent routing and tool dispatch."""
 import pytest
-from lemonoids import generate_organism, ExperimentSession
-from lemonoids.agent import run_agent, dispatch_tool, _ANTHROPIC_PREFIXES, _OPENAI_PREFIXES
+from luca import generate_organism, ExperimentSession
+from luca.agent import run_agent, dispatch_tool, _ANTHROPIC_PREFIXES, _OPENAI_PREFIXES
 
 
 def test_run_agent_routes_anthropic():
-    from lemonoids.agent import _run_agent_anthropic
+    from luca.agent import _run_agent_anthropic
     # run_agent with a claude- model should call _run_agent_anthropic
     # We verify routing without making API calls by checking ValueError is NOT raised
     # and that an ImportError/AuthError would come from the provider, not from routing

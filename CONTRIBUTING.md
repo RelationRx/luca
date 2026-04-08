@@ -17,14 +17,14 @@ No contribution is too small. Even a bug report or a note about unclear docs is 
 
 ```bash
 git clone <repo-url>
-cd lemonoids
+cd luca
 pip install -e ".[dev]"
 ```
 
 ## Project structure
 
 ```
-lemonoids/          # Core package
+luca/          # Core package
 tests/              # pytest suite (run with: python -m pytest tests/)
 demo.py             # Smoke tests + agent demo
 inspect_organism.py # CLI inspector

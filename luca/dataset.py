@@ -1,4 +1,4 @@
-"""Offline dataset generation for Lemonoids benchmarking."""
+"""Offline dataset generation for LUCA benchmarking."""
 from __future__ import annotations
 
 import json
@@ -17,7 +17,7 @@ def generate_dataset(
     n_organisms: int = 10,
     experiments_per_organism: int = 5,
     complexity_range: dict[str, tuple[int, int]] | None = None,
-    output_path: str = "lemonoids_dataset",
+    output_path: str = "luca_dataset",
     seed: int = 42,
 ) -> dict[str, str]:
     """

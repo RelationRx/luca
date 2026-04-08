@@ -1,4 +1,4 @@
-# 🍋 LEMONOIDS
+# 🍋 LUCA
 
 **Synthetic organism reasoning benchmark for LLM agents**
 ![Example organism — seed 42](assets/org42.png)
@@ -31,7 +31,7 @@ The world is **unknowable via retrieval** — gene names, module labels, signals
 
 ## 🎯 The Task
 
-LEMONOIDS is a benchmark for causal reasoning under a fixed experimental budget. Each session presents an agent with a freshly generated organism it has never seen — no prior knowledge applies. The agent must design perturbation experiments, build a causal model from the results, and make accurate predictions.
+LUCA is a benchmark for causal reasoning under a fixed experimental budget. Each session presents an agent with a freshly generated organism it has never seen — no prior knowledge applies. The agent must design perturbation experiments, build a causal model from the results, and make accurate predictions.
 
 **The agent is given:**
 - A set of observable genes and their baseline states
@@ -75,7 +75,7 @@ LEMONOIDS is a benchmark for causal reasoning under a fixed experimental budget.
 pip install -r requirements.txt
 
 # Smoke test
-python -c "from lemonoids import generate_organism; o = generate_organism(seed=0); print(o.id)"
+python -c "from luca import generate_organism; o = generate_organism(seed=0); print(o.id)"
 ```
 
 ### demo.py — walkthrough & agent demo
@@ -186,8 +186,8 @@ python inspect_organism.py --replay --disease --model gpt-4o --seed 42 --log log
 
 **Programmatic usage:**
 ```python
-from lemonoids import generate_organism
-from lemonoids.inspect import print_organism, plot_organism
+from luca import generate_organism
+from luca.inspect import print_organism, plot_organism
 
 org = generate_organism(seed=42)
 print_organism(org)                          # terminal
@@ -199,7 +199,7 @@ plot_organism(org, save_path="org.png")      # figure
 ## 📁 Package Structure
 
 ```
-lemonoids/
+luca/
 ├── __init__.py       # Public API
 ├── schema.py         # Dataclasses: Gene, Module, Signal, Relation, Phenotype,
 │                     #   DynamicsConfig, Organism, CellType, Malfunction
@@ -243,11 +243,11 @@ networkx>=3.0        # GRN graph layout
 
 ## 📄 Citation
 
-If you use LEMONOIDS in your research, please cite:
+If you use LUCA in your research, please cite:
 
 ```bibtex
-@misc{lemonoids2026,
-  title  = {{LEMONOIDS}: A Synthetic Organism Reasoning Benchmark for LLM Agents},
+@misc{luca2026,
+  title  = {{LUCA}: A Synthetic Organism Reasoning Benchmark for LLM Agents},
   author = {Turing Team and 👾},
   year   = {2026},
   url    = {https://github.com/RelationRx/rrx-lemonoids},

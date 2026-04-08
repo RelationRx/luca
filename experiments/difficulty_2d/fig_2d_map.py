@@ -51,7 +51,7 @@ def get_val(n, diff, key):
 fig = plt.figure(figsize=(20, 9), facecolor=BG)
 fig.text(
     0.5, 0.98,
-    "LEMONOIDS 2D Map — n_genes × difficulty  (single seed, budget=1.0×)",
+    "LUCA 2D Map — n_genes × difficulty  (single seed, budget=1.0×)",
     ha="center", va="top", color="#FFC107", fontsize=13, fontweight="bold",
 )
 

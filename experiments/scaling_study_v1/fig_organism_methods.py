@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Compact eye-candy methods figure for LEMONOIDS.
+Compact eye-candy methods figure for LUCA.
 
 Three-panel layout — large fonts, minimal text, visual-first:
   A  Generation pipeline  (left)
@@ -19,7 +19,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
-from lemonoids.generation import generate_organism
+from luca.generation import generate_organism
 
 # ── Palette ──────────────────────────────────────────────────────────────────
 M0, M1, M2, M3 = "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"
@@ -308,7 +308,7 @@ def main():
     panel_C(ax_C)
 
     fig.suptitle(
-        "LEMONOIDS — Organism generation, anatomy, and disease model",
+        "LUCA — Organism generation, anatomy, and disease model",
         fontsize=15, fontweight="bold", y=0.97, color=TXT,
     )
 
