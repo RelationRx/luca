@@ -81,6 +81,6 @@ def test_run_agent_routes_together_qwen():
     org = generate_organism(seed=0)
     session = ExperimentSession(org, budget=5)
     try:
-        run_agent(session, model="qwen-2.5-72b", max_turns=1)
+        run_agent(session, model="qwen-3.5", max_turns=1)
     except Exception as e:
         assert "Cannot infer provider" not in str(e), f"Routing failed: {e}"

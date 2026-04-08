@@ -1170,7 +1170,7 @@ _OPENAI_PREFIXES = ("gpt-", "o1", "o3", "o4")
 # Values: full model ID on Together's platform.
 _TOGETHER_MODELS: dict[str, str] = {
     "deepseek-v3": "deepseek-ai/DeepSeek-V3.1",
-    "qwen-2.5-72b": "Qwen/Qwen2.5-72B-Instruct",
+    "qwen-3.5": "Qwen/Qwen3.5-397B-A17B",
 }
 _TOGETHER_BASE_URL = "https://api.together.xyz/v1"
 _TOGETHER_API_KEY_ENV = "TOGETHER_API_KEY"
@@ -1192,7 +1192,7 @@ def run_agent(
     Automatically routes to the correct provider based on the model name:
     - claude-*                        → Anthropic API  (requires ANTHROPIC_API_KEY)
     - gpt-* / o1 / o3 / o4           → OpenAI API     (requires OPENAI_API_KEY)
-    - deepseek-v3 / qwen-2.5-72b      → Together AI    (requires TOGETHER_API_KEY)
+    - deepseek-v3 / qwen-3.5           → Together AI    (requires TOGETHER_API_KEY)
 
     Args:
         session:      An ExperimentSession wrapping a generated organism.
