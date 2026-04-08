@@ -882,6 +882,9 @@ def _run_agent_openai(
     log_path: str | None = None,
     active_tasks: frozenset[str] | None = None,
     max_tokens_per_turn: int | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    display_name: str | None = None,
 ) -> dict[str, Any]:
     """
     Run an OpenAI model on a Lemonoids ExperimentSession.
@@ -893,10 +896,15 @@ def _run_agent_openai(
     Returns the session summary after the agent finishes or budget is exhausted.
     """
     import datetime, os
-    from openai import OpenAI, APITimeoutError as OAITimeoutError, APIConnectionError as OAIConnectionError
+    from openai import OpenAI, APITimeoutError as OAITimeoutError, APIConnectionError as OAIConnectionError, RateLimitError as OAIRateLimitError
 
-    client = OpenAI(timeout=_API_TIMEOUT)
-    _openai_retryable = (OAITimeoutError, OAIConnectionError)
+    client_kwargs: dict[str, Any] = {"timeout": _API_TIMEOUT}
+    if base_url is not None:
+        client_kwargs["base_url"] = base_url
+    if api_key is not None:
+        client_kwargs["api_key"] = api_key
+    client = OpenAI(**client_kwargs)
+    _openai_retryable = (OAITimeoutError, OAIConnectionError, OAIRateLimitError)
 
     if disease_mode is None:
         disease_mode = session.is_disease
@@ -910,7 +918,7 @@ def _run_agent_openai(
     log: dict[str, Any] = {
         "metadata": {
             "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
-            "model": model,
+            "model": display_name or model,
             "organism_id": session.organism.id,
             "seed": session.organism.seed,
             "n_genes": len(session.organism.genes),
@@ -1151,6 +1159,17 @@ def _run_agent_openai(
 _ANTHROPIC_PREFIXES = ("claude-",)
 _OPENAI_PREFIXES = ("gpt-", "o1", "o3", "o4")
 
+# Together AI — OpenAI-compatible endpoint for open-source models.
+# Keys: short display name used in --model / results / logs.
+# Values: full model ID on Together's platform.
+_TOGETHER_MODELS: dict[str, str] = {
+    "llama-4-maverick": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "deepseek-v3": "deepseek-ai/DeepSeek-V3",
+    "qwen-2.5-72b": "Qwen/Qwen2.5-72B-Instruct",
+}
+_TOGETHER_BASE_URL = "https://api.together.xyz/v1"
+_TOGETHER_API_KEY_ENV = "TOGETHER_API_KEY"
+
 
 def run_agent(
     session: ExperimentSession,
@@ -1166,8 +1185,10 @@ def run_agent(
     Run an LLM agent on a Lemonoids ExperimentSession.
 
     Automatically routes to the correct provider based on the model name:
-    - claude-*          → Anthropic API  (requires ANTHROPIC_API_KEY)
-    - gpt-* / o1 / o3  → OpenAI API     (requires OPENAI_API_KEY)
+    - claude-*                        → Anthropic API  (requires ANTHROPIC_API_KEY)
+    - gpt-* / o1 / o3 / o4           → OpenAI API     (requires OPENAI_API_KEY)
+    - llama-4-maverick / deepseek-v3  → Together AI    (requires TOGETHER_API_KEY)
+      / qwen-2.5-72b
 
     Args:
         session:      An ExperimentSession wrapping a generated organism.
@@ -1188,7 +1209,28 @@ def run_agent(
         return _run_agent_anthropic(session, model, max_turns, verbose, disease_mode, log_path, active_tasks, max_tokens_per_turn)
     if any(model.startswith(p) for p in _OPENAI_PREFIXES):
         return _run_agent_openai(session, model, max_turns, verbose, disease_mode, log_path, active_tasks, max_tokens_per_turn)
+    if model in _TOGETHER_MODELS:
+        import os
+        api_key = os.environ.get(_TOGETHER_API_KEY_ENV)
+        if not api_key:
+            raise EnvironmentError(
+                f"{_TOGETHER_API_KEY_ENV} not set. Required for model {model!r}."
+            )
+        return _run_agent_openai(
+            session,
+            model=_TOGETHER_MODELS[model],
+            max_turns=max_turns,
+            verbose=verbose,
+            disease_mode=disease_mode,
+            log_path=log_path,
+            active_tasks=active_tasks,
+            max_tokens_per_turn=max_tokens_per_turn,
+            base_url=_TOGETHER_BASE_URL,
+            api_key=api_key,
+            display_name=model,
+        )
     raise ValueError(
         f"Cannot infer provider from model name {model!r}. "
-        "Use a model name starting with 'claude-' (Anthropic) or 'gpt-'/'o1'/'o3' (OpenAI)."
+        "Use a model name starting with 'claude-' (Anthropic) or 'gpt-'/'o1'/'o3' (OpenAI), "
+        f"or one of the Together AI models: {list(_TOGETHER_MODELS.keys())}."
     )
