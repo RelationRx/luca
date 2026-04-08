@@ -1,4 +1,4 @@
-# 🍋 LUCA — API Reference
+# LUCA — API Reference
 
 ## `generate_organism()`
 
