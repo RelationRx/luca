@@ -731,6 +731,47 @@ check, likely in an appendix or footnote. Hard healthy can be noted with the noi
 
 ---
 
+## §16 Open-Source Model Smoke Test (2026-04-08)
+
+**Provider**: Together AI (OpenAI-compatible endpoint).
+**Models tested**: DeepSeek V3.1 (`deepseek-ai/DeepSeek-V3.1`), Qwen 3.5 (`Qwen/Qwen3.5-397B-A17B`).
+**Short names**: `deepseek-v3`, `qwen-3.5`.
+
+### Model selection notes
+
+- **Llama 4 Maverick** (128 experts): requires dedicated Together endpoint (not serverless) — dropped.
+- **Llama 4 Scout** (16 experts): serverless, but known tool-calling issues (~80% malformed function calls per community reports) — dropped.
+- **Qwen 2.5 72B**: listed with pricing but returns "non-serverless" error — dropped.
+- **DeepSeek V3.1**: serverless, $0.60/$1.70 per M tokens. Latest DeepSeek V3 variant.
+- **Qwen 3.5 397B** (17B active MoE): serverless, $0.60/$3.60 per M tokens. Latest Qwen.
+
+### 1-seed smoke test (seed=0, medium healthy)
+
+| Model | Composite | MSE | Budget used | Tool use quality |
+|-------|-----------|-----|-------------|------------------|
+| deepseek-v3 | 1.000 | 0.0003 | 84% | Excellent — systematic BLOCK+BOOST, clean predictions |
+| qwen-3.5 | 0.667 | 0.030 | 81% | Good — parallel tool calls (5/turn), hit length once, recovered |
+
+### 3-seed smoke test (seeds 0–2, A_medium_healthy)
+
+| Model | Composite | Accuracy | MSE | Notes |
+|-------|-----------|----------|-----|-------|
+| deepseek-v3 | 0.944 ± 0.079 | 0.944 ± 0.079 | 0.003 ± 0.001 | 3/3 valid, clean |
+| qwen-3.5 | 0.722 ± 0.157 | 0.722 ± 0.157 | 0.010 ± 0.002 | 3/3 valid, finish_reason=length on 2/3 seeds |
+
+### Observations
+
+1. **DeepSeek V3.1** is impressively strong — 0.944 composite on 3 seeds is comparable to Claude Sonnet (0.883) and above all GPT models on medium healthy. Will be interesting to see if this holds at 20 seeds.
+2. **Qwen 3.5** is functional but weaker. Hits `finish_reason=length` frequently (verbose reasoning), which the recovery prompt handles. Predictions are less precise.
+3. Both models handle the tool-calling interface without errors — no malformed JSON, no empty tool_calls arrays.
+4. Integration was minimal: ~30 lines added to `agent.py` (provider config + `base_url`/`api_key` params on `_run_agent_openai`).
+
+### Decision
+
+Both models pass. Proceed with full 6-sweep × 20-seed run for both.
+
+---
+
 ## 15. Open Issues Before Submission (2026-03-31)
 
 Tracked here so nothing is lost between sessions. Update status as items are resolved.

@@ -66,3 +66,21 @@ def test_dispatch_tool_unknown():
     session = ExperimentSession(org, budget=5)
     result = dispatch_tool(session, "nonexistent_tool", {})
     assert "error" in result
+
+
+def test_run_agent_routes_together_deepseek():
+    org = generate_organism(seed=0)
+    session = ExperimentSession(org, budget=5)
+    try:
+        run_agent(session, model="deepseek-v3", max_turns=1)
+    except Exception as e:
+        assert "Cannot infer provider" not in str(e), f"Routing failed: {e}"
+
+
+def test_run_agent_routes_together_qwen():
+    org = generate_organism(seed=0)
+    session = ExperimentSession(org, budget=5)
+    try:
+        run_agent(session, model="qwen-3.5", max_turns=1)
+    except Exception as e:
+        assert "Cannot infer provider" not in str(e), f"Routing failed: {e}"
