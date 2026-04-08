@@ -889,10 +889,14 @@ def _run_agent_openai(
     """
     Run an OpenAI model on a Lemonoids ExperimentSession.
 
-    Requires OPENAI_API_KEY in the environment.
+    Requires OPENAI_API_KEY in the environment (or pass api_key for
+    third-party OpenAI-compatible endpoints like Together AI).
     disease_mode: if None, auto-detected from session.is_disease.
     log_path: if provided, write a structured JSON log to this path.
     active_tasks: subset of {"predict", "diagnose", "rescue"} (default: all).
+    base_url: custom API base URL (default: OpenAI).
+    api_key: custom API key (default: OPENAI_API_KEY from env).
+    display_name: short model name for logs/results (default: model ID).
     Returns the session summary after the agent finishes or budget is exhausted.
     """
     import datetime, os
@@ -1001,9 +1005,11 @@ def _run_agent_openai(
             })
         return result_messages
 
+    _label = display_name or model
+
     for turn in range(max_turns):
         if verbose:
-            print(f"\n[turn {turn + 1}/{max_turns}] Calling {model}...")
+            print(f"\n[turn {turn + 1}/{max_turns}] Calling {_label}...")
 
         response = _run_turn(messages)
         msg = response.choices[0].message
