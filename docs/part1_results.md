@@ -142,6 +142,8 @@ Analysis of medium healthy sessions (N=20 seeds):
 | Model | Avg experiments | Budget used | Single-gene % | Gene coverage |
 |-------|----------------|-------------|---------------|---------------|
 | claude-opus-4-6 | 27.2 | 88% | 98.5% | 100% |
+| qwen-3.5 | 26.4 | 85% | 100.0% | 88% |
+| deepseek-v3 | 25.9 | 84% | 97.0% | 66% |
 | claude-sonnet-4-6 | 25.0 | 81% | 71.8% | 100% |
 | gpt-5.1 | 26.6 | 85% | 64.8% | 56% |
 | gpt-4o | 12.8 | 50% | 10.0% | 2% |
@@ -209,6 +211,8 @@ Edge inference from perturbation experiments (mean over N=20 seeds, ground truth
 |-------|-----------|--------|----|---------------|
 | claude-opus-4-6 | 0.640 | **0.933** | **0.754** | 18.1 |
 | claude-sonnet-4-6 | 0.675 | 0.775 | 0.710 | 14.1 |
+| qwen-3.5 | 0.615 | 0.742 | 0.660 | 14.8 |
+| deepseek-v3 | 0.583 | 0.662 | 0.611 | 15.0 |
 | gpt-5.1 | 0.570 | 0.754 | 0.644 | 15.3 |
 | gpt-4o | 0.325 | 0.246 | 0.270 | 5.8 |
 | gpt-4.1 | 0.153 | 0.112 | 0.109 | 3.0 |
@@ -217,11 +221,13 @@ Edge inference from perturbation experiments (mean over N=20 seeds, ground truth
 
 | Model | Precision | Recall | F1 | Inferred edges |
 |-------|-----------|--------|----|---------------|
+| qwen-3.5 | 0.351 | 0.740 | **0.464** | 23.8 |
 | claude-opus-4-6 | 0.265 | **0.752** | 0.390 | 34.0 |
 | claude-sonnet-4-6 | 0.277 | 0.675 | 0.390 | 30.0 |
 | gpt-5.1 | 0.257 | 0.719 | 0.376 | 30.7 |
-| gpt-4o | 0.128 | 0.205 | 0.153 | 10.1 |
+| deepseek-v3 | 0.290 | 0.555 | 0.372 | 21.2 |
 | gpt-4.1 | 0.227 | 0.441 | 0.294 | 20.1 |
+| gpt-4o | 0.128 | 0.205 | 0.153 | 10.1 |
 
 Edges are `(gene, phenotype, direction)` triples inferred from observed phenotype shifts >0.05 on single-gene BLOCK/BOOST experiments.
 
@@ -233,6 +239,8 @@ On medium, Claude Opus achieves high recall (0.933) by over-inferring edges (18.
 |-------|----------|--------|
 | claude-opus-4-6 | −0.30 | +0.18 |
 | claude-sonnet-4-6 | +0.09 | +0.26 |
+| deepseek-v3 | +0.16 | −0.43 |
+| qwen-3.5 | +0.22 | +0.29 |
 | gpt-5.1 | +0.01 | −0.02 |
 | gpt-4o | −0.16 | +0.02 |
 | gpt-4.1 | +0.21 | +0.46 |
@@ -245,6 +253,8 @@ Correlations are weak and inconsistent — higher network F1 does not reliably p
 |-------|-------------|------------|----------------|
 | claude-opus-4-6 | 20/20 | 1292 chars | 19/20 |
 | claude-sonnet-4-6 | 20/20 | 1336 chars | 19/20 |
+| deepseek-v3 | 20/20 | 831 chars | 20/20 |
+| qwen-3.5 | 20/20 | 564 chars | 20/20 |
 | gpt-5.1 | 19/20 | **2932 chars** | 19/19 |
 | gpt-4.1 | 20/20 | 799 chars | 13/20 |
 | gpt-4o | 17/20 | 429 chars | 6/17 |
@@ -288,7 +298,9 @@ ambiguity is a feature of hard-tier organisms and signal malfunction seeds.
 |-------|-----------------------|
 | claude-opus-4-6 | 0.703±0.463 |
 | claude-sonnet-4-6 | 0.514±0.507 |
+| qwen-3.5 | 0.351±0.477 |
 | gpt-4.1 | 0.286±0.463 |
+| deepseek-v3 | 0.162±0.350 |
 | gpt-5.1 | 0.139±0.335 |
 | gpt-4o | 0.122±0.321 |
 
