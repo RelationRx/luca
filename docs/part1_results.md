@@ -123,7 +123,7 @@ Best per column in bold.
 
 ### 1. Difficulty discriminates models cleanly
 
-Easy is near-ceiling for Claude and open-source models (0.92–0.99) but weaker for GPTs (0.76–0.83), making it a limited discriminator. Medium separates three tiers: Claude + open-source (0.875–0.908), GPT (0.667–0.781), and baselines (0.575–0.633). Hard is the most discriminating tier: DeepSeek V3.1 leads at 0.642, Claude Opus 0.608, Qwen 3.5 and Sonnet at 0.575–0.586, GPTs at 0.49–0.56. Both baselines collapse to 0.350 on hard — indistinguishable from chance — validating that hard organisms require genuine causal reasoning.
+Easy is near-ceiling for most LLMs (0.81–0.99), making it a limited discriminator. Medium separates two tiers: Opus, DeepSeek, Qwen, and Sonnet (0.875–0.908) vs GPT-5.1, GPT-4o, and GPT-4.1 (0.667–0.781), with baselines below (0.575–0.633). Hard is the most discriminating tier: scores spread from 0.642 (DeepSeek) to 0.350 (baselines). Both baselines collapse to 0.350 on hard — indistinguishable from chance — validating that hard organisms require genuine causal reasoning.
 
 Degradation from easy to hard is gradual (no cliff) but with high per-seed variance on hard, indicating a bimodal structure: models either solve an organism or partially fail, not gracefully degrade within a seed.
 
@@ -175,41 +175,57 @@ In disease mode, Claude re-tests previously blocked genes after observing the ab
 | heuristic | 65% ± 0% | 65% ± 0% | 48% ± 0% | 68% ± 0% | 68% ± 0% | 52% ± 1% |
 
 Three distinct budget usage patterns emerge:
-- **Claude**: 76–89% consistently across all tiers and modes, low variance (±2–8%). Systematic exploration.
-- **Open-source**: 74–87% on healthy (matching Claude), 60–78% on disease. Higher variance than Claude but no context exhaustion.
-- **GPT**: 47–85% on healthy (high variance), collapses to 24–40% on disease (±9–33%). Context exhaustion truncates disease sessions early, explaining the disease score collapse. GPT-4o and GPT-4.1 underuse budget even on healthy (47–59%).
-- **Heuristic**: deterministic fraction (48–68%), drops on hard due to fewer unambiguous candidates.
+- **High and consistent** (Opus, Sonnet, DeepSeek, Qwen): 74–89% across healthy tiers, 60–84% on disease. Low variance (±2–15%). These models systematically explore the organism.
+- **Variable, drops on disease** (GPT-5.1, GPT-4o, GPT-4.1): 47–85% on healthy with high variance, collapses to 24–40% on disease (±9–33%). Context exhaustion truncates disease sessions early, explaining the disease score collapse. GPT-4o and GPT-4.1 underuse budget even on healthy (47–59%).
+- **Deterministic** (heuristic): fixed fraction (48–68%), drops on hard due to fewer unambiguous candidates.
 
 **gpt-4.1 anomaly**: 11/20 disease seeds had zero experiments — the model read the organism description and submitted predictions and a hypothesis without any perturbation. This accidentally inflated its composite at ±0.15 (pred_acc from description alone can be high); at ±0.10 the anomaly disappears and gpt-4.1 correctly ranks below gpt-4o.
 
-### 4. Open-source models match Claude on prediction, not diagnosis
+### 4. Prediction and diagnosis measure distinct capabilities
 
-DeepSeek V3.1 and Qwen 3.5 (both served via Together AI) produce prediction accuracy in the Claude tier across all difficulty levels: on medium healthy, DeepSeek scores 0.908 and Qwen 0.892, comparable to Claude Opus (0.900) and well above all GPT models (0.667–0.781). On hard healthy, DeepSeek leads all models at 0.642.
+Prediction accuracy and diagnosis score are weakly correlated across all model families. On medium disease, models with comparable prediction accuracy show wide divergence on diagnosis:
 
-On disease mode the picture diverges. Open-source models achieve near-Claude rescue scores (0.88–1.00) but substantially lower diagnosis scores. Mean diagnosis across all disease tiers: Claude Opus 0.533, Claude Sonnet 0.400, Qwen 3.5 0.317, DeepSeek V3.1 0.183, GPT-4.1 0.175, GPT-4o 0.092, GPT-5.1 0.058. The diagnosis gap between Claude Opus and every other model family is the clearest capability separation in the benchmark.
+| Model | Pred acc | Diagnosis |
+|-------|----------|-----------|
+| Sonnet | 0.867 | 0.350 |
+| Qwen 3.5 | 0.833 | 0.250 |
+| Opus | 0.833 | 0.550 |
+| GPT-4.1 | 0.783 | 0.100 |
+| DeepSeek V3.1 | 0.750 | 0.100 |
+| GPT-4o | 0.658 | 0.050 |
 
-This pattern — strong prediction and rescue, weak diagnosis — is now demonstrated across three independent model families (Claude, GPT, open-source), establishing it as a general property of current LLMs rather than a GPT-specific limitation. Only Claude models appear to reliably perform the abductive inference required for root-cause identification.
+Mean diagnosis across all disease tiers: Opus 0.533, Sonnet 0.400, Qwen 3.5 0.317, DeepSeek V3.1 0.183, GPT-4.1 0.175, GPT-4o 0.092, GPT-5.1 0.058. Diagnosis scores span a 10× range despite prediction scores spanning only 1.3×.
 
-### 5. Prediction/diagnosis dissociation is universal
+This dissociation is consistent across all three model families tested (Anthropic, OpenAI, open-source via Together AI), suggesting it reflects a structural difference between the two tasks rather than a model-specific limitation. Prediction is a forward-inference problem (given interventions, estimate phenotype values); diagnosis is an abductive-inference problem (given aberrant phenotypes, identify the root cause). The benchmark separates these two reasoning modes cleanly.
 
-The dissociation between prediction accuracy and diagnosis score, first observed in GPT models, extends to open-source models. On medium disease, both DeepSeek (pred 0.750, diag 0.100) and Qwen (pred 0.833, diag 0.250) show high prediction accuracy with low diagnosis — the same pattern as GPT-4.1 (pred 0.783, diag 0.100) and GPT-4o (pred 0.658, diag 0.050).
+### 5. Rescue without diagnosis is the norm
 
-Running perturbation experiments and accumulating evidence does not automatically translate to correct abductive inference. Identifying the root cause of a phenotypic abnormality appears to require a qualitatively different reasoning capacity that only Claude models currently demonstrate.
+Most models achieve high rescue scores (0.88–1.00) even with low diagnosis accuracy. On medium disease, rescue scores range from 0.950 to 1.000 for 5 of 7 LLMs — but diagnosis ranges from 0.050 to 0.550 for the same models. Rescue is a search problem (find any intervention that restores phenotypes); diagnosis is an identification problem (commit to a specific gene and malfunction type). Trial-and-error intervention sweeps are sufficient for rescue but insufficient for diagnosis.
 
 ### 6. Diagnosis difficulty scales with organism complexity
 
-Claude Opus diagnosis across difficulty tiers: 0.650 (easy) → 0.550 (medium) → 0.350 (hard). This is the cleanest signal of genuine reasoning difficulty in the benchmark — diagnosis requires forming a causal hypothesis about the malfunction, not just predicting steady-state outputs.
+Diagnosis scores degrade with difficulty for all models that attempt diagnosis:
 
-Rescue tracks diagnosis closely:
+| Model | Easy | Medium | Hard |
+|-------|------|--------|------|
+| Opus | 0.700 | 0.550 | 0.350 |
+| Sonnet | 0.550 | 0.350 | 0.300 |
+| Qwen 3.5 | 0.300 | 0.250 | 0.400 |
+| DeepSeek V3.1 | 0.150 | 0.100 | 0.300 |
+| GPT-4.1 | 0.200 | 0.100 | 0.225 |
+
+The gradient from easy to hard is steepest for the highest-performing models, consistent with genuine reasoning difficulty rather than random guessing. Diagnosis requires forming a causal hypothesis about the malfunction, not just predicting steady-state outputs.
+
+Rescue tracks diagnosis:
 - Correct diagnosis (N=22 sessions): rescue fraction = 0.955
 - Wrong diagnosis (N=78 sessions): rescue fraction = 0.526
 
-Partial rescue even with wrong diagnosis reflects generic stabilising interventions that happen to restore some phenotypes — rescue fraction alone is a weak metric. Diagnosis score is the discriminating signal.
+Partial rescue even with wrong diagnosis reflects generic stabilising interventions that happen to restore some phenotypes.
 
-Diagnosis by ambiguity level (medium disease, N=100 sessions across Claude models):
-- n_alternatives=0 (unambiguous, 74 sessions): Opus 62.5%, Sonnet 40%, GPTs 0–8%
+Diagnosis by ambiguity level (medium disease, all models):
+- n_alternatives=0 (unambiguous, 74 sessions): Opus 62.5%, Sonnet 40%, Qwen 35.1%, GPT-4.1 28.6%, DeepSeek 16.2%, GPTs 0–14%
 - n_alternatives=1 (14 sessions): Opus 100%, Sonnet 50%, GPTs 0–33%
-- n_alternatives≥2 (12 sessions): no model ever succeeds
+- n_alternatives≥2 (12 sessions): no model succeeds
 
 ### 7. Network reconstruction does not predict performance
 
