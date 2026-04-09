@@ -332,49 +332,43 @@ This is not a prompt artefact. The system prompt and `submit_malfunction_hypothe
 
 ## §9 Ambiguity vs diagnosis accuracy
 
-From `analyse_ambiguity.py` on all disease-mode session logs (240 sessions across
-A_medium_disease, C_easy_disease, C_hard_disease).
+All 540 disease-mode sessions (9 models × 3 tiers × 20 seeds).
 
-**n_diagnosis_alternatives distribution:** 150 sessions with n=0 (unambiguous), 57 with
-n=1, 22 with n=2, 7 with n=3, 4 with n=4. The majority of organisms are unambiguous —
-ambiguity is a feature of hard-tier organisms and signal malfunction seeds.
+**n_diagnosis_alternatives distribution** (per organism, same across models): 333 sessions with n=0 (unambiguous), 126 with n=1, 54 with n=2, 18 with n=3, 9 with n=4. Each organism appears 9 times (once per model), so there are 37 unique organisms at n=0, 14 at n=1, etc. Ambiguity increases with difficulty tier (easy mean 0.05, medium 0.50, hard 1.25).
 
 **Mean diagnosis score by ambiguity level (all models pooled):**
 
 | n_alternatives | Diagnosis score | n sessions |
 |----------------|-----------------|------------|
-| 0 | 0.387±0.485 | 150 |
-| 1 | 0.149±0.353 | 57 |
-| 2 | 0.227±0.429 | 22 |
-| 3 | 0.286±0.488 | 7 |
-| 4 | 0.500±0.577 | 4 |
+| 0 | 0.255±0.431 | 333 |
+| 1 | 0.135±0.336 | 126 |
+| 2 | 0.204±0.403 | 54 |
+| 3 | 0.167±0.373 | 18 |
+| 4 | 0.444±0.497 | 9 |
 
-**Per-model at n=0 (unambiguous):**
+**Per-model at n=0 (unambiguous, N=37 sessions each):**
 
 | Model | Diagnosis score (n=0) |
 |-------|-----------------------|
-| claude-opus-4-6 | 0.703±0.463 |
-| claude-sonnet-4-6 | 0.514±0.507 |
+| claude-opus-4-6 | 0.703±0.457 |
+| claude-sonnet-4-6 | 0.514±0.500 |
 | qwen-3.5 | 0.351±0.477 |
-| gpt-4.1 | 0.286±0.463 |
+| gpt-4.1 | 0.162±0.369 |
 | deepseek-v3 | 0.162±0.350 |
-| gpt-5.1 | 0.139±0.335 |
-| gpt-4o | 0.122±0.321 |
+| heuristic | 0.162±0.369 |
+| gpt-4o | 0.122±0.316 |
+| gpt-5.1 | 0.068±0.237 |
+| random | 0.054±0.194 |
 
-The main finding: even at n=0 (no ambiguity — there is exactly one correct answer), GPT
-models score near zero while Claude models score 0.5–0.7. Ambiguity is not the primary
-driver of diagnosis failure for GPT models — they fail even on unambiguous organisms.
-For Claude models the performance at n=0 is meaningful (Opus 0.703), and drops sharply at
-n≥1 — consistent with genuine causal reasoning that gets confused by multiple valid
-explanations.
+The main finding: even at n=0 (no ambiguity — there is exactly one correct answer), most models score below 0.20. Diagnosis scores span a wide range at n=0 (Opus 0.703 to random 0.054), confirming that ambiguity is not the primary driver of diagnosis failure — models fail even on unambiguous organisms. The n=0 vs n≥1 contrast is most informative for the highest-performing models, where performance drops sharply with ambiguity.
 
-The non-monotonic trend at high n_alternatives (n=3,4) is unreliable due to very small
-sample sizes (≤7 sessions). The actionable finding is the n=0 vs n≥1 contrast.
+The non-monotonic trend at high n_alternatives (n=3,4) is unreliable due to small
+sample sizes (≤18 sessions). The actionable finding is the n=0 vs n≥1 contrast.
 
 **Diagnosis vs rescue dissociation:** The scatter plot (see `ambiguity_analysis.png`) shows
-dense clusters at (diagnosis=0, rescue=0.67) and (diagnosis=0, rescue=1.0), confirming
-that many sessions achieve full rescue without any diagnosis credit — agents compensate
-for the malfunction without identifying its source. This is most pronounced for GPT models.
+dense clusters at (diagnosis=0, rescue≈0.68) and (diagnosis=1.0, rescue≈0.95), confirming
+that many sessions achieve high rescue without diagnosis credit — agents compensate
+for the malfunction without identifying its source.
 
 ---
 
