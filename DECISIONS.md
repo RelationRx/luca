@@ -165,3 +165,18 @@ final run with corrected seed exclusions. See `docs/part1_results.md` §4.)
 perturbation data. The random baseline scores surprisingly well on easy organisms (~0.80
 composite) because easy organisms have predictable dynamics — this confirms easy is a weak
 discriminator.
+
+### None=0 scoring for unattempted disease tasks (2026-04-09)
+**Decision:** When a model does not call `submit_malfunction_hypothesis` or `test_rescue`,
+the diagnosis score and rescue fraction are treated as 0, not excluded from the mean.
+This is consistent with `evaluate.py` (`_composite_score` treats None as 0.0).
+**Why:** Not attempting a task is a failure mode, not missing data. GPT-5.1 and GPT-4.1
+frequently exhaust their context window before reaching the diagnosis/rescue phase
+(attempt rates as low as 20–60%). Excluding these sessions would inflate their scores
+and hide the context exhaustion failure. The attempt rate is reported separately in
+`docs/part1_results.md` §5a for transparency.
+**Rejected alternative:** Mean-over-submitted (only count sessions where the model tried).
+This was used in an earlier draft of `part1_results.md` and produced misleadingly high
+GPT rescue scores (e.g. GPT-4.1 medium rescue 0.967 over 10 attempts vs 0.483 over 20 seeds).
+The composite column was always computed with None=0, creating an internal inconsistency.
+Corrected 2026-04-09.

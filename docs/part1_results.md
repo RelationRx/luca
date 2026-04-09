@@ -73,6 +73,8 @@ Best per column in bold.
 
 ### Disease mode — breakdown by component (all tiers, N=20)
 
+Scoring convention: models that do not attempt diagnosis or rescue receive a score of 0 for that component (consistent with `evaluate.py`). Not attempting is treated as a failure, not as missing data. See §5a for attempt rates.
+
 **Medium disease:**
 
 | Model | Pred acc | Diagnosis | Rescue | Composite |
@@ -201,6 +203,32 @@ This dissociation is consistent across all three model families tested (Anthropi
 ### 5. Rescue without diagnosis is the norm
 
 Most models achieve high rescue scores (0.88–1.00) even with low diagnosis accuracy. On medium disease, rescue scores range from 0.950 to 1.000 for 5 of 7 LLMs — but diagnosis ranges from 0.050 to 0.550 for the same models. Rescue is a search problem (find any intervention that restores phenotypes); diagnosis is an identification problem (commit to a specific gene and malfunction type). Trial-and-error intervention sweeps are sufficient for rescue but insufficient for diagnosis.
+
+### 5a. Attempt rates on disease tasks
+
+GPT-5.1 and GPT-4.1 frequently terminate sessions before attempting diagnosis or rescue — their context windows are exhausted by the exploration phase. This is itself a failure mode: non-engagement is scored as 0 (see scoring convention above).
+
+**Diagnosis attempt rate** (fraction of sessions where the model called `submit_malfunction_hypothesis`):
+
+| Model | Easy | Medium | Hard |
+|-------|------|--------|------|
+| Opus, Sonnet, Qwen, heuristic, random | 100% | 100% | 100% |
+| DeepSeek V3.1 | 95% | 100% | 100% |
+| GPT-4o | 100% | 100% | 100% |
+| GPT-4.1 | 60% | 60% | 55% |
+| GPT-5.1 | 40% | 50% | 35% |
+
+**Rescue attempt rate** (fraction of sessions where the model called `test_rescue`):
+
+| Model | Easy | Medium | Hard |
+|-------|------|--------|------|
+| Opus, Sonnet, Qwen, heuristic, random | 100% | 100% | 100% |
+| DeepSeek V3.1 | 95% | 100% | 100% |
+| GPT-4o | 100% | 90% | 90% |
+| GPT-4.1 | 55% | 50% | 50% |
+| GPT-5.1 | 40% | 35% | 20% |
+
+GPT-5.1 rescue scores (0.067–0.283) are low primarily because it attempts rescue on only 20–40% of seeds, not because its rescues fail when attempted. GPT-4.1 shows a similar pattern at 50–55%. This non-engagement correlates with the budget usage collapse described in §3 — both models exhaust their context window during exploration, leaving no turns for diagnosis or rescue.
 
 ### 6. Diagnosis difficulty scales with organism complexity
 
