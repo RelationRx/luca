@@ -242,7 +242,7 @@ Diagnosis scores degrade with difficulty for all models that attempt diagnosis:
 | DeepSeek V3.1 | 0.150 | 0.100 | 0.300 |
 | GPT-4.1 | 0.200 | 0.100 | 0.225 |
 
-The gradient from easy to hard is steepest for the highest-performing models, consistent with genuine reasoning difficulty rather than random guessing. Diagnosis requires forming a causal hypothesis about the malfunction, not just predicting steady-state outputs.
+Anthropic models show monotonic degradation (Opus: 0.700 → 0.550 → 0.350), consistent with genuine reasoning difficulty. However, DeepSeek and Qwen show a U-shape: diagnosis *improves* from medium to hard (DeepSeek: 2 → 6 exact matches out of 20; Qwen: 5 → 8). This is unexpected given that hard organisms have more ambiguous malfunction states (mean n_alternatives: easy 0.05, medium 0.50, hard 1.25). The U-shape may reflect different guessing strategies interacting with the hard-tier malfunction distribution, or may be noise at N=20. It does not appear in the Anthropic or GPT results. Diagnosis requires forming a causal hypothesis about the malfunction, not just predicting steady-state outputs.
 
 Rescue tracks diagnosis:
 - Correct diagnosis (N=22 sessions): rescue fraction = 0.955
