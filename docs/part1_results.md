@@ -53,6 +53,8 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 | heuristic | 0.708 ± 0.089 | 0.575 ± 0.179 | 0.350 ± 0.196 |
 | random | 0.667 ± 0.000 | 0.633 ± 0.085 | 0.350 ± 0.223 |
 
+Best per column in bold.
+
 ### Disease mode — composite score (mean ± std, N=20)
 
 | Model | Easy | Medium | Hard |
@@ -67,14 +69,16 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 | random | 0.481 ± 0.109 | 0.425 ± 0.131 | 0.278 ± 0.155 |
 | gpt-5.1 | 0.344 ± 0.148 | 0.361 ± 0.232 | 0.178 ± 0.174 |
 
+Best per column in bold.
+
 ### Disease mode — breakdown by component (all tiers, N=20)
 
 **Medium disease:**
 
 | Model | Pred acc | Diagnosis | Rescue | Composite |
 |-------|----------|-----------|--------|-----------|
-| claude-opus-4-6 | 0.833 | **0.550** | 1.000 | **0.794** |
-| claude-sonnet-4-6 | 0.867 | 0.350 | 0.983 | 0.733 |
+| claude-opus-4-6 | 0.833 | **0.550** | **1.000** | **0.794** |
+| claude-sonnet-4-6 | **0.867** | 0.350 | 0.983 | 0.733 |
 | qwen-3.5 | 0.833 | 0.250 | 0.983 | 0.689 |
 | deepseek-v3 | 0.750 | 0.100 | 0.950 | 0.600 |
 | heuristic | 0.608 | 0.100 | 0.883 | 0.531 |
@@ -87,9 +91,9 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 
 | Model | Pred acc | Diagnosis | Rescue | Composite |
 |-------|----------|-----------|--------|-----------|
-| claude-opus-4-6 | 0.925 | **0.700** | 1.000 | **0.875** |
-| claude-sonnet-4-6 | 0.875 | 0.550 | 1.000 | 0.808 |
-| qwen-3.5 | 0.933 | 0.300 | 1.000 | 0.744 |
+| claude-opus-4-6 | 0.925 | **0.700** | **1.000** | **0.875** |
+| claude-sonnet-4-6 | 0.875 | 0.550 | **1.000** | 0.808 |
+| qwen-3.5 | **0.933** | 0.300 | **1.000** | 0.744 |
 | deepseek-v3 | 0.808 | 0.150 | 0.933 | 0.631 |
 | heuristic | 0.692 | 0.250 | 0.850 | 0.597 |
 | gpt-4o | 0.717 | 0.075 | 0.750 | 0.514 |
@@ -101,8 +105,8 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 
 | Model | Pred acc | Diagnosis | Rescue | Composite |
 |-------|----------|-----------|--------|-----------|
-| claude-opus-4-6 | 0.592 | **0.350** | 0.950 | **0.631** |
-| qwen-3.5 | 0.533 | 0.400 | 0.883 | 0.606 |
+| claude-opus-4-6 | **0.592** | 0.350 | **0.950** | **0.631** |
+| qwen-3.5 | 0.533 | **0.400** | 0.883 | 0.606 |
 | claude-sonnet-4-6 | 0.542 | 0.300 | 0.867 | 0.569 |
 | deepseek-v3 | 0.408 | 0.300 | 0.883 | 0.531 |
 | heuristic | 0.450 | 0.200 | 0.633 | 0.428 |
@@ -110,6 +114,8 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 | gpt-4o | 0.408 | 0.150 | 0.517 | 0.358 |
 | random | 0.258 | 0.075 | 0.500 | 0.278 |
 | gpt-5.1 | 0.392 | 0.075 | 0.067 | 0.178 |
+
+Best per column in bold.
 
 ---
 
@@ -215,7 +221,7 @@ Edge inference from perturbation experiments (mean over N=20 seeds, ground truth
 | Model | Precision | Recall | F1 | Inferred edges |
 |-------|-----------|--------|----|---------------|
 | claude-opus-4-6 | 0.640 | **0.933** | **0.754** | 18.1 |
-| claude-sonnet-4-6 | 0.675 | 0.775 | 0.710 | 14.1 |
+| claude-sonnet-4-6 | **0.675** | 0.775 | 0.710 | 14.1 |
 | qwen-3.5 | 0.615 | 0.742 | 0.660 | 14.8 |
 | deepseek-v3 | 0.583 | 0.662 | 0.611 | 15.0 |
 | gpt-5.1 | 0.570 | 0.754 | 0.644 | 15.3 |
@@ -226,13 +232,15 @@ Edge inference from perturbation experiments (mean over N=20 seeds, ground truth
 
 | Model | Precision | Recall | F1 | Inferred edges |
 |-------|-----------|--------|----|---------------|
-| qwen-3.5 | 0.351 | 0.740 | **0.464** | 23.8 |
+| qwen-3.5 | **0.351** | 0.740 | **0.464** | 23.8 |
 | claude-opus-4-6 | 0.265 | **0.752** | 0.390 | 34.0 |
 | claude-sonnet-4-6 | 0.277 | 0.675 | 0.390 | 30.0 |
 | gpt-5.1 | 0.257 | 0.719 | 0.376 | 30.7 |
 | deepseek-v3 | 0.290 | 0.555 | 0.372 | 21.2 |
 | gpt-4.1 | 0.227 | 0.441 | 0.294 | 20.1 |
 | gpt-4o | 0.128 | 0.205 | 0.153 | 10.1 |
+
+Best per column in bold.
 
 Edges are `(gene, phenotype, direction)` triples inferred from observed phenotype shifts >0.05 on single-gene BLOCK/BOOST experiments.
 
