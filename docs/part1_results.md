@@ -244,11 +244,12 @@ Diagnosis scores degrade with difficulty for all models that attempt diagnosis:
 
 Anthropic models show monotonic degradation (Opus: 0.700 → 0.550 → 0.350), consistent with genuine reasoning difficulty. However, DeepSeek and Qwen show a U-shape: diagnosis *improves* from medium to hard (DeepSeek: 2 → 6 exact matches out of 20; Qwen: 5 → 8). This is unexpected given that hard organisms have more ambiguous malfunction states (mean n_alternatives: easy 0.05, medium 0.50, hard 1.25). The U-shape may reflect different guessing strategies interacting with the hard-tier malfunction distribution, or may be noise at N=20. It does not appear in the Anthropic or GPT results. Diagnosis requires forming a causal hypothesis about the malfunction, not just predicting steady-state outputs.
 
-Rescue tracks diagnosis:
-- Correct diagnosis (N=22 sessions): rescue fraction = 0.955
-- Wrong diagnosis (N=78 sessions): rescue fraction = 0.526
+Rescue tracks diagnosis across all 540 disease sessions (9 models × 3 tiers × 20 seeds):
+- Correct diagnosis (N=116): mean rescue = 0.948
+- Partial diagnosis (N=8): mean rescue = 0.667
+- Wrong diagnosis (N=416): mean rescue = 0.678
 
-Partial rescue even with wrong diagnosis reflects generic stabilising interventions that happen to restore some phenotypes.
+Even with a wrong diagnosis, models achieve 0.678 mean rescue — generic stabilising interventions restore many phenotypes without identifying the root cause.
 
 Diagnosis by ambiguity level (medium disease, all models):
 - n_alternatives=0 (unambiguous, 74 sessions): Opus 62.5%, Sonnet 40%, Qwen 35.1%, GPT-4.1 28.6%, DeepSeek 16.2%, GPTs 0–14%
