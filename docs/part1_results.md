@@ -159,16 +159,21 @@ In disease mode, Claude re-tests previously blocked genes after observing the ab
 
 | Model | Easy/H | Med/H | Hard/H | Easy/D | Med/D | Hard/D |
 |-------|--------|-------|--------|--------|-------|--------|
-| claude-opus-4-6 | — | 88% | — | 83% ± 5% | 81% | 82% ± 8% |
-| claude-sonnet-4-6 | — | 81% | — | 78% ± 5% | — | 77% ± 6% |
+| claude-opus-4-6 | 86% ± 2% | 89% ± 4% | 84% ± 5% | 83% ± 6% | 84% ± 5% | 82% ± 8% |
+| claude-sonnet-4-6 | 79% ± 3% | 80% ± 3% | 76% ± 4% | 78% ± 5% | 78% ± 5% | 77% ± 6% |
 | deepseek-v3 | 80% ± 9% | 84% ± 5% | 79% ± 7% | 60% ± 20% | 69% ± 12% | 70% ± 15% |
 | qwen-3.5 | 87% ± 8% | 85% ± 6% | 74% ± 9% | 78% ± 8% | 78% ± 15% | 66% ± 14% |
-| gpt-5.1 | — | 85% | — | 35% ± 25% | 29% | 30% ± 31% |
-| gpt-4o | — | 50% | — | 26% ± 10% | — | 30% ± 17% |
-| gpt-4.1 | — | 63% | — | 26% ± 21% | — | 32% ± 25% |
-| heuristic | — | — | — | 68% ± 0% | — | 52% ± 1% |
+| gpt-5.1 | 85% ± 11% | 81% ± 14% | 74% ± 14% | 35% ± 25% | 29% ± 27% | 30% ± 31% |
+| gpt-4o | 57% ± 27% | 54% ± 24% | 47% ± 23% | 26% ± 10% | 24% ± 9% | 30% ± 17% |
+| gpt-4.1 | 59% ± 20% | 57% ± 33% | 54% ± 15% | 26% ± 21% | 40% ± 31% | 32% ± 25% |
+| heuristic | 65% ± 0% | 65% ± 0% | 48% ± 0% | 68% ± 0% | 68% ± 0% | 52% ± 1% |
+| random | 0% | 0% | 0% | 3% ± 0% | 3% ± 0% | 3% ± 0% |
 
-Claude and open-source models use 70–88% of budget consistently across all tiers and modes. GPT models use 26–35% on disease — context exhaustion truncates sessions early, explaining the disease score collapse. Open-source models sit between Claude and GPT on disease budget usage (60–78%), with no evidence of context exhaustion.
+Three distinct budget usage patterns emerge:
+- **Claude**: 76–89% consistently across all tiers and modes, low variance (±2–8%). Systematic exploration.
+- **Open-source**: 74–87% on healthy (matching Claude), 60–78% on disease. Higher variance than Claude but no context exhaustion.
+- **GPT**: 47–85% on healthy (high variance), collapses to 24–40% on disease (±9–33%). Context exhaustion truncates disease sessions early, explaining the disease score collapse. GPT-4o and GPT-4.1 underuse budget even on healthy (47–59%).
+- **Baselines**: heuristic uses a deterministic fraction (48–68%); random runs no experiments (0–3%).
 
 **gpt-4.1 anomaly**: 11/20 disease seeds had zero experiments — the model read the organism description and submitted predictions and a hypothesis without any perturbation. This accidentally inflated its composite at ±0.15 (pred_acc from description alone can be high); at ±0.10 the anomaly disappears and gpt-4.1 correctly ranks below gpt-4o.
 
