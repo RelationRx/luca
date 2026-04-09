@@ -302,7 +302,7 @@ On medium, Claude Opus achieves high recall (0.933) by over-inferring edges (18.
 | gpt-4o | −0.16 | +0.02 |
 | gpt-4.1 | +0.21 | +0.46 |
 
-Correlations are weak and inconsistent — higher network F1 does not reliably predict better prediction accuracy. Opus has a negative r on medium despite the highest F1, suggesting its prediction performance draws on something beyond explicit edge reconstruction. Note: this metric only captures gene→phenotype edges; gene→gene regulatory edges are not recoverable from current logs (see Ideas).
+Correlations are mostly weak and inconsistent — higher network F1 does not reliably predict better prediction accuracy. Opus has a negative r on medium despite the highest F1, suggesting its prediction performance draws on something beyond explicit edge reconstruction. DeepSeek shows a notable negative correlation on hard (r = −0.43): sessions where it infers more correct edges tend to produce worse predictions. This may reflect over-commitment to an explicit network model that misleads on hard organisms where feedback loops make single-gene effects ambiguous — a model that trusts its inferred network too literally may predict worse than one that hedges. Note: this metric only captures gene→phenotype edges; gene→gene regulatory edges are not recoverable from current logs (see Ideas).
 
 ### 8. Hypothesis quality (disease mode, qualitative)
 
