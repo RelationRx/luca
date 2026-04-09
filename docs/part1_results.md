@@ -39,7 +39,7 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 
 ## Results
 
-### Healthy mode — composite score (mean ± std, N=20)
+### Healthy mode — composite score (mean ± std, N=20)*
 
 | Model | Easy | Medium | Hard |
 |-------|------|--------|------|
@@ -53,7 +53,7 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 | heuristic | 0.708 ± 0.089 | 0.575 ± 0.179 | 0.350 ± 0.196 |
 | random | 0.667 ± 0.000 | 0.633 ± 0.085 | 0.350 ± 0.223 |
 
-Best per column in bold.
+Best per column in bold. *GPT-5.1 and GPT-4o have N=19 on medium healthy (1 seed each failed due to malformed API responses).
 
 ### Disease mode — composite score (mean ± std, N=20)
 
