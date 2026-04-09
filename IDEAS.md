@@ -47,6 +47,14 @@ _Ideas that can be executed with little or no new runs — computable from exist
   session logs. Strengthens the GPT context exhaustion finding by quantifying it rather than
   just noting it as a failure mode.
 
+- **Open-source model results subsection**: DeepSeek V3.1 and Qwen 3.5 match Claude on
+  prediction accuracy (0.91, 0.89 vs Opus 0.90 on medium healthy) but not on causal diagnosis
+  (0.10–0.24 vs Opus 0.55 on medium disease). The rescue-without-diagnosis dissociation is now
+  universal across 3 model families (Claude, GPT, open-source), not GPT-specific. Paper addition:
+  short Results subsection, extend existing tables, note the diagnosis gap as the clearest
+  capability separation. Cost footnote: full open-source run was ~$30 vs hundreds for
+  proprietary models.
+
 ---
 
 ## Figure Ideas

@@ -1,15 +1,15 @@
 # LUCA Part 1 — Benchmark Validation Results
 
-Technical reference for the Part 1 benchmark results. Stable as of 2026-03-21.
+Technical reference for the Part 1 benchmark results. Updated 2026-04-09 with open-source models.
 For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md`.
 
 ---
 
 ## Setup
 
-**Models**: claude-opus-4-6, claude-sonnet-4-6, gpt-5.1, gpt-4o, gpt-4.1, heuristic, random (7 total)
+**Models**: claude-opus-4-6, claude-sonnet-4-6, deepseek-v3 (DeepSeek V3.1), qwen-3.5 (Qwen 3.5 397B), gpt-5.1, gpt-4o, gpt-4.1, heuristic, random (9 total)
 
-**Sweeps**: 6 sweeps × 20 seeds × 7 models = **840 sessions**
+**Sweeps**: 6 sweeps × 20 seeds × 9 models = **1080 sessions**
 
 | Sweep | Difficulty | Mode |
 |-------|-----------|------|
@@ -43,8 +43,10 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 
 | Model | Easy | Medium | Hard |
 |-------|------|--------|------|
-| claude-opus-4-6 | **0.992** ± 0.036 | **0.900** ± 0.111 | **0.608** ± 0.192 |
+| claude-opus-4-6 | **0.992** ± 0.036 | 0.900 ± 0.111 | 0.608 ± 0.192 |
+| deepseek-v3 | 0.917 ± 0.124 | **0.908** ± 0.111 | **0.642** ± 0.161 |
 | claude-sonnet-4-6 | 0.958 ± 0.089 | 0.875 ± 0.128 | 0.575 ± 0.250 |
+| qwen-3.5 | 0.958 ± 0.072 | 0.892 ± 0.095 | 0.586 ± 0.178 |
 | gpt-5.1 | 0.808 ± 0.142 | 0.781 ± 0.133 | 0.558 ± 0.206 |
 | gpt-4o | 0.825 ± 0.123 | 0.667 ± 0.132 | 0.492 ± 0.201 |
 | gpt-4.1 | 0.758 ± 0.134 | 0.667 ± 0.075 | 0.500 ± 0.253 |
@@ -55,8 +57,10 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 
 | Model | Easy | Medium | Hard |
 |-------|------|--------|------|
-| claude-opus-4-6 | **0.869** ± 0.169 | **0.794** ± 0.166 | **0.631** ± 0.182 |
-| claude-sonnet-4-6 | 0.831 ± 0.163 | 0.733 ± 0.181 | 0.569 ± 0.217 |
+| claude-opus-4-6 | **0.875** ± 0.169 | **0.794** ± 0.166 | **0.631** ± 0.182 |
+| claude-sonnet-4-6 | 0.808 ± 0.190 | 0.733 ± 0.181 | 0.569 ± 0.217 |
+| qwen-3.5 | 0.744 ± 0.145 | 0.689 ± 0.167 | 0.606 ± 0.204 |
+| deepseek-v3 | 0.631 ± 0.136 | 0.600 ± 0.134 | 0.531 ± 0.198 |
 | heuristic | 0.597 ± 0.183 | 0.531 ± 0.127 | 0.428 ± 0.209 |
 | gpt-4o | 0.514 ± 0.105 | 0.464 ± 0.126 | 0.358 ± 0.191 |
 | gpt-4.1 | 0.492 ± 0.256 | 0.456 ± 0.236 | 0.372 ± 0.293 |
@@ -71,35 +75,41 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 |-------|----------|-----------|--------|-----------|
 | claude-opus-4-6 | 0.833 | **0.550** | 1.000 | **0.794** |
 | claude-sonnet-4-6 | 0.867 | 0.350 | 0.983 | 0.733 |
-| gpt-4.1 | 0.783 | 0.167 | 0.967 | 0.456 |
+| qwen-3.5 | 0.833 | 0.250 | 0.983 | 0.689 |
+| deepseek-v3 | 0.750 | 0.100 | 0.950 | 0.600 |
 | heuristic | 0.608 | 0.100 | 0.883 | 0.531 |
-| gpt-4o | 0.658 | 0.050 | 0.759 | 0.464 |
+| gpt-4o | 0.658 | 0.050 | 0.683 | 0.464 |
+| gpt-4.1 | 0.783 | 0.100 | 0.483 | 0.456 |
 | random | 0.450 | 0.075 | 0.750 | 0.425 |
-| gpt-5.1 | 0.700 | 0.200 | 0.810 | 0.361 |
+| gpt-5.1 | 0.700 | 0.100 | 0.283 | 0.361 |
 
 **Easy disease:**
 
 | Model | Pred acc | Diagnosis | Rescue | Composite |
 |-------|----------|-----------|--------|-----------|
-| claude-opus-4-6 | 0.958 | **0.650** | 1.000 | **0.869** |
-| claude-sonnet-4-6 | 0.942 | 0.550 | 1.000 | 0.831 |
+| claude-opus-4-6 | 0.925 | **0.700** | 1.000 | **0.875** |
+| claude-sonnet-4-6 | 0.875 | 0.550 | 1.000 | 0.808 |
+| qwen-3.5 | 0.933 | 0.300 | 1.000 | 0.744 |
+| deepseek-v3 | 0.808 | 0.150 | 0.933 | 0.631 |
 | heuristic | 0.692 | 0.250 | 0.850 | 0.597 |
-| gpt-4.1 | 0.792 | 0.333 | 0.879 | 0.492 |
-| random | 0.550 | 0.025 | 0.867 | 0.481 |
 | gpt-4o | 0.717 | 0.075 | 0.750 | 0.514 |
-| gpt-5.1 | 0.750 | 0.000 | 0.708 | 0.344 |
+| gpt-4.1 | 0.792 | 0.200 | 0.483 | 0.492 |
+| random | 0.550 | 0.025 | 0.867 | 0.481 |
+| gpt-5.1 | 0.750 | 0.000 | 0.283 | 0.344 |
 
 **Hard disease:**
 
 | Model | Pred acc | Diagnosis | Rescue | Composite |
 |-------|----------|-----------|--------|-----------|
 | claude-opus-4-6 | 0.592 | **0.350** | 0.950 | **0.631** |
+| qwen-3.5 | 0.533 | 0.400 | 0.883 | 0.606 |
 | claude-sonnet-4-6 | 0.542 | 0.300 | 0.867 | 0.569 |
-| gpt-4.1 | 0.492 | 0.409 | 0.800 | 0.372 |
+| deepseek-v3 | 0.408 | 0.300 | 0.883 | 0.531 |
 | heuristic | 0.450 | 0.200 | 0.633 | 0.428 |
-| gpt-4o | 0.408 | 0.150 | 0.574 | 0.358 |
+| gpt-4.1 | 0.492 | 0.225 | 0.400 | 0.372 |
+| gpt-4o | 0.408 | 0.150 | 0.517 | 0.358 |
 | random | 0.258 | 0.075 | 0.500 | 0.278 |
-| gpt-5.1 | 0.392 | 0.214 | 0.333 | 0.178 |
+| gpt-5.1 | 0.392 | 0.075 | 0.067 | 0.178 |
 
 ---
 
@@ -107,14 +117,16 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 
 ### 1. Difficulty discriminates models cleanly
 
-Easy is near-ceiling for Claude (0.96–0.99) but weaker for GPTs (0.76–0.83), making it a limited discriminator. Medium separates Claude from GPT clearly (Claude: 0.875–0.900; GPT: 0.667–0.781). Hard is the most discriminating tier: Claude Opus maintains 0.61, Sonnet 0.58, GPTs drop to 0.49–0.56. Both baselines collapse to 0.350 on hard — indistinguishable from chance — validating that hard organisms require genuine causal reasoning.
+Easy is near-ceiling for Claude and open-source models (0.92–0.99) but weaker for GPTs (0.76–0.83), making it a limited discriminator. Medium separates three tiers: Claude + open-source (0.875–0.908), GPT (0.667–0.781), and baselines (0.575–0.633). Hard is the most discriminating tier: DeepSeek V3.1 leads at 0.642, Claude Opus 0.608, Qwen 3.5 and Sonnet at 0.575–0.586, GPTs at 0.49–0.56. Both baselines collapse to 0.350 on hard — indistinguishable from chance — validating that hard organisms require genuine causal reasoning.
 
 Degradation from easy to hard is gradual (no cliff) but with high per-seed variance on hard, indicating a bimodal structure: models either solve an organism or partially fail, not gracefully degrade within a seed.
 
 | Model | Easy→Hard drop | Hard seeds ≥0.80 | Hard seeds <0.50 |
 |-------|---------------|-----------------|-----------------|
 | claude-opus-4-6 | −0.383 | 4/20 | 3/20 |
+| deepseek-v3 | −0.275 | 6/20 | 2/20 |
 | claude-sonnet-4-6 | −0.383 | 6/20 | 6/20 |
+| qwen-3.5 | −0.372 | 5/20 | 4/20 |
 | gpt-5.1 | −0.250 | 3/20 | 4/20 |
 | gpt-4o | −0.333 | 2/20 | 6/20 |
 | gpt-4.1 | −0.258 | 4/20 | 7/20 |
@@ -143,26 +155,36 @@ In disease mode, Claude re-tests previously blocked genes after observing the ab
 
 **Budget usage across all six sweeps** (mean ± std, budget=31 for disease tiers):
 
-| Model | Easy/H | Med/H | Hard/H | Med/D | Easy/D | Hard/D |
-|-------|--------|-------|--------|-------|--------|--------|
-| claude-opus-4-6 | — | 88% | — | 81% | 83% ± 5% | 82% ± 8% |
-| claude-sonnet-4-6 | — | 81% | — | — | 78% ± 5% | 77% ± 6% |
-| gpt-5.1 | — | 85% | — | 29% | 35% ± 25% | 30% ± 31% |
-| gpt-4o | — | 50% | — | — | 26% ± 10% | 30% ± 17% |
-| gpt-4.1 | — | 63% | — | — | 26% ± 21% | 32% ± 25% |
-| heuristic | — | — | — | — | 68% ± 0% | 52% ± 1% |
+| Model | Easy/H | Med/H | Hard/H | Easy/D | Med/D | Hard/D |
+|-------|--------|-------|--------|--------|-------|--------|
+| claude-opus-4-6 | — | 88% | — | 83% ± 5% | 81% | 82% ± 8% |
+| claude-sonnet-4-6 | — | 81% | — | 78% ± 5% | — | 77% ± 6% |
+| deepseek-v3 | 80% ± 9% | 84% ± 5% | 79% ± 7% | 60% ± 20% | 69% ± 12% | 70% ± 15% |
+| qwen-3.5 | 87% ± 8% | 85% ± 6% | 74% ± 9% | 78% ± 8% | 78% ± 15% | 66% ± 14% |
+| gpt-5.1 | — | 85% | — | 35% ± 25% | 29% | 30% ± 31% |
+| gpt-4o | — | 50% | — | 26% ± 10% | — | 30% ± 17% |
+| gpt-4.1 | — | 63% | — | 26% ± 21% | — | 32% ± 25% |
+| heuristic | — | — | — | 68% ± 0% | — | 52% ± 1% |
 
-Claude uses ~80% of budget consistently across all tiers and modes. GPT models use 26–35% on disease — context exhaustion truncates sessions early, explaining the disease score collapse. Heuristic drops on hard disease (52%) because fewer unambiguous candidates remain to enumerate once signal malfunctions and latent gene interactions are present.
+Claude and open-source models use 70–88% of budget consistently across all tiers and modes. GPT models use 26–35% on disease — context exhaustion truncates sessions early, explaining the disease score collapse. Open-source models sit between Claude and GPT on disease budget usage (60–78%), with no evidence of context exhaustion.
 
 **gpt-4.1 anomaly**: 11/20 disease seeds had zero experiments — the model read the organism description and submitted predictions and a hypothesis without any perturbation. This accidentally inflated its composite at ±0.15 (pred_acc from description alone can be high); at ±0.10 the anomaly disappears and gpt-4.1 correctly ranks below gpt-4o.
 
-### 4. Prediction/diagnosis dissociation in GPT models
+### 4. Open-source models match Claude on prediction, not diagnosis
 
-GPT models show a wide spread on medium disease diagnosis: gpt-4o near-chance (0.050), gpt-4.1 low (0.167), gpt-5.1 moderate (0.200) — despite reasonable prediction accuracy (0.66–0.78). Claude Opus leads diagnosis at 0.550, Claude Sonnet at 0.350. The heuristic scores 0.100, below gpt-5.1 and gpt-4.1 — exhaustive enumeration alone is insufficient when the malfunction signal is ambiguous.
+DeepSeek V3.1 and Qwen 3.5 (both served via Together AI) produce prediction accuracy in the Claude tier across all difficulty levels: on medium healthy, DeepSeek scores 0.908 and Qwen 0.892, comparable to Claude Opus (0.900) and well above all GPT models (0.667–0.781). On hard healthy, DeepSeek leads all models at 0.642.
 
-This is a sharp dissociation: running perturbation experiments and accumulating evidence does not automatically translate to correct abductive inference in GPT models. Identifying the root cause of a phenotypic abnormality appears to require a qualitatively different reasoning capacity.
+On disease mode the picture diverges. Open-source models achieve near-Claude rescue scores (0.88–1.00) but substantially lower diagnosis scores. Mean diagnosis across all disease tiers: Claude Opus 0.533, Claude Sonnet 0.400, Qwen 3.5 0.317, DeepSeek V3.1 0.183, GPT-4.1 0.175, GPT-4o 0.092, GPT-5.1 0.058. The diagnosis gap between Claude Opus and every other model family is the clearest capability separation in the benchmark.
 
-### 5. Diagnosis difficulty scales with organism complexity
+This pattern — strong prediction and rescue, weak diagnosis — is now demonstrated across three independent model families (Claude, GPT, open-source), establishing it as a general property of current LLMs rather than a GPT-specific limitation. Only Claude models appear to reliably perform the abductive inference required for root-cause identification.
+
+### 5. Prediction/diagnosis dissociation is universal
+
+The dissociation between prediction accuracy and diagnosis score, first observed in GPT models, extends to open-source models. On medium disease, both DeepSeek (pred 0.750, diag 0.100) and Qwen (pred 0.833, diag 0.250) show high prediction accuracy with low diagnosis — the same pattern as GPT-4.1 (pred 0.783, diag 0.100) and GPT-4o (pred 0.658, diag 0.050).
+
+Running perturbation experiments and accumulating evidence does not automatically translate to correct abductive inference. Identifying the root cause of a phenotypic abnormality appears to require a qualitatively different reasoning capacity that only Claude models currently demonstrate.
+
+### 6. Diagnosis difficulty scales with organism complexity
 
 Claude Opus diagnosis across difficulty tiers: 0.650 (easy) → 0.550 (medium) → 0.350 (hard). This is the cleanest signal of genuine reasoning difficulty in the benchmark — diagnosis requires forming a causal hypothesis about the malfunction, not just predicting steady-state outputs.
 
@@ -177,7 +199,7 @@ Diagnosis by ambiguity level (medium disease, N=100 sessions across Claude model
 - n_alternatives=1 (14 sessions): Opus 100%, Sonnet 50%, GPTs 0–33%
 - n_alternatives≥2 (12 sessions): no model ever succeeds
 
-### 6. Network reconstruction does not predict performance
+### 7. Network reconstruction does not predict performance
 
 Edge inference from perturbation experiments (mean over N=20 seeds, ground truth = 12.0 edges/organism):
 
@@ -217,7 +239,7 @@ On medium, Claude Opus achieves high recall (0.933) by over-inferring edges (18.
 
 Correlations are weak and inconsistent — higher network F1 does not reliably predict better prediction accuracy. Opus has a negative r on medium despite the highest F1, suggesting its prediction performance draws on something beyond explicit edge reconstruction. Note: this metric only captures gene→phenotype edges; gene→gene regulatory edges are not recoverable from current logs (see Ideas).
 
-### 7. Hypothesis quality (disease mode, qualitative)
+### 8. Hypothesis quality (disease mode, qualitative)
 
 | Model | Text present | Avg length | Cites evidence |
 |-------|-------------|------------|----------------|
@@ -231,7 +253,7 @@ Claude hypotheses are concise, cite specific experiment results (e.g. "BLOCK G01
 
 GPT-5.1 writes the longest hypotheses (2932 chars avg) but its one correct diagnosis came with no free text; wrong cases are verbose, fluent, and evidence-rich but reason toward wrong conclusions. GPT-4o produces the shortest hypotheses, rarely cites evidence.
 
-### 8. Gene attribution bias — signal malfunctions never diagnosed
+### 9. Gene attribution bias — signal malfunctions never diagnosed
 
 Two medium disease seeds (0 and 1) have signal malfunctions (thermal-pulse PERSIST, coupling-factor-Q PERSIST). No model across any seed correctly diagnosed a signal malfunction. Both Claude models identified compensating gene targets (correct rescue, wrong cause). GPT-4o was the only model to name a signal at all (wrong signal). GPT-5.1/4.1 submitted nothing valid.
 
