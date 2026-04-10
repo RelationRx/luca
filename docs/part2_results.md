@@ -273,6 +273,35 @@ show the task is getting harder at large N.
 
 ---
 
+## Reviewer notes
+
+**1. Identical N=20 scores (0.917±0.083) across Sonnet, DeepSeek, Qwen.** Not a data copy issue — verified from independent JSONL files with different per-seed score patterns (Sonnet: seeds 0,4,5,6,8 at 0.833; DeepSeek: seeds 1,2,4,6,7 at 0.833; Qwen: seeds 0,4,5,6,9 at 0.833). All three get 5/10 perfect and 5/10 at 0.833, producing the same mean/std mechanically. N=20 medium is near-ceiling for capable models — the remaining difficulty is organism-specific, not model-specific.
+
+**2. Clean std values.** All stds are rounded to 3 decimal places (consistent with Part 1). The "clean" values (0.050, 0.083, 0.100) are genuine — scores are quantized to {0.667, 0.833, 1.000} (2/3, 5/6, 6/6 phenotypes correct), so with 10 seeds taking only 3 possible values, the set of achievable stds is small. E.g. 0.050 = nine 1.000s and one 0.833.
+
+**3. DeepSeek efficiency caveat.** At N=640, DeepSeek (0.917, 5% budget) and Sonnet (0.926, 39% budget) are within std — the efficiency advantage is real but the scores are comparable, not "nearly as good." The trade-off becomes clearer at N=1280 where Sonnet leads 0.983 vs DeepSeek 0.817. The efficiency claim should be framed as: same scores at medium N with far fewer experiments, but Sonnet's thorough exploration pays off at the largest scale.
+
+**4. DeepSeek redundancy interpretation.** The "deliberate BLOCK-then-BOOST" hypothesis is speculative. With ~20 experiments and ~16 unique genes, ~50% redundancy is partly a statistical inevitability — any experiment beyond the 16th must re-perturb a seen gene. However, the consistent ~50/50 BLOCK/BOOST mix (unlike Sonnet's near-exclusive BLOCK) is suggestive of paired interventions rather than random overlap. Flagged as hypothesis, not confirmed.
+
+**5. Paper-ready strategy table.** Compact format for Table 5 extension:
+
+| N | Model | Commit % | Abs. exp | BLOCK % | Redundancy | Budget % |
+|---|-------|----------|----------|---------|------------|----------|
+| 20 | Sonnet | 80.3% | 25 | 83.2% | 40.2% | 81% |
+| 20 | DeepSeek | 73.5% | 23 | 55.5% | 44.1% | 82% |
+| 20 | Qwen | 89.0% | 28 | 62.8% | 37.2% | 89% |
+| 20 | GPT-4o | 49.3% | 15 | 63.3% | 45.8% | 44% |
+| 320 | Sonnet | 43.8% | 164 | 98.3% | 38.2% | 60% |
+| 320 | DeepSeek | 5.6% | 21 | 53.3% | 47.3% | 9% |
+| 320 | Qwen | 16.3% | 61 | 71.8% | 39.0% | 18% |
+| 320 | GPT-4o | 4.7% | 18 | 46.0% | 43.3% | 3% |
+| 1280 | Sonnet | 8.6% | 130 | 97.7% | 34.5% | 15% |
+| 1280 | DeepSeek | 1.5% | 22 | 51.9% | 47.6% | 2% |
+| 1280 | Qwen | 3.9% | 57 | 63.7% | 48.5% | 4% |
+| 1280 | GPT-4o | 1.0% | 15 | 52.1% | 51.2% | 1% |
+
+---
+
 ## Open questions
 
 - **DeepSeek's targeted strategy**: what governs which ~16 genes DeepSeek selects? If it's
