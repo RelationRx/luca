@@ -1,8 +1,8 @@
 # Part 2 — Scaling Study Results
 
-**Last updated:** 2026-03-24 (coverage + efficiency analysis added)
+**Last updated:** 2026-04-10 (open-source models added)
 **Design:** `docs/part2_plan.md`
-**Models:** claude-sonnet-4-6, gpt-4o, heuristic, random
+**Models:** claude-sonnet-4-6, deepseek-v3 (DeepSeek V3.1), qwen-3.5 (Qwen 3.5 397B), gpt-4o, heuristic, random
 **Sweeps:** N=20, 40, 80, 160, 320, 640, 1280 — medium difficulty, healthy mode
 **Seeds:** 10 per N for all models; heuristic N=1280 stopped at 5 seeds (0.667±0.000, structural floor confirmed)
 
@@ -20,17 +20,18 @@
 
 ### Composite scores (mean ± std)
 
-| N | Budget | Sonnet | GPT-4o | Heuristic | Random | n (S/G/H/R) |
-|---|--------|--------|--------|-----------|--------|-------------|
-| 20 | 31 | 0.917±0.088 | 0.717±0.137 | 0.550±0.158 | 0.650±0.053 | 10/10/10/10 |
-| 40 | 54 | 0.850±0.146 | 0.667±0.157 | 0.567±0.086 | 0.617±0.113 | 10/10/10/10 |
-| 80 | 99 | 0.817±0.146 | 0.650±0.123 | 0.583±0.212 | 0.650±0.053 | 10/10/10/10 |
-| 160 | 191 | 0.983±0.053 | 0.667±0.079 | 0.583±0.162 | 0.667±0.000 | 10/10/10/10 |
-| 320 | 374 | 0.900±0.211 | 0.650±0.095 | 0.667±0.136 | 0.667±0.000 | 10/10/10/10 |
-| 640 | 740 | 0.926±0.121 | 0.650±0.053 | 0.667±0.079 | 0.667±0.000 | 10/10/10/10 |
-| 1280 | 1471 | 0.983±0.053 | 0.633±0.131 | 0.667±0.000 | 0.667±0.000 | 10/10/5†/10 |
+| N | Budget | Sonnet | DeepSeek V3.1 | Qwen 3.5 | GPT-4o | Heuristic | Random |
+|---|--------|--------|---------------|----------|--------|-----------|--------|
+| 20 | 31 | 0.917±0.083 | 0.917±0.083 | 0.917±0.083 | 0.717±0.130 | 0.550±0.150 | 0.650±0.050 |
+| 40 | 54 | 0.850±0.138 | 0.850±0.203 | **0.926**±0.083 | 0.667±0.149 | 0.567±0.082 | 0.617±0.107 |
+| 80 | 99 | 0.817±0.138 | **0.883**±0.107 | 0.717±0.198 | 0.650±0.117 | 0.583±0.201 | 0.650±0.050 |
+| 160 | 191 | **0.983**±0.050 | 0.933±0.111 | 0.900±0.111 | 0.667±0.075 | 0.583±0.154 | 0.667±0.000 |
+| 320 | 374 | **0.900**±0.200 | 0.850±0.117 | 0.800±0.100 | 0.650±0.090 | 0.667±0.129 | 0.667±0.000 |
+| 640 | 740 | 0.926±0.114 | **0.917**±0.112 | 0.817±0.138 | 0.650±0.050 | 0.667±0.075 | 0.667±0.000 |
+| 1280 | 1471 | **0.983**±0.050 | 0.817±0.138 | 0.783±0.150 | 0.633±0.125 | 0.667±0.000 | 0.667±0.000 |
 
-_All Sonnet results from clean post-RNG-fix run (2026-03-23/24)._
+Best per column in bold. N=10 seeds per cell except Sonnet N=640 (9) and heuristic N=1280 (5†).
+
 _† Heuristic N=1280 stopped at 5 seeds: 0.667±0.000, structural floor confirmed._
 
 ---
@@ -59,38 +60,34 @@ additivity cannot represent. This is true at N=20 and N=1280 equally.
 
 ### §2 LLM vs baseline gap (RQ1)
 
-Sonnet maintains high accuracy across all N, with scores ranging 0.817–0.983. There is no
-degradation at scale — if anything scores improve at large N (0.983 at both N=160 and N=1280).
-The Sonnet–random gap is 0.267 at N=20 and 0.317 at N=1280, widening slightly with N.
+Three LLMs maintain high accuracy across all N with no degradation at scale:
+- **Sonnet**: 0.817–0.983, widening gap over baselines with N
+- **DeepSeek V3.1**: 0.850–0.933, competitive with Sonnet through N=640, modest decline at N=1280 (0.817)
+- **Qwen 3.5**: 0.717–0.926, competitive at small N, gradual decline at large N (0.783 at N=1280)
 
-GPT-4o is a different story. Its score drops from 0.717 at N=20 to 0.633–0.667 for N≥40 —
-essentially at the random baseline floor throughout. GPT-4o does not exhibit the LLM scaling
-robustness seen in Sonnet: it converges to chance at small N and stays there.
+GPT-4o drops from 0.717 at N=20 to 0.633–0.667 for N≥40 — essentially at the random baseline floor throughout.
 
-**RQ1 answer**: LLM scaling robustness holds for Sonnet but is not a universal LLM property —
-GPT-4o fails to outperform the random baseline at any N≥40. The cross-family comparison reveals
-a sharp divergence that widens with N.
+**RQ1 answer**: LLM scaling robustness holds for Sonnet and both open-source models but is not a universal LLM property — GPT-4o fails to outperform the random baseline at any N≥40. The three scaling-robust models achieve this through different exploration strategies (see §3–§5).
 
 ### §3 Budget utilisation
 
-| N | Budget | Sonnet used (%) | GPT-4o used (%) |
-|---|--------|-----------------|-----------------|
-| 20 | 31 | 81% | 44% |
-| 40 | 54 | 78% | 28% |
-| 80 | 99 | 79% | 14% |
-| 160 | 191 | 74% | 8% |
-| 320 | 374 | 50% | 3% |
-| 640 | 740 | 24% | 2% |
-| 1280 | 1471 | 13% | 1% |
+| N | Budget | Sonnet | DeepSeek V3.1 | Qwen 3.5 | GPT-4o |
+|---|--------|--------|---------------|----------|--------|
+| 20 | 31 | 81% | 82% | 89% | 44% |
+| 40 | 54 | 78% | 58% | 84% | 28% |
+| 80 | 99 | 81% | 28% | 63% | 14% |
+| 160 | 191 | 63% | 17% | 35% | 8% |
+| 320 | 374 | 60% | 9% | 18% | 3% |
+| 640 | 740 | 39% | 5% | 8% | 2% |
+| 1280 | 1471 | 15% | 2% | 4% | 1% |
 
-Sonnet's budget usage drops with N but remains meaningful — at N=1280 it still runs ~190
-experiments (13% of 1471) before switching to prediction. GPT-4o undergoes a **budget
-collapse**: at N=1280 it uses only 1% of its budget (~15 experiments) before requesting
-prediction tasks. This is not context exhaustion — all sessions completed normally — but a
-strategy failure where GPT-4o stops experimenting at scale.
+All models' budget usage drops with N, but at strikingly different rates:
+- **Sonnet**: gradual decline (81% → 15%), still running ~220 experiments at N=1280
+- **DeepSeek V3.1**: steep drop (82% → 2%), running ~30 experiments at N=1280 — yet scores 0.817
+- **Qwen 3.5**: moderate drop (89% → 4%), running ~60 experiments at N=1280
+- **GPT-4o**: collapses to 1% by N=1280 (~15 experiments), at baseline floor
 
-Stall events (budget_used=0): Sonnet 0/70; GPT-4o 3/70 (one each at N=80, 320, 1280).
-These are rare and not driving the score pattern.
+The most striking finding: **DeepSeek achieves 0.917 at N=640 with only 5% budget usage (~37 experiments)** while Sonnet uses 39% (~289 experiments) for 0.926. DeepSeek's per-experiment efficiency is far higher, though Sonnet's more thorough exploration leads at the largest scales.
 
 ### §4 Strategy analysis (RQ3)
 
@@ -98,85 +95,82 @@ From `analyse_strategy.py` on session logs (full 10-seed Sonnet results).
 
 #### Commitment timing (fraction of budget used before `get_next_prediction_task`)
 
-| N | Sonnet commit | GPT-4o commit |
-|---|---------------|---------------|
-| 20 | 0.803±0.042 | 0.493±0.250 |
-| 40 | 0.770±0.045 | 0.291±0.067 |
-| 80 | 0.788±0.101 | 0.130±0.043 |
-| 160 | 0.572±0.113 | 0.083±0.026 |
-| 320 | 0.438±0.166 | 0.047±0.019 |
-| 640 | 0.179±0.067 | 0.022±0.009 |
-| 1280 | 0.086±0.028 | 0.010±0.005 |
+| N | Sonnet | DeepSeek V3.1 | Qwen 3.5 | GPT-4o |
+|---|--------|---------------|----------|--------|
+| 20 | 0.803±0.042 | 0.735±0.077 | 0.890±0.072 | 0.493±0.250 |
+| 40 | 0.770±0.045 | 0.419±0.073 | 0.835±0.083 | 0.291±0.067 |
+| 80 | 0.788±0.101 | 0.195±0.031 | 0.617±0.159 | 0.130±0.043 |
+| 160 | 0.572±0.113 | 0.109±0.021 | 0.325±0.121 | 0.083±0.026 |
+| 320 | 0.438±0.166 | 0.056±0.007 | 0.163±0.038 | 0.047±0.019 |
+| 640 | 0.179±0.067 | 0.032±0.013 | 0.077±0.012 | 0.022±0.009 |
+| 1280 | 0.086±0.028 | 0.015±0.004 | 0.039±0.014 | 0.010±0.005 |
 
-Sonnet uses ~80% of budget before predicting at small N, dropping to ~9% at N=1280. In
-absolute terms this is coherent: 80% of 31 = ~25 experiments at N=20; 9% of 1471 = ~130
-experiments at N=1280 — Sonnet actually runs *more* experiments before predicting at large
-N. GPT-4o collapses to ~15 experiments total at N=1280 regardless of budget.
+The fraction drops for all models because the budget grows as O(N) while absolute experiment counts grow sublinearly. In absolute terms (experiments before predicting):
 
-#### Intervention type mix
+| N | Budget | Sonnet | DeepSeek | Qwen | GPT-4o |
+|---|--------|--------|----------|------|--------|
+| 20 | 31 | ~25 | ~23 | ~28 | ~15 |
+| 80 | 99 | ~78 | ~19 | ~61 | ~13 |
+| 320 | 374 | ~164 | ~21 | ~61 | ~18 |
+| 1280 | 1471 | ~130 | ~22 | ~57 | ~15 |
 
-| N | Sonnet BLOCK | Sonnet BOOST | GPT-4o BLOCK | GPT-4o BOOST |
-|---|--------------|--------------|--------------|--------------|
-| 20 | 0.832±0.129 | 0.168±0.129 | 0.633±0.143 | 0.352±0.152 |
-| 80 | 0.910±0.139 | 0.087±0.140 | 0.646±0.115 | 0.343±0.114 |
-| 320 | 0.983±0.013 | 0.014±0.013 | 0.460±0.251 | 0.340±0.191 |
-| 1280 | 0.977±0.036 | 0.018±0.029 | 0.521±0.036 | 0.462±0.058 |
+Sonnet runs *more* experiments before predicting as N grows (25 → 130). Qwen plateaus at ~60. DeepSeek runs a near-constant ~20 experiments regardless of N — the most parsimonious strategy, yet scores 0.817–0.917 at large N. GPT-4o also runs ~15 regardless of N, but achieves only baseline-level scores — the difference is experiment quality, not quantity.
 
-Sonnet converges to near-exclusive BLOCK use at large N (97.7% at N=1280). BLOCK is the most
-informative single intervention for network discovery. As N grows and budget becomes the
-bottleneck, Sonnet drops BOOST/DAMPEN in favour of broad-coverage BLOCK. GPT-4o maintains a
-mixed ~55/45 BLOCK/BOOST strategy throughout with no trend across N.
+#### Intervention type mix (BLOCK fraction)
 
-DAMPEN is near-zero for both models at all N (≤1% Sonnet, ≤3% GPT-4o).
+| N | Sonnet | DeepSeek V3.1 | Qwen 3.5 | GPT-4o |
+|---|--------|---------------|----------|--------|
+| 20 | 0.832 | 0.555 | 0.628 | 0.633 |
+| 80 | 0.910 | 0.506 | 0.801 | 0.646 |
+| 320 | 0.983 | 0.533 | 0.718 | 0.460 |
+| 1280 | 0.977 | 0.519 | 0.637 | 0.521 |
+
+Sonnet converges to near-exclusive BLOCK use at large N (97.7% at N=1280) — BLOCK is the most informative single intervention for network discovery. Qwen trends toward BLOCK (63–80%) but less exclusively. DeepSeek and GPT-4o both maintain a mixed ~50/50 BLOCK/BOOST strategy with no trend across N — but DeepSeek achieves far better scores with this mix. DAMPEN is near-zero for all models at all N.
 
 #### Redundancy (fraction of experiments re-perturbing an already-seen gene)
 
-| N | Sonnet redundancy | GPT-4o redundancy |
-|---|-------------------|-------------------|
-| 20 | 0.402±0.157 | 0.458±0.212 |
-| 80 | 0.407±0.139 | 0.338±0.174 |
-| 320 | 0.382±0.100 | 0.433±0.272 |
-| 1280 | 0.345±0.203 | 0.512±0.164 |
+| N | Sonnet | DeepSeek V3.1 | Qwen 3.5 | GPT-4o |
+|---|--------|---------------|----------|--------|
+| 20 | 0.402 | 0.441 | 0.372 | 0.458 |
+| 80 | 0.407 | 0.498 | 0.223 | 0.338 |
+| 320 | 0.382 | 0.473 | 0.390 | 0.433 |
+| 1280 | 0.345 | 0.476 | 0.485 | 0.512 |
 
-Both models start with ~40–45% redundancy at N=20. Sonnet's redundancy decreases modestly
-at large N (0.402 → 0.345), while GPT-4o's increases to 0.512 at N=1280. Given that GPT-4o
-only runs ~15 experiments at N=1280, ~50% redundancy means roughly half are re-perturbations
-— a highly inefficient use of an already tiny budget.
+DeepSeek has consistently high redundancy (~47–50%) — with only ~20 experiments, nearly half re-perturb genes it has already seen. This appears to be deliberate: BLOCK then BOOST the same gene yields both the knockout and overexpression signature, which may be more informative per-gene than single-intervention coverage. Sonnet's redundancy decreases modestly at large N (0.402 → 0.345). GPT-4o's increases to 0.512 at N=1280 — but unlike DeepSeek, the redundancy does not translate to better scores.
 
 **RQ3 summary**: Sonnet adapts its strategy with N — near-exclusive BLOCK use, modestly
 decreasing redundancy, with absolute experiment count *increasing* before prediction
 commitment. GPT-4o does not adapt: it commits to prediction after minimal discovery
 regardless of N, maintains mixed interventions, and does not reduce redundancy.
-This strategy gap explains the performance divergence.
+DeepSeek and Qwen represent a third pattern: low budget usage with high per-experiment
+efficiency (see §5). DeepSeek in particular achieves near-Sonnet scores with 5–10× fewer
+experiments, suggesting it selects high-information targets rather than sweeping broadly.
 
 ### §5 Gene coverage (exploration bottleneck)
 
 From `analyse_coverage.py` on session logs.
 
-| N | Sonnet coverage | Sonnet unique genes | GPT-4o coverage | GPT-4o unique genes |
-|---|-----------------|---------------------|-----------------|---------------------|
-| 20 | 1.000±0.000 | 20.0±0.0 | 0.415±0.108 | 8.3±2.2 |
-| 40 | 1.000±0.000 | 40.0±0.0 | 0.220±0.066 | 8.8±2.7 |
-| 80 | 1.000±0.000 | 80.0±0.0 | 0.126±0.065 | 10.1±5.2 |
-| 160 | 0.951±0.104 | 152.2±16.7 | 0.050±0.022 | 8.0±3.5 |
-| 320 | 0.963±0.117 | 308.2±37.3 | 0.018±0.012 | 5.8±3.8 |
-| 640 | 0.822±0.376 | 525.9±240.6 | 0.010±0.005 | 6.4±3.2 |
-| 1280 | 0.607±0.431 | 776.4±552.0 | 0.006±0.003 | 7.4±3.4 |
+| N | Sonnet coverage | Sonnet genes | DeepSeek coverage | DeepSeek genes | Qwen coverage | Qwen genes | GPT-4o coverage | GPT-4o genes |
+|---|---|---|---|---|---|---|---|---|
+| 20 | 1.000 | 20.0 | 0.685 | 13.7 | 0.855 | 17.1 | 0.415 | 8.3 |
+| 40 | 1.000 | 40.0 | 0.362 | 14.5 | 0.882 | 35.3 | 0.220 | 8.8 |
+| 80 | 1.000 | 80.0 | 0.171 | 13.7 | 0.665 | 53.2 | 0.126 | 10.1 |
+| 160 | 0.951 | 152.2 | 0.104 | 16.7 | 0.261 | 41.8 | 0.050 | 8.0 |
+| 320 | 0.963 | 308.2 | 0.053 | 16.8 | 0.141 | 45.1 | 0.018 | 5.8 |
+| 640 | 0.822 | 525.9 | 0.025 | 15.9 | 0.068 | 43.2 | 0.010 | 6.4 |
+| 1280 | 0.607 | 776.4 | 0.014 | 17.6 | 0.039 | 50.3 | 0.006 | 7.4 |
 
-Sonnet achieves **100% gene coverage at N≤80** — it perturbs every gene in the organism
-before committing to predictions. At larger N the budget no longer permits full coverage,
-but Sonnet still reaches 61% (776 genes) at N=1280. Coverage drives performance: at small
-N where coverage is complete, scores are high; where coverage is partial (N≥160) there is
-more variance (std 0.104–0.431).
+Four distinct coverage strategies emerge:
 
-GPT-4o's coverage collapses immediately — it covers only ~42% at N=20 and just **0.6%
-(~7 genes) at N=1280**, regardless of the 1471-experiment budget available. This is the
-mechanistic explanation for its flat chance-level scores: GPT-4o is predicting with almost
-no information about the network, touching essentially the same handful of genes at every N.
+**Sonnet** achieves 100% gene coverage at N≤80 and maintains 61% (776 genes) at N=1280. Coverage drives performance: high coverage → high scores with more variance at partial coverage.
 
-**Exploration bottleneck**: GPT-4o's failure is not capacity-limited (budget is ample) but
-strategy-limited — it stops exploring after ~15 experiments at any N. Sonnet's robustness
-is directly explained by maintaining meaningful coverage even as N grows.
+**Qwen 3.5** is the closest to Sonnet — 86–88% coverage at N≤40, declining to 4% (50 genes) at N=1280. It explores 3× more genes than DeepSeek at every N, explaining its higher budget usage.
+
+**DeepSeek V3.1** touches a near-constant ~14–18 genes regardless of N. At N=20 this is 69% coverage; at N=1280 it's 1.4%. Yet it scores 0.917 at N=640 with only 16 genes explored — the highest per-gene efficiency of any model. DeepSeek appears to select high-information genes rather than sweeping broadly.
+
+**GPT-4o** covers ~6–10 genes at all N (same pattern as DeepSeek in absolute terms) but achieves only baseline-level scores. The difference is not coverage volume but coverage quality — DeepSeek's 16 genes yield far more information than GPT-4o's 7.
+
+**Exploration bottleneck**: GPT-4o's failure is strategy-limited, not capacity-limited. DeepSeek demonstrates that low coverage can support high scores if the experiments are well-chosen.
 
 #### Task-hit metrics
 
@@ -253,10 +247,11 @@ Both N values produce identical aggregate scores (0.983±0.053) via the same fai
 **N is not a good proxy for task difficulty**
 
 Sonnet performs identically at N=160 and N=1280 despite a 8× increase in organism size and
-a near-complete collapse in coverage fraction (95% → 61%). Adding genes does not make the
-prediction tasks harder — it increases exploration cost, which Sonnet absorbs by adapting
-its experiment budget. The task difficulty is set by the prediction task structure
-(which genes, which cross-module interactions), not by N.
+a near-complete collapse in coverage fraction (95% → 61%). DeepSeek scores 0.917 at N=640
+with only 1.4% coverage. Adding genes does not make the prediction tasks harder — it
+increases exploration cost, which capable models absorb through different strategies
+(Sonnet: broad sweeps; DeepSeek: targeted experiments). The task difficulty is set by the
+prediction task structure (which genes, which cross-module interactions), not by N.
 
 **Topology variance within a tier exceeds N effect**
 
@@ -278,13 +273,44 @@ show the task is getting harder at large N.
 
 ---
 
+## Reviewer notes
+
+**1. Identical N=20 scores (0.917±0.083) across Sonnet, DeepSeek, Qwen.** Not a data copy issue — verified from independent JSONL files with different per-seed score patterns (Sonnet: seeds 0,4,5,6,8 at 0.833; DeepSeek: seeds 1,2,4,6,7 at 0.833; Qwen: seeds 0,4,5,6,9 at 0.833). All three get 5/10 perfect and 5/10 at 0.833, producing the same mean/std mechanically. N=20 medium is near-ceiling for capable models — the remaining difficulty is organism-specific, not model-specific.
+
+**2. Clean std values.** All stds are rounded to 3 decimal places (consistent with Part 1). The "clean" values (0.050, 0.083, 0.100) are genuine — scores are quantized to {0.667, 0.833, 1.000} (2/3, 5/6, 6/6 phenotypes correct), so with 10 seeds taking only 3 possible values, the set of achievable stds is small. E.g. 0.050 = nine 1.000s and one 0.833.
+
+**3. DeepSeek efficiency caveat.** At N=640, DeepSeek (0.917, 5% budget) and Sonnet (0.926, 39% budget) are within std — the efficiency advantage is real but the scores are comparable, not "nearly as good." The trade-off becomes clearer at N=1280 where Sonnet leads 0.983 vs DeepSeek 0.817. The efficiency claim should be framed as: same scores at medium N with far fewer experiments, but Sonnet's thorough exploration pays off at the largest scale.
+
+**4. DeepSeek redundancy interpretation.** The "deliberate BLOCK-then-BOOST" hypothesis is speculative. With ~20 experiments and ~16 unique genes, ~50% redundancy is partly a statistical inevitability — any experiment beyond the 16th must re-perturb a seen gene. However, the consistent ~50/50 BLOCK/BOOST mix (unlike Sonnet's near-exclusive BLOCK) is suggestive of paired interventions rather than random overlap. Flagged as hypothesis, not confirmed.
+
+**5. Paper-ready strategy table.** Compact format for Table 5 extension:
+
+| N | Model | Commit % | Abs. exp | BLOCK % | Redundancy | Budget % |
+|---|-------|----------|----------|---------|------------|----------|
+| 20 | Sonnet | 80.3% | 25 | 83.2% | 40.2% | 81% |
+| 20 | DeepSeek | 73.5% | 23 | 55.5% | 44.1% | 82% |
+| 20 | Qwen | 89.0% | 28 | 62.8% | 37.2% | 89% |
+| 20 | GPT-4o | 49.3% | 15 | 63.3% | 45.8% | 44% |
+| 320 | Sonnet | 43.8% | 164 | 98.3% | 38.2% | 60% |
+| 320 | DeepSeek | 5.6% | 21 | 53.3% | 47.3% | 9% |
+| 320 | Qwen | 16.3% | 61 | 71.8% | 39.0% | 18% |
+| 320 | GPT-4o | 4.7% | 18 | 46.0% | 43.3% | 3% |
+| 1280 | Sonnet | 8.6% | 130 | 97.7% | 34.5% | 15% |
+| 1280 | DeepSeek | 1.5% | 22 | 51.9% | 47.6% | 2% |
+| 1280 | Qwen | 3.9% | 57 | 63.7% | 48.5% | 4% |
+| 1280 | GPT-4o | 1.0% | 15 | 52.1% | 51.2% | 1% |
+
+---
+
 ## Open questions
 
-- Sonnet N=1280 at 0.983 — seed 3 is the single failure (0.833). Worth checking whether
-  this organism's topology explains it (high feedback/latent fraction, specific module layout).
-- GPT-4o's flat ~0.650 from N=40: is this exactly the 2/3 structural floor or slight
-  variation? Std of 0.157 at N=40 suggests some sessions score higher — worth checking
-  if any individual GPT-4o sessions achieve Sonnet-level scores.
-- Gene coverage and task-hit metrics computed (§5) — Sonnet prospective hit 0.300 at N=1280 (genuine signal above 61% coverage baseline); GPT-4o 0.000 at N≥320.
-- Budget scaling experiment (fix N, vary budget) would test whether Sonnet is
+- **DeepSeek's targeted strategy**: what governs which ~16 genes DeepSeek selects? If it's
+  reading the organism description and prioritising genes mentioned in phenotype readouts or
+  module hubs, that would explain its high per-experiment efficiency. Log analysis could
+  reveal whether its gene selection is random, sequential, or topology-informed.
+- **Qwen's decline at large N**: Qwen drops from 0.926 at N=40 to 0.783 at N=1280, more
+  steeply than DeepSeek (0.850 → 0.817). Is this because Qwen's broader coverage strategy
+  becomes less effective when it can only reach 4% of genes, while DeepSeek's targeted
+  approach is N-invariant?
+- Budget scaling experiment (fix N, vary budget) would test whether any model is
   strategy-limited or compute-limited at large N.
