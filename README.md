@@ -250,6 +250,6 @@ If you use LUCA in your research, please cite:
   title  = {{LUCA}: A Synthetic Organism Reasoning Benchmark for LLM Agents},
   author = {Turing Team and 👾},
   year   = {2026},
-  url    = {https://github.com/RelationRx/rrx-lemonoids},
+  url    = {https://github.com/RelationRx/rrx-luca},
 }
 ```
