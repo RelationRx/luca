@@ -4,10 +4,12 @@
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 
 **Synthetic organism reasoning benchmark for LLM agents**
-![LUCA organism anatomy](assets/organism_anatomy.png)
+
 A Python package that procedurally generates synthetic biological organisms (based on synthetic regulatory networks) and exposes them as a reasoning benchmark for LLM agents.
 
 The world is **unknowable via retrieval** — gene names, module labels, signals, and pathways are all invented. Prior biological knowledge is useless. An agent must reason causally from perturbation experiments to succeed.
+
+![LUCA organism anatomy](assets/organism_anatomy.png)
 
 ---
 
