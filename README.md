@@ -1,5 +1,8 @@
 # LUCA
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+
 **Synthetic organism reasoning benchmark for LLM agents**
 ![LUCA organism anatomy](assets/organism_anatomy.png)
 A Python package that procedurally generates synthetic biological organisms (based on synthetic regulatory networks) and exposes them as a reasoning benchmark for LLM agents.
