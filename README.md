@@ -1,7 +1,7 @@
 # LUCA
 
 **Synthetic organism reasoning benchmark for LLM agents**
-![Example organism — seed 42](assets/org42.png)
+![LUCA organism anatomy](assets/organism_anatomy.png)
 A Python package that procedurally generates synthetic biological organisms (based on synthetic regulatory networks) and exposes them as a reasoning benchmark for LLM agents.
 
 The world is **unknowable via retrieval** — gene names, module labels, signals, and pathways are all invented. Prior biological knowledge is useless. An agent must reason causally from perturbation experiments to succeed.
