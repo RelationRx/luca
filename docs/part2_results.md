@@ -27,7 +27,7 @@
 | 80 | 99 | 0.817±0.138 | **0.883**±0.107 | 0.717±0.198 | 0.650±0.117 | 0.583±0.201 | 0.650±0.050 |
 | 160 | 191 | **0.983**±0.050 | 0.933±0.111 | 0.900±0.111 | 0.667±0.075 | 0.583±0.154 | 0.667±0.000 |
 | 320 | 374 | **0.900**±0.200 | 0.850±0.117 | 0.800±0.100 | 0.650±0.090 | 0.667±0.129 | 0.667±0.000 |
-| 640 | 740 | 0.926±0.114 | **0.917**±0.112 | 0.817±0.138 | 0.650±0.050 | 0.667±0.075 | 0.667±0.000 |
+| 640 | 739 | 0.926±0.114 | **0.917**±0.112 | 0.817±0.138 | 0.650±0.050 | 0.667±0.075 | 0.667±0.000 |
 | 1280 | 1471 | **0.983**±0.050 | 0.817±0.138 | 0.783±0.150 | 0.633±0.125 | 0.667±0.000 | 0.667±0.000 |
 
 Best per column in bold. N=10 seeds per cell except Sonnet N=640 (9) and heuristic N=1280 (5†).
@@ -78,7 +78,7 @@ GPT-4o drops from 0.717 at N=20 to 0.633–0.667 for N≥40 — essentially at t
 | 80 | 99 | 81% | 28% | 63% | 14% |
 | 160 | 191 | 63% | 17% | 35% | 8% |
 | 320 | 374 | 60% | 9% | 18% | 3% |
-| 640 | 740 | 39% | 5% | 8% | 2% |
+| 640 | 739 | 39% | 5% | 8% | 2% |
 | 1280 | 1471 | 15% | 2% | 4% | 1% |
 
 All models' budget usage drops with N, but at strikingly different rates:
@@ -87,7 +87,7 @@ All models' budget usage drops with N, but at strikingly different rates:
 - **Qwen 3.5**: moderate drop (89% → 4%), running ~60 experiments at N=1280
 - **GPT-4o**: collapses to 1% by N=1280 (~15 experiments), at baseline floor
 
-The most striking finding: **DeepSeek achieves 0.917 at N=640 with only 5% budget usage (~37 experiments)** while Sonnet uses 39% (~289 experiments) for 0.926. DeepSeek's per-experiment efficiency is far higher, though Sonnet's more thorough exploration leads at the largest scales.
+The most striking finding: **DeepSeek achieves 0.917 at N=640 with only 5% budget usage (~34 experiments)** while Sonnet uses 39% (~286 experiments) for 0.926. DeepSeek's per-experiment efficiency is far higher, though Sonnet's more thorough exploration leads at the largest scales.
 
 ### §4 Strategy analysis (RQ3)
 
@@ -155,8 +155,8 @@ From `analyse_coverage.py` on session logs.
 | 20 | 1.000 | 20.0 | 0.685 | 13.7 | 0.855 | 17.1 | 0.415 | 8.3 |
 | 40 | 1.000 | 40.0 | 0.362 | 14.5 | 0.882 | 35.3 | 0.220 | 8.8 |
 | 80 | 1.000 | 80.0 | 0.171 | 13.7 | 0.665 | 53.2 | 0.126 | 10.1 |
-| 160 | 0.951 | 152.2 | 0.104 | 16.7 | 0.261 | 41.8 | 0.050 | 8.0 |
-| 320 | 0.963 | 308.2 | 0.053 | 16.8 | 0.141 | 45.1 | 0.018 | 5.8 |
+| 160 | 0.951 | 152.2 | 0.104 | 16.7 | 0.261 | 41.8 | 0.056 | 9.0 |
+| 320 | 0.963 | 308.2 | 0.053 | 16.8 | 0.141 | 45.1 | 0.024 | 7.8 |
 | 640 | 0.822 | 525.9 | 0.025 | 15.9 | 0.068 | 43.2 | 0.010 | 6.4 |
 | 1280 | 0.607 | 776.4 | 0.014 | 17.6 | 0.039 | 50.3 | 0.006 | 7.4 |
 
@@ -248,7 +248,7 @@ Both N values produce identical aggregate scores (0.983±0.053) via the same fai
 
 Sonnet performs identically at N=160 and N=1280 despite a 8× increase in organism size and
 a near-complete collapse in coverage fraction (95% → 61%). DeepSeek scores 0.917 at N=640
-with only 1.4% coverage. Adding genes does not make the prediction tasks harder — it
+with only 2.5% coverage. Adding genes does not make the prediction tasks harder — it
 increases exploration cost, which capable models absorb through different strategies
 (Sonnet: broad sweeps; DeepSeek: targeted experiments). The task difficulty is set by the
 prediction task structure (which genes, which cross-module interactions), not by N.
