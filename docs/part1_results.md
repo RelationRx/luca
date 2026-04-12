@@ -147,17 +147,20 @@ The ±0.10 threshold correctly exposes baselines. On hard, both heuristic and ra
 
 Analysis of medium healthy sessions (N=20 seeds):
 
-| Model | Avg experiments | Budget used | Single-gene % | Gene coverage |
-|-------|----------------|-------------|---------------|---------------|
-| claude-opus-4-6 | 27.2 | 88% | 98.5% | 100% |
-| qwen-3.5 | 26.4 | 85% | 100.0% | 88% |
-| deepseek-v3 | 25.9 | 84% | 97.0% | 66% |
-| claude-sonnet-4-6 | 25.0 | 81% | 71.8% | 100% |
-| gpt-5.1 | 26.6 | 85% | 64.8% | 56% |
-| gpt-4o | 12.8 | 50% | 10.0% | 2% |
-| gpt-4.1 | 16.8 | 63% | 5.0% | 3% |
+| Model | Avg experiments | Budget used | Single-gene % | Gene coverage (mean ± SE) |
+|-------|----------------|-------------|---------------|---------------------------|
+| claude-opus-4-6 | 27.5 | 89% | 100.0% | 100.0% ± 0.0% |
+| claude-sonnet-4-6 | 24.9 | 80% | 76.3% | 100.0% ± 0.0% |
+| qwen-3.5 | 26.4 | 85% | 100.0% | 87.5% ± 3.5% |
+| gpt-5.1 | 25.9 | 81% | 95.8% | 87.0% ± 3.6% |
+| deepseek-v3 | 25.9 | 84% | 97.0% | 66.5% ± 2.3% |
+| heuristic | — | 65% | 100.0% | 60.0% ± 0.0% |
+| gpt-4.1 | 17.8 | 57% | 89.1% | 57.2% ± 6.4% |
+| gpt-4o | 20.4 | 54% | 95.0% | 49.0% ± 4.1% |
 
-Claude Opus runs a near-exhaustive single-gene BLOCK sweep covering all 20 genes. Claude Sonnet mixes single and multi-gene experiments but still achieves full coverage. GPT-5.1 runs many experiments but only covers 56% of genes (redundant). GPT-4o/4.1 run few experiments with near-zero systematic coverage.
+*Gene coverage corrected 2026-04-12: earlier values for GPT models (2–56%) were wrong due to non-standard intervention formats in session logs (758 format variants across GPT models including `gene_interventions`, `perturbations`, `adjustments`, `experiment`, `genes` keys, and list-of-dict structures). Recomputed with recursive extraction matching `G\d{3+}` patterns anywhere in the input structure (97.6% hit rate; remaining 2.4% are signal activations).*
+
+All models except GPT-4o achieve >57% gene coverage. GPT-5.1 achieves 87% — comparable to Qwen (88%) — yet scores 0.78 vs Qwen's 0.89 on medium healthy. The bottleneck for GPT-5.1 is reasoning quality, not exploration breadth. GPT-4o has the lowest LLM coverage (49%) with high per-seed variance (SE 4.1%), reflecting inconsistent exploration strategies.
 
 Budget usage does not correlate with performance on hard (r ≈ 0.0–0.2): failures are early-stopping, not budget exhaustion.
 
@@ -181,7 +184,7 @@ Three distinct budget usage patterns emerge:
 - **Variable, drops on disease** (GPT-5.1, GPT-4o, GPT-4.1): 47–85% on healthy with high variance, collapses to 24–40% on disease (±9–33%). Context exhaustion truncates disease sessions early, explaining the disease score collapse. GPT-4o and GPT-4.1 underuse budget even on healthy (47–59%).
 - **Deterministic** (heuristic): fixed fraction (48–68%), drops on hard due to fewer unambiguous candidates.
 
-**gpt-4.1 anomaly**: 11/20 disease seeds had zero experiments — the model read the organism description and submitted predictions and a hypothesis without any perturbation. This accidentally inflated its composite at ±0.15 (pred_acc from description alone can be high); at ±0.10 the anomaly disappears and gpt-4.1 correctly ranks below gpt-4o.
+**gpt-4.1 anomaly**: 6/20 medium disease seeds had zero experiments (budget_used=0) — the model submitted predictions directly from the organism description without any perturbation. A further 4 seeds ran experiments but never submitted a diagnosis or rescue attempt (diagnosis=None on 8/20, rescue=None on 10/20). At ±0.10 the anomaly is reflected in the composite score and gpt-4.1 correctly ranks below gpt-4o.
 
 ### 4. Prediction and diagnosis measure distinct capabilities
 
@@ -288,7 +291,7 @@ Best per column in bold.
 
 Edges are `(gene, phenotype, direction)` triples inferred from observed phenotype shifts >0.05 on single-gene BLOCK/BOOST experiments.
 
-On medium, Claude Opus achieves high recall (0.933) by over-inferring edges (18.1 inferred vs 12.0 ground truth), trading precision for coverage. On hard, precision collapses across all models — dense feedback and latent genes make phenotype shifts ambiguous, leading to many false positive edges (Opus: 34.0 inferred vs 12.2 ground truth). gpt-4o/4.1 run fewer experiments and infer fewer edges, explaining their low recall.
+On medium, Claude Opus achieves high recall (0.933) by over-inferring edges (18.1 inferred vs 12.0 ground truth), trading precision for coverage. On hard, precision collapses across all models — dense feedback and latent genes make phenotype shifts ambiguous, leading to many false positive edges (Opus: 34.0 inferred vs 12.2 ground truth). GPT-4o achieves lower coverage (38%) and infers fewer edges, explaining its low recall. GPT-4.1 has moderate coverage (55%) but low recall (0.112), suggesting it explores genes without effectively characterising their effects.
 
 **Correlation with prediction accuracy** (Pearson r):
 

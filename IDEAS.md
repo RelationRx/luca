@@ -132,6 +132,31 @@ _For future work sections or follow-on papers. Not needed for this submission._
   intervention space, random forest). Gives a lower bound on what structured search buys vs.
   pure statistical pattern matching.
 
+- **Exploration vs reasoning — three-level decomposition**: the benchmark separates three
+  capability levels: (1) *exploration quality* — choosing which experiments to run (budget
+  usage, gene coverage; all capable models solve this); (2) *functional approximation* —
+  predicting outcomes using the right mathematical model of the readout (info-bandit's
+  logit trick matches LLMs on medium prediction without any causal model); (3) *causal
+  reasoning* — building a structural model to handle feedback loops (hard-tier prediction)
+  and abductive inference (diagnosis). The key finding: LLMs add value primarily at level 3.
+  Levels 1–2 are solvable by algorithmic baselines. This reframes the paper narrative from
+  "LLMs are better" to "the benchmark pinpoints where LLM reasoning adds value beyond
+  algorithmic approaches." Diagnosis is the clearest level-3 task — no algorithmic baseline
+  approaches Claude's 0.55. Hard-tier prediction is the second — feedback loops violate the
+  independence assumptions that make logit combination work.
+
+- **Algorithmic experimental design baselines**: the info-bandit baseline (PR #49) scores
+  0.883 on medium healthy using logit-space prediction — matching Sonnet (0.875) without any
+  LLM. This suggests the prediction gap between additive heuristic (0.575) and LLMs is largely
+  explained by handling sigmoid nonlinearity, not sophisticated reasoning. LLMs use brute-force
+  BLOCK sweeps; established approaches from active learning, Bayesian experimental design, and
+  causal discovery (UCB, Thompson sampling, D-optimal design, information-theoretic criteria)
+  could match or exceed LLM prediction with far fewer experiments. The contrast — LLMs succeed
+  by exploring broadly, algorithmic baselines by exploring efficiently — reframes the benchmark:
+  it measures exploration strategy quality, not just reasoning ability. Concrete next step: run
+  info-bandit on all 6 sweeps + hard tier to see where algorithmic prediction breaks down
+  (likely hard, where feedback loops violate the independence assumption in logit combination).
+
 - **Transfer tasks**: run an agent on a healthy organism, then immediately on the disease version
   of the same organism. Does prior knowledge of the network accelerate diagnosis?
 
