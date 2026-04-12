@@ -73,19 +73,19 @@ GPT-4o drops from 0.717 at N=20 to 0.633–0.667 for N≥40 — essentially at t
 
 | N | Budget | Sonnet | DeepSeek V3.1 | Qwen 3.5 | GPT-4o |
 |---|--------|--------|---------------|----------|--------|
-| 20 | 31 | 81% | 82% | 89% | 44% |
-| 40 | 54 | 78% | 58% | 84% | 28% |
-| 80 | 99 | 81% | 28% | 63% | 14% |
-| 160 | 191 | 63% | 17% | 35% | 8% |
-| 320 | 374 | 60% | 9% | 18% | 3% |
-| 640 | 739 | 39% | 5% | 8% | 2% |
-| 1280 | 1471 | 15% | 2% | 4% | 1% |
+| 20 | 31 | 81% ± 4% | 82% ± 6% | 89% ± 7% | 44% ± 20% |
+| 40 | 54 | 78% ± 4% | 58% ± 13% | 84% ± 8% | 28% ± 11% |
+| 80 | 99 | 81% ± 7% | 28% ± 4% | 63% ± 15% | 14% ± 6% |
+| 160 | 191 | 63% ± 7% | 17% ± 3% | 35% ± 12% | 8% ± 2% |
+| 320 | 374 | 60% ± 19% | 9% ± 1% | 18% ± 4% | 3% ± 2% |
+| 640 | 739 | 39% ± 24% | 5% ± 1% | 8% ± 1% | 2% ± 1% |
+| 1280 | 1471 | 15% ± 6% | 2% ± 1% | 4% ± 1% | 1% ± 0% |
 
-All models' budget usage drops with N, but at strikingly different rates:
-- **Sonnet**: gradual decline (81% → 15%), still running ~220 experiments at N=1280
-- **DeepSeek V3.1**: steep drop (82% → 2%), running ~30 experiments at N=1280 — yet scores 0.817
-- **Qwen 3.5**: moderate drop (89% → 4%), running ~60 experiments at N=1280
-- **GPT-4o**: collapses to 1% by N=1280 (~15 experiments), at baseline floor
+All models' budget usage drops with N, but at strikingly different rates and variances:
+- **Sonnet**: gradual decline (81% → 15%), still running ~224 experiments at N=1280. High variance at intermediate N (std=24% at N=640) reflects bimodal strategy.
+- **DeepSeek V3.1**: steep drop (82% → 2%), running ~35 experiments at N=1280 — yet scores 0.817. Low variance throughout (std=1–13%), indicating a consistent strategy.
+- **Qwen 3.5**: moderate drop (89% → 4%), running ~62 experiments at N=1280. Moderate variance (std=1–15%).
+- **GPT-4o**: collapses to 1% by N=1280 (~13 experiments), at baseline floor. High variance at small N (std=20% at N=20), near-zero at large N.
 
 The most striking finding: **DeepSeek achieves 0.917 at N=640 with only 5% budget usage (~34 experiments)** while Sonnet uses 39% (~286 experiments) for 0.926. DeepSeek's per-experiment efficiency is far higher, though Sonnet's more thorough exploration leads at the largest scales.
 
@@ -152,21 +152,21 @@ From `analyse_coverage.py` on session logs.
 
 | N | Sonnet coverage | Sonnet genes | DeepSeek coverage | DeepSeek genes | Qwen coverage | Qwen genes | GPT-4o coverage | GPT-4o genes |
 |---|---|---|---|---|---|---|---|---|
-| 20 | 1.000 | 20.0 | 0.685 | 13.7 | 0.855 | 17.1 | 0.415 | 8.3 |
-| 40 | 1.000 | 40.0 | 0.362 | 14.5 | 0.882 | 35.3 | 0.220 | 8.8 |
-| 80 | 1.000 | 80.0 | 0.171 | 13.7 | 0.665 | 53.2 | 0.126 | 10.1 |
-| 160 | 0.951 | 152.2 | 0.104 | 16.7 | 0.261 | 41.8 | 0.056 | 9.0 |
-| 320 | 0.963 | 308.2 | 0.053 | 16.8 | 0.141 | 45.1 | 0.024 | 7.8 |
-| 640 | 0.822 | 525.9 | 0.025 | 15.9 | 0.068 | 43.2 | 0.010 | 6.4 |
-| 1280 | 0.607 | 776.4 | 0.014 | 17.6 | 0.039 | 50.3 | 0.006 | 7.4 |
+| 20 | 1.000 ± 0.000 | 20.0 | 0.685 ± 0.160 | 13.7 | 0.855 ± 0.149 | 17.1 | 0.415 ± 0.103 | 8.3 |
+| 40 | 1.000 ± 0.000 | 40.0 | 0.362 ± 0.099 | 14.5 | 0.882 ± 0.149 | 35.3 | 0.220 ± 0.063 | 8.8 |
+| 80 | 1.000 ± 0.000 | 80.0 | 0.171 ± 0.029 | 13.7 | 0.665 ± 0.216 | 53.2 | 0.126 ± 0.062 | 10.1 |
+| 160 | 0.951 ± 0.099 | 152.2 | 0.104 ± 0.025 | 16.7 | 0.261 ± 0.119 | 41.8 | 0.056 ± 0.013 | 9.0 |
+| 320 | 0.963 ± 0.111 | 308.2 | 0.053 ± 0.013 | 16.8 | 0.141 ± 0.046 | 45.1 | 0.024 ± 0.010 | 7.8 |
+| 640 | 0.822 ± 0.357 | 525.9 | 0.025 ± 0.005 | 15.9 | 0.068 ± 0.020 | 43.2 | 0.011 ± 0.003 | 7.2 |
+| 1280 | 0.607 ± 0.409 | 776.4 | 0.014 ± 0.003 | 17.5 | 0.039 ± 0.029 | 50.3 | 0.006 ± 0.002 | 7.3 |
 
 Four distinct coverage strategies emerge:
 
-**Sonnet** achieves 100% gene coverage at N≤80 and maintains 61% (776 genes) at N=1280. Coverage drives performance: high coverage → high scores with more variance at partial coverage.
+**Sonnet** achieves 100% gene coverage at N≤80 (std=0) and maintains 61% (776 genes) at N=1280, but with very high variance (std=0.41) — reflecting the bimodal explore-first vs tasks-first strategies described in §5 task-hit analysis.
 
 **Qwen 3.5** is the closest to Sonnet — 86–88% coverage at N≤40, declining to 4% (50 genes) at N=1280. It explores 3× more genes than DeepSeek at every N, explaining its higher budget usage.
 
-**DeepSeek V3.1** touches a near-constant ~14–18 genes regardless of N. At N=20 this is 69% coverage; at N=1280 it's 1.4%. Yet it scores 0.917 at N=640 with only 16 genes explored — the highest per-gene efficiency of any model. DeepSeek appears to select high-information genes rather than sweeping broadly.
+**DeepSeek V3.1** touches a near-constant ~14–18 genes regardless of N with low variance (std=0.003–0.16). At N=20 this is 69% coverage; at N=1280 it's 1.4%. Yet it scores 0.917 at N=640 with only 16 genes explored — the highest per-gene efficiency of any model. The low coverage variance confirms a consistent targeted strategy rather than random gene selection.
 
 **GPT-4o** covers ~6–10 genes at all N (same pattern as DeepSeek in absolute terms) but achieves only baseline-level scores. The difference is not coverage volume but coverage quality — DeepSeek's 16 genes yield far more information than GPT-4o's 7.
 
