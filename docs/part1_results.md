@@ -224,7 +224,7 @@ LLMs add value in three specific areas where CausalSweep fails:
 - **Disease diagnosis** (CausalSweep 0.000–0.100 on easy/medium vs Opus 0.550–0.700): abductive inference from aberrant phenotypes to root cause requires reasoning beyond effect scoring.
 - **Disease rescue on easy/medium** (CausalSweep 0.883 vs Opus/Sonnet 0.983–1.000): LLMs' adaptive re-testing after observing disease phenotypes outperforms CausalSweep's single-pass diagnosis-rescue strategy.
 
-Hard disease is an exception: CausalSweep achieves 0.686 composite — above Opus (0.631). This is driven by surprisingly high diagnosis (0.550) on hard, where the effect-scoring heuristic happens to align with the malfunction distribution. This should be investigated further.
+Hard disease is an exception: CausalSweep achieves 0.686 composite — above Opus (0.631). CausalSweep's diagnosis shows an inverted difficulty pattern (0.000 easy → 0.100 medium → 0.550 hard) — the opposite of all LLMs. The effect-scoring heuristic is non-discriminating on easy organisms where dynamics are near-linear and many genes produce similar perturbation signatures. On hard organisms, dense feedback amplifies the malfunction gene's effect, making the effect-magnitude heuristic more discriminating. The 0.550 on hard is likely a property of the hard-tier malfunction distribution rather than genuine diagnostic ability.
 
 ### 5. Rescue without diagnosis is the norm
 
