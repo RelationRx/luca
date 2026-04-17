@@ -145,9 +145,9 @@ Degradation from easy to hard is gradual (no cliff) but with high per-seed varia
 | gpt-4o | −0.333 | 2/20 | 6/20 |
 | gpt-4.1 | −0.258 | 4/20 | 7/20 |
 
-### 2. Baselines are near-chance at ±0.10
+### 2. Baselines span a wide range
 
-The ±0.10 threshold correctly exposes baselines. On hard, both heuristic and random score 0.350 — the heuristic's additive prediction model fails on the nonlinear sigmoid dynamics of hard organisms. On medium, random (0.633) actually exceeds heuristic (0.575): the fixed 0.5 prediction is never catastrophically wrong, while the additive model accumulates errors. This validates the threshold choice — at ±0.15 baselines looked artificially competent.
+The three non-LLM baselines form a clear hierarchy. CausalSweep (logit-space prediction) achieves 0.983 on medium — above all LLMs — demonstrating that the right mathematical model suffices for medium-difficulty prediction. It drops to 0.550 on hard, where feedback loops violate the independence assumption. Heuristic (additive prediction) scores 0.575 on medium and collapses to 0.350 on hard — the additive model fails on nonlinear sigmoid dynamics. Random scores 0.633 on medium, actually exceeding heuristic: the fixed 0.5 prediction is never catastrophically wrong, while the additive model accumulates errors. Both heuristic and random collapse to 0.350 on hard — indistinguishable from chance. The ±0.10 threshold correctly exposes these differences; at ±0.15 baselines looked artificially competent.
 
 ### 3. Experiment strategy diverges sharply across models
 
