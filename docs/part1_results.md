@@ -155,18 +155,19 @@ Analysis of medium healthy sessions (N=20 seeds):
 
 | Model | Avg experiments | Budget used | Single-gene % | Gene coverage (mean ± SE) |
 |-------|----------------|-------------|---------------|---------------------------|
+| causal-sweep | 31.0 | 100% | 100.0% | 100.0% ± 0.0% |
 | claude-opus-4-6 | 27.5 | 89% | 100.0% | 100.0% ± 0.0% |
 | claude-sonnet-4-6 | 24.9 | 80% | 76.3% | 100.0% ± 0.0% |
 | qwen-3.5 | 26.4 | 85% | 100.0% | 87.5% ± 3.5% |
 | gpt-5.1 | 25.9 | 81% | 95.8% | 87.0% ± 3.6% |
 | deepseek-v3 | 25.9 | 84% | 97.0% | 66.5% ± 2.3% |
-| heuristic | 20 | 65% | 100.0% | 100.0% ± 0.0% |
+| heuristic | 20.0 | 65% | 100.0% | 100.0% ± 0.0% |
 | gpt-4.1 | 17.8 | 57% | 89.1% | 57.2% ± 6.4% |
 | gpt-4o | 20.4 | 54% | 95.0% | 49.0% ± 4.1% |
 
 *Gene coverage corrected 2026-04-12: earlier values for GPT models (2–56%) were wrong due to non-standard intervention formats in session logs (758 format variants across GPT models including `gene_interventions`, `perturbations`, `adjustments`, `experiment`, `genes` keys, and list-of-dict structures). Recomputed with recursive extraction matching `G\d{3+}` patterns anywhere in the input structure (97.6% hit rate; remaining 2.4% are signal activations).*
 
-All models except GPT-4o achieve >57% gene coverage. GPT-5.1 achieves 87% — comparable to Qwen (88%) — yet scores 0.78 vs Qwen's 0.89 on medium healthy. The bottleneck for GPT-5.1 is reasoning quality, not exploration breadth. GPT-4o has the lowest LLM coverage (49%) with high per-seed variance (SE 4.1%), reflecting inconsistent exploration strategies.
+CausalSweep and heuristic both achieve 100% coverage deterministically — CausalSweep uses the full budget (100%) while heuristic stops at 65%. Among LLMs, GPT-5.1 achieves 87% coverage — comparable to Qwen (88%) — yet scores 0.78 vs Qwen's 0.89 on medium healthy. The bottleneck for GPT-5.1 is reasoning quality, not exploration breadth. GPT-4o has the lowest LLM coverage (49%) with high per-seed variance (SE 4.1%), reflecting inconsistent exploration strategies.
 
 Budget usage does not correlate with performance on hard (r ≈ 0.0–0.2): failures are early-stopping, not budget exhaustion.
 
@@ -176,6 +177,7 @@ In disease mode, Claude re-tests previously blocked genes after observing the ab
 
 | Model | Easy/H | Med/H | Hard/H | Easy/D | Med/D | Hard/D |
 |-------|--------|-------|--------|--------|-------|--------|
+| causal-sweep | 100% ± 0% | 100% ± 0% | 97% ± 3% | 100% ± 0% | 100% ± 0% | 100% ± 0% |
 | claude-opus-4-6 | 86% ± 2% | 89% ± 4% | 84% ± 5% | 83% ± 6% | 84% ± 5% | 82% ± 8% |
 | claude-sonnet-4-6 | 79% ± 3% | 80% ± 3% | 76% ± 4% | 78% ± 5% | 78% ± 5% | 77% ± 6% |
 | deepseek-v3 | 80% ± 9% | 84% ± 5% | 79% ± 7% | 60% ± 20% | 69% ± 12% | 70% ± 15% |
@@ -185,7 +187,8 @@ In disease mode, Claude re-tests previously blocked genes after observing the ab
 | gpt-4.1 | 59% ± 20% | 57% ± 33% | 54% ± 15% | 26% ± 21% | 40% ± 31% | 32% ± 25% |
 | heuristic | 65% ± 0% | 65% ± 0% | 48% ± 0% | 68% ± 0% | 68% ± 0% | 52% ± 1% |
 
-Three distinct budget usage patterns emerge:
+Budget usage patterns:
+- **Full budget** (CausalSweep): deterministic 97–100%, exhausts budget on systematic BLOCK+BOOST sweep.
 - **High and consistent** (Opus, Sonnet, DeepSeek, Qwen): 74–89% across healthy tiers, 60–84% on disease. Low variance (±2–15%). These models systematically explore the organism.
 - **Variable, drops on disease** (GPT-5.1, GPT-4o, GPT-4.1): 47–85% on healthy with high variance, collapses to 24–40% on disease (±9–33%). Context exhaustion truncates disease sessions early, explaining the disease score collapse. GPT-4o and GPT-4.1 underuse budget even on healthy (47–59%).
 - **Deterministic** (heuristic): fixed fraction (48–68%), drops on hard due to fewer unambiguous candidates.
@@ -235,7 +238,7 @@ GPT-5.1 and GPT-4.1 frequently terminate sessions before attempting diagnosis or
 
 | Model | Easy | Medium | Hard |
 |-------|------|--------|------|
-| Opus, Sonnet, Qwen, heuristic, random | 100% | 100% | 100% |
+| Opus, Sonnet, Qwen, CausalSweep, heuristic, random | 100% | 100% | 100% |
 | DeepSeek V3.1 | 95% | 100% | 100% |
 | GPT-4o | 100% | 100% | 100% |
 | GPT-4.1 | 60% | 60% | 55% |
@@ -245,7 +248,7 @@ GPT-5.1 and GPT-4.1 frequently terminate sessions before attempting diagnosis or
 
 | Model | Easy | Medium | Hard |
 |-------|------|--------|------|
-| Opus, Sonnet, Qwen, heuristic, random | 100% | 100% | 100% |
+| Opus, Sonnet, Qwen, CausalSweep, heuristic, random | 100% | 100% | 100% |
 | DeepSeek V3.1 | 95% | 100% | 100% |
 | GPT-4o | 100% | 90% | 90% |
 | GPT-4.1 | 55% | 50% | 50% |
@@ -260,6 +263,7 @@ Diagnosis scores degrade with difficulty for all models that attempt diagnosis:
 | Model | Easy | Medium | Hard |
 |-------|------|--------|------|
 | Opus | 0.700 | 0.550 | 0.350 |
+| CausalSweep | 0.000 | 0.100 | 0.550 |
 | Sonnet | 0.550 | 0.350 | 0.300 |
 | Qwen 3.5 | 0.300 | 0.250 | 0.400 |
 | DeepSeek V3.1 | 0.150 | 0.100 | 0.300 |
@@ -267,10 +271,10 @@ Diagnosis scores degrade with difficulty for all models that attempt diagnosis:
 
 Anthropic models show monotonic degradation (Opus: 0.700 → 0.550 → 0.350), consistent with genuine reasoning difficulty. However, DeepSeek and Qwen show a U-shape: diagnosis *improves* from medium to hard (DeepSeek: 2 → 6 exact matches out of 20; Qwen: 5 → 8). This is unexpected given that hard organisms have more ambiguous malfunction states (mean n_alternatives: easy 0.05, medium 0.50, hard 1.25). The U-shape may reflect different guessing strategies interacting with the hard-tier malfunction distribution, or may be noise at N=20. It does not appear in the Anthropic or GPT results. Diagnosis requires forming a causal hypothesis about the malfunction, not just predicting steady-state outputs.
 
-Rescue tracks diagnosis across all 540 disease sessions (9 models × 3 tiers × 20 seeds):
-- Correct diagnosis (N=116): mean rescue = 0.948
+Rescue tracks diagnosis across all 600 disease sessions (10 models × 3 tiers × 20 seeds):
+- Correct diagnosis (N=129): mean rescue = 0.946
 - Partial diagnosis (N=8): mean rescue = 0.667
-- Wrong diagnosis (N=416): mean rescue = 0.678
+- Wrong diagnosis (N=463): mean rescue = 0.695
 
 Even with a wrong diagnosis, models achieve 0.678 mean rescue — generic stabilising interventions restore many phenotypes without identifying the root cause.
 
