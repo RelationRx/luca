@@ -1,8 +1,8 @@
 # Part 2 — Scaling Study Results
 
-**Last updated:** 2026-04-10 (open-source models added)
+**Last updated:** 2026-04-17 (CausalSweep baseline added)
 **Design:** `docs/part2_plan.md`
-**Models:** claude-sonnet-4-6, deepseek-v3 (DeepSeek V3.1), qwen-3.5 (Qwen 3.5 397B), gpt-4o, heuristic, random
+**Models:** claude-sonnet-4-6, deepseek-v3 (DeepSeek V3.1), qwen-3.5 (Qwen 3.5 397B), gpt-4o, causal-sweep, heuristic, random
 **Sweeps:** N=20, 40, 80, 160, 320, 640, 1280 — medium difficulty, healthy mode
 **Seeds:** 10 per N for all models; heuristic N=1280 stopped at 5 seeds (0.667±0.000, structural floor confirmed)
 
@@ -20,15 +20,15 @@
 
 ### Composite scores (mean ± std)
 
-| N | Budget | Sonnet | DeepSeek V3.1 | Qwen 3.5 | GPT-4o | Heuristic | Random |
-|---|--------|--------|---------------|----------|--------|-----------|--------|
-| 20 | 31 | 0.917±0.083 | 0.917±0.083 | 0.917±0.083 | 0.717±0.130 | 0.550±0.150 | 0.650±0.050 |
-| 40 | 54 | 0.850±0.138 | 0.850±0.203 | **0.926**±0.083 | 0.667±0.149 | 0.567±0.082 | 0.617±0.107 |
-| 80 | 99 | 0.817±0.138 | **0.883**±0.107 | 0.717±0.198 | 0.650±0.117 | 0.583±0.201 | 0.650±0.050 |
-| 160 | 191 | **0.983**±0.050 | 0.933±0.111 | 0.900±0.111 | 0.667±0.075 | 0.583±0.154 | 0.667±0.000 |
-| 320 | 374 | **0.900**±0.200 | 0.850±0.117 | 0.800±0.100 | 0.650±0.090 | 0.667±0.129 | 0.667±0.000 |
-| 640 | 739 | 0.926±0.114 | **0.917**±0.112 | 0.817±0.138 | 0.650±0.050 | 0.667±0.075 | 0.667±0.000 |
-| 1280 | 1471 | **0.983**±0.050 | 0.817±0.138 | 0.783±0.150 | 0.633±0.125 | 0.667±0.000 | 0.667±0.000 |
+| N | Budget | CausalSweep | Sonnet | DeepSeek V3.1 | Qwen 3.5 | GPT-4o | Heuristic | Random |
+|---|--------|-------------|--------|---------------|----------|--------|-----------|--------|
+| 20 | 31 | **0.983**±0.050 | 0.917±0.083 | 0.917±0.083 | 0.917±0.083 | 0.717±0.130 | 0.550±0.150 | 0.650±0.050 |
+| 40 | 54 | **0.950**±0.076 | 0.850±0.138 | 0.850±0.203 | 0.926±0.083 | 0.667±0.149 | 0.567±0.082 | 0.617±0.107 |
+| 80 | 99 | 0.883±0.150 | 0.817±0.138 | **0.883**±0.107 | 0.717±0.198 | 0.650±0.117 | 0.583±0.201 | 0.650±0.050 |
+| 160 | 191 | 0.933±0.082 | **0.983**±0.050 | 0.933±0.111 | 0.900±0.111 | 0.667±0.075 | 0.583±0.154 | 0.667±0.000 |
+| 320 | 374 | 0.800±0.145 | **0.900**±0.200 | 0.850±0.117 | 0.800±0.100 | 0.650±0.090 | 0.667±0.129 | 0.667±0.000 |
+| 640 | 739 | 0.883±0.107 | **0.926**±0.114 | 0.917±0.112 | 0.817±0.138 | 0.650±0.050 | 0.667±0.075 | 0.667±0.000 |
+| 1280 | 1471 | 0.800±0.125 | **0.983**±0.050 | 0.817±0.138 | 0.783±0.150 | 0.633±0.125 | 0.667±0.000 | 0.667±0.000 |
 
 Best per column in bold. N=10 seeds per cell except Sonnet N=640 (9) and heuristic N=1280 (5†).
 
@@ -58,16 +58,18 @@ the heuristic improves.
 task design — cross-module double-gene interventions activate sigmoid nonlinearities that
 additivity cannot represent. This is true at N=20 and N=1280 equally.
 
-### §2 LLM vs baseline gap (RQ1)
+### §2 Scaling behaviour (RQ1)
+
+**CausalSweep** leads at small N (0.983 at N=20) but degrades to 0.800 at N=1280. The crossover with Sonnet occurs at N≈160: below this, rule-based logit-space prediction with full gene coverage wins; above it, LLM reasoning with adaptive exploration wins.
 
 Three LLMs maintain high accuracy across all N with no degradation at scale:
-- **Sonnet**: 0.817–0.983, widening gap over baselines with N
+- **Sonnet**: 0.817–0.983, widening gap over CausalSweep with N
 - **DeepSeek V3.1**: 0.850–0.933, competitive with Sonnet through N=640, modest decline at N=1280 (0.817)
 - **Qwen 3.5**: 0.717–0.926, competitive at small N, gradual decline at large N (0.783 at N=1280)
 
 GPT-4o drops from 0.717 at N=20 to 0.633–0.667 for N≥40 — essentially at the random baseline floor throughout.
 
-**RQ1 answer**: LLM scaling robustness holds for Sonnet and both open-source models but is not a universal LLM property — GPT-4o fails to outperform the random baseline at any N≥40. The three scaling-robust models achieve this through different exploration strategies (see §3–§5).
+**RQ1 answer**: LLM scaling robustness holds for Sonnet and both open-source models but is not a universal LLM property. The CausalSweep crossover at N≈160 shows that LLMs' advantage at scale comes from adaptive exploration strategy, not from better mathematical modelling — CausalSweep already has the optimal prediction formula.
 
 ### §3 Budget utilisation
 
