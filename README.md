@@ -260,8 +260,8 @@ If you use LUCA in your research, please cite:
 ```bibtex
 @misc{luca2026,
   title  = {{LUCA}: A Synthetic Organism Reasoning Benchmark for LLM Agents},
-  author = {Turing Team and 👾},
+  author = {Anonymous},
   year   = {2026},
-  url    = {https://github.com/RelationRx/rrx-luca},
+  url    = {https://anonymous.4open.science/r/luca},
 }
 ```
