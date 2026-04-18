@@ -5,7 +5,7 @@
 
 **Synthetic organism reasoning benchmark for LLM agents**
 
-A Python package that procedurally generates synthetic biological organisms (based on synthetic regulatory networks) and exposes them as a reasoning benchmark for LLM agents.
+A Python package that procedurally generates synthetic biological organisms (based on synthetic regulatory networks) and exposes them as a reasoning benchmark for LLM agents. Evaluated on 10 models (7 LLMs + 3 baselines) across 1,200+ sessions.
 
 The world is **unknowable via retrieval** — gene names, module labels, signals, and pathways are all invented. Prior biological knowledge is useless. An agent must reason causally from perturbation experiments to succeed.
 
@@ -106,6 +106,8 @@ Runs the canonical benchmark: seeds 0–19, medium difficulty. Produces aggregat
 python evaluate.py --heuristic                              # no API key required
 python evaluate.py --model claude-opus-4-6                  # requires ANTHROPIC_API_KEY
 python evaluate.py --model gpt-5.1                          # requires OPENAI_API_KEY
+python evaluate.py --model deepseek-v3                      # requires TOGETHER_API_KEY
+python evaluate.py --model qwen-3.5                         # requires TOGETHER_API_KEY
 python evaluate.py --model claude-opus-4-6 --model gpt-5.1  # compare models
 python evaluate.py --model claude-opus-4-6 --disease
 python evaluate.py --model claude-opus-4-6 --difficulty hard
@@ -115,7 +117,7 @@ python evaluate.py --model claude-opus-4-6 --tasks diagnose rescue --disease  # 
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--model MODEL` | — | Model to evaluate (repeatable for comparison) |
+| `--model MODEL` | — | Model to evaluate (repeatable). Supports `claude-*` (Anthropic), `gpt-*`/`o1`/`o3`/`o4` (OpenAI), `deepseek-v3`/`qwen-3.5` (Together AI) |
 | `--heuristic` | off | Include the heuristic baseline (BLOCK each gene, predict additively) |
 | `--disease` | off | Evaluate in disease mode |
 | `--difficulty TIER` | `medium` | `easy` / `medium` / `hard` |
@@ -213,14 +215,19 @@ luca/
 ├── dynamics.py       # simulate_sigmoid(), compute_phenotypes()
 ├── experiment.py     # ExperimentSession — budget, interventions, scoring
 ├── dataset.py        # generate_dataset() — JSON export for offline benchmarking
-├── agent.py          # Tool definitions + run_agent() (Anthropic + OpenAI)
+├── agent.py          # Tool definitions + run_agent() (Anthropic, OpenAI, Together AI)
 ├── inspect.py        # plot_organism(), plot_disease_organism(), plot_session()
-└── report.py         # print_session_trace(), export_session_html()
+├── report.py         # print_session_trace(), export_session_html()
+└── baselines/        # Non-LLM baselines
+    ├── heuristic.py  # Systematic BLOCK sweep + additive prediction
+    ├── random.py     # Predict 0.5 everywhere, no experiments
+    └── causal_sweep.py  # Logit-space prediction (calibration baseline, uses privileged knowledge)
 
 evaluate.py           # Benchmark evaluation script
 demo.py               # Smoke tests + agent demo entry point
 inspect_organism.py   # CLI inspector and replay tool
-tests/                # pytest suite
+docs/                 # Design docs, results, custom agent guide
+tests/                # pytest suite (50 tests)
 requirements.txt
 ```
 
