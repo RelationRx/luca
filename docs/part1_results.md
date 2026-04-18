@@ -30,7 +30,7 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 - Rescue: fraction of aberrant phenotypes restored to healthy range
 
 **Baselines**:
-- *CausalSweep*: BLOCKs all genes, then BOOSTs high-impact genes (multi-phenotype priority), predicts in logit space to account for sigmoid readout nonlinearity. Decoupled diagnosis and rescue. No LLM.
+- *CausalSweep* (calibration baseline): BLOCKs all genes, then BOOSTs high-impact genes (multi-phenotype priority), predicts in logit space to account for sigmoid readout nonlinearity. Decoupled diagnosis and rescue. No LLM. **Important: CausalSweep uses privileged knowledge of the dynamics model** — its logit-space prediction formula is derived from the sigmoid readout function in `generation.py`, which LLM agents do not have access to. The system prompt describes organisms in abstract terms (genes, modules, signals, phenotypes) without revealing the functional form. CausalSweep is therefore not a fair comparison with LLMs — it is a calibration baseline that establishes an upper bound on what knowing the correct dynamics model buys you, isolating the LLM contribution to the areas where the formula alone is insufficient (hard-tier prediction, disease diagnosis, large-N exploration).
 - *Heuristic*: systematically BLOCKs each gene, uses additive model for prediction, exhaustive hypothesis enumeration for diagnosis.
 - *Random*: predicts 0.5 everywhere, submits a random diagnosis. Runs no experiments.
 
