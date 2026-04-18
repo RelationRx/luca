@@ -180,3 +180,24 @@ This was used in an earlier draft of `part1_results.md` and produced misleadingl
 GPT rescue scores (e.g. GPT-4.1 medium rescue 0.967 over 10 attempts vs 0.483 over 20 seeds).
 The composite column was always computed with None=0, creating an internal inconsistency.
 Corrected 2026-04-09.
+
+### CausalSweep as a calibration baseline, not a fair competitor (2026-04-17)
+**Decision:** CausalSweep is included in all tables alongside LLMs and other baselines,
+but explicitly labelled as a "calibration baseline" that uses privileged knowledge.
+**Why:** CausalSweep's logit-space prediction formula is derived from the sigmoid readout
+function in `generation.py`. LLM agents do not have access to this — the system prompt
+describes organisms abstractly without revealing the dynamics model. CausalSweep therefore
+has an unfair advantage on prediction: it uses the mathematically correct formula while
+LLMs must infer the dynamics from observations. Including it calibrates what "correct math
++ systematic experimentation" achieves without reasoning, making the LLM contribution
+precise: LLMs add value on hard organisms (feedback loops break the independence assumption
+in logit-combine), disease diagnosis (abductive inference from aberrant phenotypes), and
+large-N exploration (adaptive strategy that scales beyond full-coverage BLOCK+BOOST sweeps).
+**For the paper:** The privileged knowledge must be disclosed prominently — in the baselines
+description, in the CausalSweep analysis paragraph, and in the figure captions. Reviewers
+will ask "is this a fair comparison?" The answer is: it's not meant to be fair, it's meant
+to be informative about what the benchmark actually measures.
+**Rejected alternative:** Excluding CausalSweep from the paper entirely. This would leave
+the impression that LLMs' prediction advantage reflects reasoning, when in fact it largely
+reflects having the right mathematical model implicitly. Including CausalSweep is more
+honest and makes the paper's claims more precise.
