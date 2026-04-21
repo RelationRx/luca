@@ -623,6 +623,7 @@ def _run_agent_anthropic(
     log_path: str | None = None,
     active_tasks: frozenset[str] | None = None,
     max_tokens_per_turn: int | None = None,
+    use_prompt_cache: bool = True,
 ) -> dict[str, Any]:
     """
     Run an Anthropic Claude model on a LUCA ExperimentSession.
@@ -693,14 +694,16 @@ def _run_agent_anthropic(
         if verbose:
             print(f"\n[turn {turn + 1}/{max_turns}] Calling {model}...")
 
-        response = _with_retry(
-            client.messages.create, _anthropic_retryable,
+        create_kwargs: dict[str, Any] = dict(
             model=model,
             max_tokens=max_tokens_per_turn or 16384,
             system=system_prompt,
             tools=active_tools,
             messages=messages,
         )
+        if use_prompt_cache:
+            create_kwargs["cache_control"] = {"type": "ephemeral"}
+        response = _with_retry(client.messages.create, _anthropic_retryable, **create_kwargs)
 
         if verbose:
             print(f"  stop_reason={response.stop_reason}")
@@ -728,6 +731,8 @@ def _run_agent_anthropic(
             "stop_reason": response.stop_reason,
             "input_tokens": response.usage.input_tokens,
             "output_tokens": response.usage.output_tokens,
+            "cache_read_input_tokens": getattr(response.usage, "cache_read_input_tokens", 0) or 0,
+            "cache_creation_input_tokens": getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
             "agent_text": " ".join(
                 b.text for b in response.content if b.type == "text"
             ).strip() or None,
@@ -786,20 +791,24 @@ def _run_agent_anthropic(
             })
             # Allow up to 5 cleanup turns for free tools (submit_prediction, etc.)
             for cleanup_turn in range(5):
-                response = _with_retry(
-                    client.messages.create, _anthropic_retryable,
+                cleanup_kwargs: dict[str, Any] = dict(
                     model=model,
                     max_tokens=16384,
                     system=system_prompt,
                     tools=active_tools,
                     messages=messages,
                 )
+                if use_prompt_cache:
+                    cleanup_kwargs["cache_control"] = {"type": "ephemeral"}
+                response = _with_retry(client.messages.create, _anthropic_retryable, **cleanup_kwargs)
                 messages.append({"role": "assistant", "content": response.content})
                 final_turn_log: dict[str, Any] = {
                     "turn": turn + 2 + cleanup_turn,
                     "stop_reason": response.stop_reason,
                     "input_tokens": response.usage.input_tokens,
                     "output_tokens": response.usage.output_tokens,
+                    "cache_read_input_tokens": getattr(response.usage, "cache_read_input_tokens", 0) or 0,
+                    "cache_creation_input_tokens": getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
                     "agent_text": " ".join(
                         b.text for b in response.content if b.type == "text"
                     ).strip() or None,
@@ -1185,6 +1194,7 @@ def run_agent(
     log_path: str | None = None,
     active_tasks: frozenset[str] | None = None,
     max_tokens_per_turn: int | None = None,
+    use_prompt_cache: bool = True,
 ) -> dict[str, Any]:
     """
     Run an LLM agent on a LUCA ExperimentSession.
@@ -1210,7 +1220,7 @@ def run_agent(
         Session summary dict from ExperimentSession.get_summary().
     """
     if any(model.startswith(p) for p in _ANTHROPIC_PREFIXES):
-        return _run_agent_anthropic(session, model, max_turns, verbose, disease_mode, log_path, active_tasks, max_tokens_per_turn)
+        return _run_agent_anthropic(session, model, max_turns, verbose, disease_mode, log_path, active_tasks, max_tokens_per_turn, use_prompt_cache)
     if any(model.startswith(p) for p in _OPENAI_PREFIXES):
         return _run_agent_openai(session, model, max_turns, verbose, disease_mode, log_path, active_tasks, max_tokens_per_turn)
     if model in _TOGETHER_MODELS:
