@@ -94,6 +94,7 @@ def generate_organism(
     sigmoid_steepness: float | None = None,
     latent_fraction: float | None = None,
     seed: int | None = None,
+    vocabulary: str = "invented",
 ) -> Organism:
     """Generate a synthetic organism with gene regulatory network.
 
@@ -153,10 +154,25 @@ def generate_organism(
     organism_id = f"org_{seed:08x}"
 
     # 1. Sample gene names
-    genes = [
-        Gene(id=f"g_{i:03d}", name=f"G{i:03d}")
-        for i in range(1, n_genes + 1)
-    ]
+    # Use a separate RNG for name selection so the main RNG state
+    # (and thus the entire GRN topology) is identical regardless of vocabulary.
+    if vocabulary == "real":
+        from .vocabulary_real import REAL_GENE_NAMES
+        if n_genes > len(REAL_GENE_NAMES):
+            raise ValueError(
+                f"vocabulary='real' supports at most {len(REAL_GENE_NAMES)} genes, got {n_genes}"
+            )
+        _name_rng = random.Random(seed ^ 0x5EED0A3E)
+        _real_names = _name_rng.sample(REAL_GENE_NAMES, n_genes)
+        genes = [
+            Gene(id=f"g_{i:03d}", name=_real_names[i - 1])
+            for i in range(1, n_genes + 1)
+        ]
+    else:
+        genes = [
+            Gene(id=f"g_{i:03d}", name=f"G{i:03d}")
+            for i in range(1, n_genes + 1)
+        ]
     gene_ids = [g.id for g in genes]
 
     # 2. Assign genes to modules (planted partition)
