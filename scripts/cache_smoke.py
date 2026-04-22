@@ -31,8 +31,12 @@ OUT = Path("scripts/results/cache_smoke")
 def run_one(seed: int, cache: bool) -> dict:
     tag = "on" if cache else "off"
     log_path = OUT / f"cache_{tag}_seed{seed:04d}.json"
-    organism = generate_organism(seed=seed, difficulty=DIFFICULTY, disease_mode=DISEASE)
-    session = ExperimentSession(organism)
+    organism = generate_organism(seed=seed, difficulty=DIFFICULTY)
+    session = ExperimentSession(
+        organism,
+        seed=seed,
+        active_tasks=frozenset({"predict", "diagnose", "rescue"}),
+    )
     summary = run_agent(
         session,
         model=MODEL,
