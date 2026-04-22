@@ -303,6 +303,13 @@ biological system. Prior biological knowledge is IRRELEVANT and may mislead you.
 The only valid path to understanding this organism is systematic causal reasoning \
 from perturbation experiments."""
 
+_PERMIT_BLOCK = """\
+NOTE: Some gene names in this organism may correspond to real human genes. You are free \
+to draw on biological knowledge — gene function, pathway membership, known regulatory \
+relationships — where it seems relevant. The network topology is synthetic, so biology \
+alone will not give you the full answer; perturbation experiments remain the primary \
+evidence. But you may use what you know alongside them."""
+
 _EXPERIMENT_TIPS = """\
 Strategy tips:
 - Single-gene BLOCK/BOOST experiments first — identify which genes affect which phenotypes.
@@ -312,8 +319,17 @@ Strategy tips:
 Always call get_organism_info() first."""
 
 
-def _build_system_prompt(disease_mode: bool, active_tasks: frozenset[str]) -> str:
-    """Build a system prompt tailored to the active task components."""
+def _build_system_prompt(
+    disease_mode: bool,
+    active_tasks: frozenset[str],
+    system_prompt_variant: str = "suppress",
+) -> str:
+    """Build a system prompt tailored to the active task components.
+
+    system_prompt_variant:
+      "suppress" (default) — tells the agent biological knowledge is irrelevant.
+      "permit"             — tells the agent it may use biological knowledge freely.
+    """
     lines: list[str] = []
 
     if disease_mode:
@@ -327,7 +343,15 @@ def _build_system_prompt(disease_mode: bool, active_tasks: frozenset[str]) -> st
         )
 
     lines.append("")
-    lines.append(_CRITICAL_BLOCK)
+    if system_prompt_variant == "permit":
+        lines.append(_PERMIT_BLOCK)
+    elif system_prompt_variant == "suppress":
+        lines.append(_CRITICAL_BLOCK)
+    else:
+        raise ValueError(
+            f"Unknown system_prompt_variant {system_prompt_variant!r}. "
+            "Use 'suppress' or 'permit'."
+        )
 
     if disease_mode:
         lines.append("")
@@ -624,6 +648,7 @@ def _run_agent_anthropic(
     active_tasks: frozenset[str] | None = None,
     max_tokens_per_turn: int | None = None,
     use_prompt_cache: bool = True,
+    system_prompt_variant: str = "suppress",
 ) -> dict[str, Any]:
     """
     Run an Anthropic Claude model on a LUCA ExperimentSession.
@@ -643,7 +668,7 @@ def _run_agent_anthropic(
         active_tasks = frozenset({"predict", "diagnose", "rescue"})
 
     active_tools = _active_tool_list(disease_mode, active_tasks)
-    system_prompt = _build_system_prompt(disease_mode, active_tasks)
+    system_prompt = _build_system_prompt(disease_mode, active_tasks, system_prompt_variant)
 
     # ── Log initialisation ────────────────────────────────────────────────
 
@@ -658,6 +683,7 @@ def _run_agent_anthropic(
             "disease_mode": disease_mode,
             "active_tasks": sorted(active_tasks),
             "generation_commit": _git_commit(),
+            "system_prompt_variant": system_prompt_variant,
             "system_prompt_hash": _prompt_hash(system_prompt),
             "max_tokens_per_turn": max_tokens_per_turn or 16384,
             "max_turns": max_turns,
@@ -894,6 +920,7 @@ def _run_agent_openai(
     base_url: str | None = None,
     api_key: str | None = None,
     display_name: str | None = None,
+    system_prompt_variant: str = "suppress",
 ) -> dict[str, Any]:
     """
     Run an OpenAI model on a LUCA ExperimentSession.
@@ -925,7 +952,7 @@ def _run_agent_openai(
         active_tasks = frozenset({"predict", "diagnose", "rescue"})
 
     active_tools = _to_openai_tools(_active_tool_list(disease_mode, active_tasks))
-    system_prompt = _build_system_prompt(disease_mode, active_tasks)
+    system_prompt = _build_system_prompt(disease_mode, active_tasks, system_prompt_variant)
 
     # ── Log initialisation ────────────────────────────────────────────────
     log: dict[str, Any] = {
@@ -939,6 +966,7 @@ def _run_agent_openai(
             "disease_mode": disease_mode,
             "active_tasks": sorted(active_tasks),
             "generation_commit": _git_commit(),
+            "system_prompt_variant": system_prompt_variant,
             "system_prompt_hash": _prompt_hash(system_prompt),
             "max_tokens_per_turn": max_tokens_per_turn or 16384,
             "max_turns": max_turns,
@@ -1195,6 +1223,7 @@ def run_agent(
     active_tasks: frozenset[str] | None = None,
     max_tokens_per_turn: int | None = None,
     use_prompt_cache: bool = True,
+    system_prompt_variant: str = "suppress",
 ) -> dict[str, Any]:
     """
     Run an LLM agent on a LUCA ExperimentSession.
@@ -1220,9 +1249,9 @@ def run_agent(
         Session summary dict from ExperimentSession.get_summary().
     """
     if any(model.startswith(p) for p in _ANTHROPIC_PREFIXES):
-        return _run_agent_anthropic(session, model, max_turns, verbose, disease_mode, log_path, active_tasks, max_tokens_per_turn, use_prompt_cache)
+        return _run_agent_anthropic(session, model, max_turns, verbose, disease_mode, log_path, active_tasks, max_tokens_per_turn, use_prompt_cache, system_prompt_variant)
     if any(model.startswith(p) for p in _OPENAI_PREFIXES):
-        return _run_agent_openai(session, model, max_turns, verbose, disease_mode, log_path, active_tasks, max_tokens_per_turn)
+        return _run_agent_openai(session, model, max_turns, verbose, disease_mode, log_path, active_tasks, max_tokens_per_turn, system_prompt_variant=system_prompt_variant)
     if model in _TOGETHER_MODELS:
         import os
         api_key = os.environ.get(_TOGETHER_API_KEY_ENV)
@@ -1242,6 +1271,7 @@ def run_agent(
             base_url=_TOGETHER_BASE_URL,
             api_key=api_key,
             display_name=model,
+            system_prompt_variant=system_prompt_variant,
         )
     raise ValueError(
         f"Cannot infer provider from model name {model!r}. "

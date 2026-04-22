@@ -131,6 +131,7 @@ def evaluate_model(
     max_turns: int = 50,
     agent_fn=None,
     vocabulary: str = "invented",
+    system_prompt_variant: str = "suppress",
 ) -> list[dict[str, Any]]:
     """Run one model across all seeds. Returns list of per-organism records."""
     if active_tasks is None:
@@ -172,6 +173,7 @@ def evaluate_model(
                     active_tasks=active_tasks,
                     max_tokens_per_turn=max_tokens_per_turn,
                     max_turns=max_turns,
+                    system_prompt_variant=system_prompt_variant,
                 )
 
             record = _make_record(seed, org, summary, model_name, disease, difficulty, active_tasks)

@@ -53,6 +53,7 @@ SWEEP_DIR = Path(__file__).parent
 
 DIFFICULTIES = ("medium", "hard")
 VOCABULARIES = ("invented", "real")
+PROMPT_VARIANTS = ("suppress", "permit")
 
 _seeds_path = REPO_ROOT / "experiments" / "paper_v1" / "selected_seeds.json"
 _SELECTED = json.loads(_seeds_path.read_text())["seeds"]
@@ -62,15 +63,26 @@ def _seeds_for(difficulty: str) -> list[int]:
     return list(_SELECTED[difficulty])
 
 
+def _sweep_name(difficulty: str, vocabulary: str, prompt_variant: str) -> str:
+    """Name results/logs directory for this cell of the experimental grid.
+
+    "suppress" (the benchmark default) is left implicit so the existing
+    Phase 1 directories remain unchanged; non-default variants get a suffix.
+    """
+    base = f"{difficulty}_{vocabulary}"
+    return base if prompt_variant == "suppress" else f"{base}_{prompt_variant}"
+
+
 def _run_one_model(
     model_name: str,
     difficulty: str,
     vocabulary: str,
+    prompt_variant: str,
     seeds: list[int],
     verbose: bool,
     max_tokens_per_turn: int | None,
 ) -> tuple[str, list[dict]]:
-    sweep = f"{difficulty}_{vocabulary}"
+    sweep = _sweep_name(difficulty, vocabulary, prompt_variant)
     results_dir = SWEEP_DIR / "results" / sweep
     logs_dir = SWEEP_DIR / "logs" / sweep
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -87,6 +99,7 @@ def _run_one_model(
         active_tasks=frozenset({"predict", "diagnose", "rescue"}),
         max_tokens_per_turn=max_tokens_per_turn,
         vocabulary=vocabulary,
+        system_prompt_variant=prompt_variant,
     )
     print_summary(model_name, records, disease=False)
 
@@ -102,6 +115,7 @@ def _run_one_model(
 def run_sweep(
     difficulty: str,
     vocabulary: str,
+    prompt_variant: str,
     models: list[str],
     n: int | None,
     seeds_override: list[int] | None,
@@ -111,22 +125,23 @@ def run_sweep(
 ) -> None:
     default_seeds = _seeds_for(difficulty)
     seeds = seeds_override if seeds_override is not None else (default_seeds[:n] if n else default_seeds)
+    sweep = _sweep_name(difficulty, vocabulary, prompt_variant)
 
     print(f"\n{'=' * 60}")
-    print(f"Sweep: {difficulty}_{vocabulary}  |  seeds: {seeds[0]}–{seeds[-1]} ({len(seeds)})  |  models: {models}")
+    print(f"Sweep: {sweep}  |  seeds: {seeds[0]}–{seeds[-1]} ({len(seeds)})  |  models: {models}")
     print(f"{'=' * 60}")
 
     if parallel and len(models) > 1:
         with ThreadPoolExecutor(max_workers=len(models)) as executor:
             futures = {
-                executor.submit(_run_one_model, m, difficulty, vocabulary, seeds, verbose, max_tokens_per_turn): m
+                executor.submit(_run_one_model, m, difficulty, vocabulary, prompt_variant, seeds, verbose, max_tokens_per_turn): m
                 for m in models
             }
             for future in as_completed(futures):
                 future.result()
     else:
         for m in models:
-            _run_one_model(m, difficulty, vocabulary, seeds, verbose, max_tokens_per_turn)
+            _run_one_model(m, difficulty, vocabulary, prompt_variant, seeds, verbose, max_tokens_per_turn)
 
 
 def main() -> None:
@@ -147,6 +162,16 @@ def main() -> None:
         "--vocabulary", action="append", dest="vocabularies", choices=list(VOCABULARIES),
         help=f"Vocabulary(s). Repeatable. Default: both ({list(VOCABULARIES)}).",
     )
+    parser.add_argument(
+        "--system-prompt-variant", action="append", dest="prompt_variants",
+        choices=list(PROMPT_VARIANTS),
+        help=(
+            "System prompt variant(s). Repeatable. "
+            "'suppress' = benchmark default ('biological knowledge is IRRELEVANT'). "
+            "'permit'   = 'you may use biological knowledge freely'. "
+            "Default: ['suppress'] only (matches Phase 1)."
+        ),
+    )
     parser.add_argument("--n", type=int, default=None, help="Number of seeds (default: all 20).")
     parser.add_argument("--seeds", nargs="+", metavar="SEED", help="Explicit seed list or range (e.g. 0:5).")
     parser.add_argument("--verbose", action="store_true")
@@ -156,20 +181,22 @@ def main() -> None:
 
     difficulties = args.difficulties or list(DIFFICULTIES)
     vocabularies = args.vocabularies or list(VOCABULARIES)
+    prompt_variants = args.prompt_variants or ["suppress"]
     parallel = not args.no_parallel
     seeds_override = (
         parse_seeds(args.seeds, max(len(_seeds_for(d)) for d in difficulties))
         if args.seeds else None
     )
 
-    for difficulty in difficulties:
-        for vocabulary in vocabularies:
-            run_sweep(
-                difficulty, vocabulary, args.models,
-                n=args.n, seeds_override=seeds_override,
-                parallel=parallel, verbose=args.verbose,
-                max_tokens_per_turn=args.max_tokens,
-            )
+    for prompt_variant in prompt_variants:
+        for difficulty in difficulties:
+            for vocabulary in vocabularies:
+                run_sweep(
+                    difficulty, vocabulary, prompt_variant, args.models,
+                    n=args.n, seeds_override=seeds_override,
+                    parallel=parallel, verbose=args.verbose,
+                    max_tokens_per_turn=args.max_tokens,
+                )
 
 
 if __name__ == "__main__":
