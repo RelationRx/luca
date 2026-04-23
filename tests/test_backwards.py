@@ -147,3 +147,11 @@ def test_backwards_medium_tier_repair_is_noop():
     assert forward_depends == backward_depends, (
         "Medium-tier inversion should not add any phenotype readout contributors"
     )
+
+
+# --- disease-organism guard ---------------------------------------------
+
+def test_invert_organism_rejects_disease_organism():
+    disease_org = generate_disease_organism(seed=7)
+    with pytest.raises(ValueError, match="healthy organisms only"):
+        invert_organism(disease_org)
