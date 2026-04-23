@@ -212,8 +212,13 @@ def plot_disease_subscores(
                 xs[i], mean, color=color, edgecolor="black",
                 linewidth=0.7, hatch=hatch, zorder=2,
             )
+        # Clamp to non-negative — bootstrap CI on ties-heavy sub-scores
+        # (e.g. diagnosis_score, which is often 0 for GPT models) can return
+        # percentiles that straddle the mean in a degenerate way.
+        err_lo = np.maximum(0.0, means - los)
+        err_hi = np.maximum(0.0, his - means)
         ax.errorbar(
-            xs, means, yerr=[means - los, his - means],
+            xs, means, yerr=[err_lo, err_hi],
             fmt="none", ecolor="black", capsize=3, linewidth=1, zorder=3,
         )
         ax.axhline(0, color="black", linewidth=0.7, linestyle="--", zorder=1)

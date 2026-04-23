@@ -1,0 +1,238 @@
+{
+  "healthy": {
+    "per_model": {
+      "claude-opus-4-6": {
+        "n_pairs": 20,
+        "forward_mean": 0.9083,
+        "forward_std": 0.1008,
+        "backward_mean": 0.9333,
+        "backward_std": 0.0997,
+        "delta_mean": -0.025,
+        "delta_ci_95": [
+          -0.0917,
+          0.0417
+        ],
+        "wilcoxon_p": 0.50488,
+        "delta_vs_heuristic": -0.0167
+      },
+      "claude-sonnet-4-6": {
+        "n_pairs": 20,
+        "forward_mean": 0.9083,
+        "forward_std": 0.1008,
+        "backward_mean": 0.8667,
+        "backward_std": 0.1675,
+        "delta_mean": 0.0417,
+        "delta_ci_95": [
+          -0.0417,
+          0.125
+        ],
+        "wilcoxon_p": 0.656642,
+        "delta_vs_heuristic": 0.05
+      },
+      "deepseek-v3": {
+        "n_pairs": 0
+      },
+      "qwen-3.5": {
+        "n_pairs": 0
+      },
+      "gpt-5.1": {
+        "n_pairs": 20,
+        "forward_mean": 0.75,
+        "forward_std": 0.1268,
+        "backward_mean": 0.7667,
+        "backward_std": 0.1658,
+        "delta_mean": -0.0167,
+        "delta_ci_95": [
+          -0.1,
+          0.0667
+        ],
+        "wilcoxon_p": 0.666137,
+        "delta_vs_heuristic": -0.0084
+      },
+      "gpt-4o": {
+        "n_pairs": 20,
+        "forward_mean": 0.6583,
+        "forward_std": 0.1376,
+        "backward_mean": 0.7333,
+        "backward_std": 0.1368,
+        "delta_mean": -0.075,
+        "delta_ci_95": [
+          -0.125,
+          -0.025
+        ],
+        "wilcoxon_p": 0.016605,
+        "delta_vs_heuristic": -0.0667
+      },
+      "gpt-4.1": {
+        "n_pairs": 20,
+        "forward_mean": 0.7333,
+        "forward_std": 0.1368,
+        "backward_mean": 0.7084,
+        "backward_std": 0.1194,
+        "delta_mean": 0.025,
+        "delta_ci_95": [
+          -0.05,
+          0.1083
+        ],
+        "wilcoxon_p": 0.563318,
+        "delta_vs_heuristic": 0.0333
+      },
+      "heuristic": {
+        "n_pairs": 20,
+        "forward_mean": 0.5833,
+        "forward_std": 0.1481,
+        "backward_mean": 0.5917,
+        "backward_std": 0.175,
+        "delta_mean": -0.0083,
+        "delta_ci_95": [
+          -0.0833,
+          0.075
+        ],
+        "wilcoxon_p": 0.733271
+      }
+    },
+    "mixed_effects": {
+      "n_rows": 240,
+      "interaction_terms": {
+        "C(model)[T.claude-sonnet-4-6]:C(direction)[T.forward]": {
+          "coef": 0.0667,
+          "p": 0.24183
+        },
+        "C(model)[T.gpt-4.1]:C(direction)[T.forward]": {
+          "coef": 0.05,
+          "p": 0.380066
+        },
+        "C(model)[T.gpt-4o]:C(direction)[T.forward]": {
+          "coef": -0.05,
+          "p": 0.380209
+        },
+        "C(model)[T.gpt-5.1]:C(direction)[T.forward]": {
+          "coef": 0.0084,
+          "p": 0.883457
+        },
+        "C(model)[T.heuristic]:C(direction)[T.forward]": {
+          "coef": 0.0167,
+          "p": 0.769857
+        }
+      }
+    }
+  },
+  "disease": {
+    "per_model": {
+      "claude-opus-4-6": {
+        "n_pairs": 20,
+        "forward_mean": 0.8055,
+        "forward_std": 0.1752,
+        "backward_mean": 0.7028,
+        "backward_std": 0.1731,
+        "delta_mean": 0.1028,
+        "delta_ci_95": [
+          -0.0028,
+          0.2
+        ],
+        "wilcoxon_p": 0.077767,
+        "delta_vs_heuristic": 0.2306
+      },
+      "claude-sonnet-4-6": {
+        "n_pairs": 20,
+        "forward_mean": 0.7028,
+        "forward_std": 0.1684,
+        "backward_mean": 0.6917,
+        "backward_std": 0.2019,
+        "delta_mean": 0.0111,
+        "delta_ci_95": [
+          -0.0917,
+          0.1194
+        ],
+        "wilcoxon_p": 0.836139,
+        "delta_vs_heuristic": 0.1389
+      },
+      "deepseek-v3": {
+        "n_pairs": 0
+      },
+      "qwen-3.5": {
+        "n_pairs": 0
+      },
+      "gpt-5.1": {
+        "n_pairs": 20,
+        "forward_mean": 0.3972,
+        "forward_std": 0.1927,
+        "backward_mean": 0.3139,
+        "backward_std": 0.1411,
+        "delta_mean": 0.0833,
+        "delta_ci_95": [
+          -0.0167,
+          0.1861
+        ],
+        "wilcoxon_p": 0.225011,
+        "delta_vs_heuristic": 0.2111
+      },
+      "gpt-4o": {
+        "n_pairs": 20,
+        "forward_mean": 0.425,
+        "forward_std": 0.1434,
+        "backward_mean": 0.4722,
+        "backward_std": 0.2196,
+        "delta_mean": -0.0472,
+        "delta_ci_95": [
+          -0.1555,
+          0.0611
+        ],
+        "wilcoxon_p": 0.507501,
+        "delta_vs_heuristic": 0.0806
+      },
+      "gpt-4.1": {
+        "n_pairs": 20,
+        "forward_mean": 0.3889,
+        "forward_std": 0.2079,
+        "backward_mean": 0.3917,
+        "backward_std": 0.2319,
+        "delta_mean": -0.0028,
+        "delta_ci_95": [
+          -0.125,
+          0.1139
+        ],
+        "wilcoxon_p": 0.958761,
+        "delta_vs_heuristic": 0.125
+      },
+      "heuristic": {
+        "n_pairs": 20,
+        "forward_mean": 0.5222,
+        "forward_std": 0.1502,
+        "backward_mean": 0.65,
+        "backward_std": 0.2259,
+        "delta_mean": -0.1278,
+        "delta_ci_95": [
+          -0.2555,
+          0.0056
+        ],
+        "wilcoxon_p": 0.067382
+      }
+    },
+    "mixed_effects": {
+      "n_rows": 240,
+      "interaction_terms": {
+        "C(model)[T.claude-sonnet-4-6]:C(direction)[T.forward]": {
+          "coef": -0.0917,
+          "p": 0.272227
+        },
+        "C(model)[T.gpt-4.1]:C(direction)[T.forward]": {
+          "coef": -0.1055,
+          "p": 0.206176
+        },
+        "C(model)[T.gpt-4o]:C(direction)[T.forward]": {
+          "coef": -0.15,
+          "p": 0.072438
+        },
+        "C(model)[T.gpt-5.1]:C(direction)[T.forward]": {
+          "coef": -0.0194,
+          "p": 0.815962
+        },
+        "C(model)[T.heuristic]:C(direction)[T.forward]": {
+          "coef": -0.2305,
+          "p": 0.005754
+        }
+      }
+    }
+  }
+}

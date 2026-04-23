@@ -1,0 +1,37 @@
+# Backwards-Ablation Results
+
+## Healthy (medium tier, paired per seed)
+
+| Model | N | Forward | Backward | Δ (F−B) | 95% CI | Wilcoxon p | Δ − Δ_heuristic |
+|---|---:|---:|---:|---:|:---:|---:|---:|
+| claude-opus-4-6 | 20 | 0.908 ± 0.101 | 0.933 ± 0.100 | **-0.025** | [-0.092, +0.042] | 0.5049 | -0.017 |
+| claude-sonnet-4-6 | 20 | 0.908 ± 0.101 | 0.867 ± 0.168 | **+0.042** | [-0.042, +0.125] | 0.6566 | +0.050 |
+| gpt-5.1 | 20 | 0.750 ± 0.127 | 0.767 ± 0.166 | **-0.017** | [-0.100, +0.067] | 0.6661 | -0.008 |
+| gpt-4o | 20 | 0.658 ± 0.138 | 0.733 ± 0.137 | **-0.075** | [-0.125, -0.025] | 0.0166 | -0.067 |
+| gpt-4.1 | 20 | 0.733 ± 0.137 | 0.708 ± 0.119 | **+0.025** | [-0.050, +0.108] | 0.5633 | +0.033 |
+| heuristic | 20 | 0.583 ± 0.148 | 0.592 ± 0.175 | **-0.008** | [-0.083, +0.075] | 0.7333 | — |
+
+**Mixed-effects interaction** (score ~ model × direction + (1|seed), N=240 rows):
+- `C(model)[T.claude-sonnet-4-6]:C(direction)[T.forward]`: β = +0.0667, p = 0.2418
+- `C(model)[T.gpt-4.1]:C(direction)[T.forward]`: β = +0.0500, p = 0.3801
+- `C(model)[T.gpt-4o]:C(direction)[T.forward]`: β = -0.0500, p = 0.3802
+- `C(model)[T.gpt-5.1]:C(direction)[T.forward]`: β = +0.0084, p = 0.8835
+- `C(model)[T.heuristic]:C(direction)[T.forward]`: β = +0.0167, p = 0.7699
+
+## Disease (medium tier, paired per seed)
+
+| Model | N | Forward | Backward | Δ (F−B) | 95% CI | Wilcoxon p | Δ − Δ_heuristic |
+|---|---:|---:|---:|---:|:---:|---:|---:|
+| claude-opus-4-6 | 20 | 0.805 ± 0.175 | 0.703 ± 0.173 | **+0.103** | [-0.003, +0.200] | 0.0778 | +0.231 |
+| claude-sonnet-4-6 | 20 | 0.703 ± 0.168 | 0.692 ± 0.202 | **+0.011** | [-0.092, +0.119] | 0.8361 | +0.139 |
+| gpt-5.1 | 20 | 0.397 ± 0.193 | 0.314 ± 0.141 | **+0.083** | [-0.017, +0.186] | 0.2250 | +0.211 |
+| gpt-4o | 20 | 0.425 ± 0.143 | 0.472 ± 0.220 | **-0.047** | [-0.155, +0.061] | 0.5075 | +0.081 |
+| gpt-4.1 | 20 | 0.389 ± 0.208 | 0.392 ± 0.232 | **-0.003** | [-0.125, +0.114] | 0.9588 | +0.125 |
+| heuristic | 20 | 0.522 ± 0.150 | 0.650 ± 0.226 | **-0.128** | [-0.256, +0.006] | 0.0674 | — |
+
+**Mixed-effects interaction** (score ~ model × direction + (1|seed), N=240 rows):
+- `C(model)[T.claude-sonnet-4-6]:C(direction)[T.forward]`: β = -0.0917, p = 0.2722
+- `C(model)[T.gpt-4.1]:C(direction)[T.forward]`: β = -0.1055, p = 0.2062
+- `C(model)[T.gpt-4o]:C(direction)[T.forward]`: β = -0.1500, p = 0.0724
+- `C(model)[T.gpt-5.1]:C(direction)[T.forward]`: β = -0.0194, p = 0.8160
+- `C(model)[T.heuristic]:C(direction)[T.forward]`: β = -0.2305, p = 0.0058
