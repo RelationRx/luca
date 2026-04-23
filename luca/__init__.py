@@ -3,6 +3,7 @@ from .generation import generate_organism, generate_disease_organism
 from .experiment import ExperimentSession
 from .dataset import generate_dataset
 from .agent import run_agent
+from .backwards import invert_organism
 from .schema import (
     Organism,
     Gene,
@@ -18,6 +19,7 @@ from .schema import (
 __all__ = [
     "generate_organism",
     "generate_disease_organism",
+    "invert_organism",
     "ExperimentSession",
     "generate_dataset",
     "Organism",
