@@ -253,3 +253,53 @@ def test_generate_disease_organism_backwards_rescuable():
     assert rescued, (
         f"No aberrant phenotype was rescued by corrective intervention for {m}"
     )
+
+
+# --- property tests: double-invert, magnitude, topology -----------------
+
+def test_double_invert_matches_original_signs():
+    """invert(invert(org)) restores all sign-carrying fields exactly."""
+    org = generate_organism(seed=0)
+    twice = invert_organism(invert_organism(org))
+
+    for gid in org.dynamics.rule:
+        assert twice.dynamics.rule[gid]["bias"] == pytest.approx(
+            org.dynamics.rule[gid]["bias"], abs=1e-12
+        )
+        fwd_inputs = {i["src"]: i["weight"] for i in org.dynamics.rule[gid]["inputs"]}
+        twc_inputs = {i["src"]: i["weight"] for i in twice.dynamics.rule[gid]["inputs"]}
+        assert fwd_inputs == pytest.approx(twc_inputs, abs=1e-12)
+
+    fwd_rels = {(r.src, r.dst): r.type for r in org.relations}
+    twc_rels = {(r.src, r.dst): r.type for r in twice.relations}
+    assert fwd_rels == twc_rels
+
+    assert [s.mode for s in org.signals] == [s.mode for s in twice.signals]
+
+
+def test_invert_preserves_edge_magnitudes():
+    org = generate_organism(seed=0)
+    inverted = invert_organism(org)
+
+    def weight_abs_sum(o):
+        return sum(
+            abs(i["weight"])
+            for r in o.dynamics.rule.values()
+            for i in r.get("inputs", [])
+        )
+
+    assert weight_abs_sum(org) == pytest.approx(weight_abs_sum(inverted), abs=1e-9)
+
+
+def test_invert_preserves_topology():
+    org = generate_organism(seed=0)
+    inverted = invert_organism(org)
+
+    assert [g.id for g in org.genes] == [g.id for g in inverted.genes]
+    assert [m.id for m in org.modules] == [m.id for m in inverted.modules]
+    assert org.observable_genes == inverted.observable_genes
+    assert org.latent_genes == inverted.latent_genes
+
+    fwd_edges = {(r.src, r.dst) for r in org.relations}
+    bwd_edges = {(r.src, r.dst) for r in inverted.relations}
+    assert fwd_edges == bwd_edges
