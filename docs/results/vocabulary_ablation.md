@@ -170,3 +170,20 @@ If reviewers ask for broader coverage:
 - GPT-5.1 — different provider (OpenAI), different training data composition; the strongest test of generalisation across model families
 
 Cost: ~$20–40 for the two models × same 2 × 2 × 20 grid. Not critical unless a reviewer demands breadth. Current 2-model × 2-provider coverage (Anthropic + Together/DeepSeek) is already cross-provider.
+
+## Draft paragraphs for the paper
+
+Not included in the current submission (no room). Drop-in text kept here for later — camera-ready insertion, rebuttal, v2 submission, or supplementary.
+
+### Compact (main-text control paragraph, ~70 words)
+
+> A 2×2×2 paired ablation (gene-name vocabulary × system-prompt stance on biology × difficulty, 320 sessions, 20 seeds per cell) shows LUCA scores are insensitive to gene-name vocabulary (invented vs real) and to whether the system prompt permits or suppresses the use of biological priors (all |Δ| ≤ 0.13; 15/16 paired Wilcoxon tests n.s.; the one cell significant at raw α = 0.05 fails Bonferroni correction). LUCA's random-topology, random-label organism generator means no biological prior maps onto the causal structure an agent must recover. See Appendix §X for per-cell statistics.
+
+### Supplementary / appendix version (~150 words, with handle for the table)
+
+> We tested whether LUCA performance is confounded by LLM access to biological priors with a 2×2×2 paired ablation: gene-name **vocabulary** (invented labels `G001`, … vs 50 real human gene names `TP53`, `BRCA1`, … in three familiarity tiers), system-prompt **stance** (suppress: "biological knowledge is irrelevant"; permit: "you may draw on biological knowledge where relevant"), and **difficulty** (medium: 20 genes; hard: 30 genes). Each organism topology was generated once and run under all four (vocabulary × stance) conditions on Claude Opus 4.6 and DeepSeek V3.1, 20 seeds per cell (320 sessions total). Wilcoxon signed-rank tests per seed:
+> 
+> - Vocabulary (real − invented): 8 paired contrasts, all p ≥ 0.18, |Δ| ≤ 0.058.
+> - Stance (permit − suppress): 8 paired contrasts, 7 null; DeepSeek × hard × real shows Δ = −0.133 at raw p = 0.035, which fails Bonferroni correction across 8 tests.
+> 
+> LUCA organisms are generated with random module assignment and random gene labelling, so biological priors cannot map onto the causal structure an agent needs to recover. Performance tracks experiment-driven reasoning regardless of whether gene identifiers are real or invented and regardless of whether the prompt invites biological reasoning. Table X reports per-cell means and standard deviations.
