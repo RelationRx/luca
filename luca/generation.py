@@ -95,6 +95,7 @@ def generate_organism(
     latent_fraction: float | None = None,
     seed: int | None = None,
     vocabulary: str = "invented",
+    backwards: bool = False,
 ) -> Organism:
     """Generate a synthetic organism with gene regulatory network.
 
@@ -475,7 +476,7 @@ def generate_organism(
         S = sum(w * baseline_state.get(gid, 0.0) for gid, w in zip(ro.depends_on, ro.weights))
         ro.bias = float(-S)
 
-    return Organism(
+    org = Organism(
         id=organism_id,
         genes=genes,
         modules=modules,
@@ -489,6 +490,12 @@ def generate_organism(
         difficulty=difficulty,
         latent_genes=latent_genes,
     )
+
+    if backwards:
+        from .backwards import invert_organism
+        org = invert_organism(org)
+
+    return org
 
 
 def generate_disease_organism(

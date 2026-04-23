@@ -155,3 +155,35 @@ def test_invert_organism_rejects_disease_organism():
     disease_org = generate_disease_organism(seed=7)
     with pytest.raises(ValueError, match="healthy organisms only"):
         invert_organism(disease_org)
+
+
+# --- generate_organism(backwards=True) integration ----------------------
+
+def test_generate_organism_backwards_matches_post_hoc_invert():
+    """generate_organism(backwards=True) must equal invert_organism(generate_organism())."""
+    direct = generate_organism(seed=0, backwards=True)
+    post_hoc = invert_organism(generate_organism(seed=0))
+
+    assert direct.dynamics.rule == post_hoc.dynamics.rule
+    for d_ph, p_ph in zip(direct.phenotypes, post_hoc.phenotypes):
+        assert d_ph.readout.weights == p_ph.readout.weights
+        assert d_ph.readout.bias == pytest.approx(p_ph.readout.bias, abs=1e-9)
+
+
+def test_generate_organism_backwards_is_reproducible():
+    a = generate_organism(seed=42, backwards=True)
+    b = generate_organism(seed=42, backwards=True)
+    assert a.baseline_state == b.baseline_state
+    assert a.dynamics.rule == b.dynamics.rule
+
+
+def test_generate_organism_backwards_differs_from_forward():
+    forward = generate_organism(seed=42)
+    backward = generate_organism(seed=42, backwards=True)
+    assert len(forward.relations) == len(backward.relations)
+    fwd_activates = sum(1 for r in forward.relations if r.type == "activates")
+    bwd_activates = sum(1 for r in backward.relations if r.type == "activates")
+    fwd_inhibits = len(forward.relations) - fwd_activates
+    bwd_inhibits = len(backward.relations) - bwd_activates
+    assert fwd_activates == bwd_inhibits
+    assert fwd_inhibits == bwd_activates
