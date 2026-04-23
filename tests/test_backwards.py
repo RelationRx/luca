@@ -118,3 +118,32 @@ def test_backwards_baseline_differs_from_forward():
     assert max_diff > 0.05, (
         f"Backwards baseline max gene delta {max_diff:.3f} — inversion has no effect"
     )
+
+
+# --- latent-detectability repair (hard tier) ----------------------------
+#
+# Medium tier (the ablation's scope) has latent_fraction=0, so the repair
+# is a no-op there. Hard tier has latent genes but backwards dynamics may
+# not converge (dense feedback → mutual inhibition after inversion). We
+# verify the helper runs without crashing and the latent-gene list is
+# preserved — not that every latent gene is still detectable under the
+# 0.05 threshold, which is not guaranteed under non-convergent dynamics.
+
+def test_backwards_hard_tier_preserves_latent_genes():
+    for seed in [0, 1, 2, 3, 4]:
+        org = generate_organism(seed=seed, difficulty="hard")
+        inverted = invert_organism(org)
+        assert inverted.latent_genes == org.latent_genes, (
+            f"seed={seed}: latent gene list changed across inversion"
+        )
+
+
+def test_backwards_medium_tier_repair_is_noop():
+    """Medium tier has no latent genes; repair must not add phenotype terms."""
+    org = generate_organism(seed=0, difficulty="medium")
+    forward_depends = [list(ph.readout.depends_on) for ph in org.phenotypes]
+    inverted = invert_organism(org)
+    backward_depends = [list(ph.readout.depends_on) for ph in inverted.phenotypes]
+    assert forward_depends == backward_depends, (
+        "Medium-tier inversion should not add any phenotype readout contributors"
+    )
