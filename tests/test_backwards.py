@@ -303,3 +303,44 @@ def test_invert_preserves_topology():
     fwd_edges = {(r.src, r.dst) for r in org.relations}
     bwd_edges = {(r.src, r.dst) for r in inverted.relations}
     assert fwd_edges == bwd_edges
+
+
+# --- canonical-seed integration sweep -----------------------------------
+
+CANONICAL_SEEDS = list(range(20))
+
+
+@pytest.mark.parametrize("seed", CANONICAL_SEEDS)
+def test_backwards_healthy_canonical_seed(seed):
+    """Every canonical seed must generate a valid backwards medium-healthy organism."""
+    org = generate_organism(seed=seed, difficulty="medium", backwards=True)
+    phenos = compute_phenotypes(org, org.baseline_state, noise=False)
+    for label, val in phenos.items():
+        assert 0.3 <= val <= 0.7, (
+            f"seed={seed}: phenotype {label}={val:.3f} outside [0.3, 0.7]"
+        )
+
+    obs_set = set(org.observable_genes)
+    covered = set()
+    for ph in org.phenotypes:
+        covered.update(gid for gid in ph.readout.depends_on if gid in obs_set)
+    assert obs_set <= covered, (
+        f"seed={seed}: observable genes not all phenotype-covered "
+        f"(missing: {obs_set - covered})"
+    )
+
+
+@pytest.mark.parametrize("seed", CANONICAL_SEEDS)
+def test_backwards_disease_canonical_seed_attempts(seed):
+    """Informational: some seeds may fail under backwards; we record which succeed
+    so PR 2's pre-screen can set its target."""
+    try:
+        org = generate_disease_organism(seed=seed, backwards=True)
+    except RuntimeError:
+        pytest.skip(
+            f"seed={seed}: no rescuable malfunction under backwards "
+            "(expected on some seeds)"
+        )
+
+    assert len(org.malfunctions) >= 1
+    assert org.healthy_phenotype_ranges != {}
