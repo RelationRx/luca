@@ -24,6 +24,7 @@ luca_dataset/
 
 # Evaluation output (regenerate locally)
 results/
+!docs/results/
 *.jsonl
 
 # Per-experiment session logs (verbose JSON/HTML dumps; regenerate locally)
