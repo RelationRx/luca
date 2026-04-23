@@ -18,9 +18,9 @@ Last updated: 2026-03-31. **Full benchmark run complete — 840/840 sessions (7 
 > computed at the ±0.15 threshold and is no longer authoritative. The Disease Mode Breakdown
 > table below it uses valid-seeds-only counts from an intermediate run.
 >
-> **Canonical reference: `docs/part1_results.md`** (stable as of 2026-03-21, all numbers at
+> **Canonical reference: `docs/results/part1_benchmark.md`** (stable as of 2026-03-21, all numbers at
 > ±0.10, all 6 sweeps × 7 models × 20 seeds). Confirmed against session logs by
-> `experiments/paper_v1/threshold_sensitivity.py`. Use `part1_results.md` for all paper
+> `experiments/paper_v1/threshold_sensitivity.py`. Use `docs/results/part1_benchmark.md` for all paper
 > figures, tables, and cross-references.
 
 ---

@@ -340,7 +340,7 @@ experiments, and submits a randomly chosen gene and malfunction type as its hypo
 Scores zero on all strategy and effort metrics. Provides a lower bound: any model that
 cannot beat random has learned nothing from perturbation data.
 
-Notable behaviours documented in `docs/part1_results.md`:
+Notable behaviours documented in `docs/results/part1_benchmark.md`:
 - Heuristic scores below random on hard healthy — additive prediction fails on
   high-feedback organisms where the nonlinear sigmoid dominates.
 - Random scores ~0.667 on all tiers at ±0.10 (structural floor: ~2/3 phenotypes
@@ -364,7 +364,7 @@ All gene orderings use `sorted()` (not `list(set())`) to avoid Python hash-seed
 non-determinism across processes (fixed in PR #28).
 
 **Results**: raw session logs are stored locally (gitignored). Canonical results
-tables are in `docs/part1_results.md` (Part 1) and `docs/part2_results.md` (scaling).
+tables are in `docs/results/part1_benchmark.md` (Part 1) and `docs/results/part2_scaling.md` (scaling).
 
 ---
 
@@ -458,5 +458,5 @@ The current benchmark makes all prior knowledge uninformative by design. A
 natural extension is to test whether agents can integrate synthetic prior
 knowledge (organism-family datasheets in invented vocabulary) with perturbation
 evidence, and whether knowledge helps most where pure causal reasoning fails —
-i.e. at high complexity. See `docs/part3_knowledge_extension.md` for a full
+i.e. at high complexity. See `docs/designs/part3_knowledge_extension.md` for a full
 design proposal.

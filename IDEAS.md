@@ -122,7 +122,7 @@ _For future work sections or follow-on papers. Not needed for this submission._
   a network with no relation to real biology. Gap between conditions isolates retrieval from
   causal reasoning. Requires only a vocabulary swap in generation.
 
-- **Part 3: prior knowledge integration** — full design in `docs/part3_knowledge_extension.md`.
+- **Part 3: prior knowledge integration** — full design in `docs/designs/part3_knowledge_extension.md`.
   Hypothesis: synthetic "organism family datasheets" help most exactly above the complexity
   threshold where pure causal reasoning fails. 2×2 design (no-knowledge/knowledge ×
   below-threshold/above-threshold).

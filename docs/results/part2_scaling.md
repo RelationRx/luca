@@ -1,7 +1,7 @@
 # Part 2 — Scaling Study Results
 
 **Last updated:** 2026-04-17 (CausalSweep baseline added)
-**Design:** `docs/part2_plan.md`
+**Design:** `docs/designs/part2_scaling_plan.md`
 **Models:** claude-sonnet-4-6, deepseek-v3 (DeepSeek V3.1), qwen-3.5 (Qwen 3.5 397B), gpt-4o, causal-sweep, heuristic, random
 **Sweeps:** N=20, 40, 80, 160, 320, 640, 1280 — medium difficulty, healthy mode
 **Seeds:** 10 per N for all models; heuristic N=1280 stopped at 5 seeds (0.667±0.000, structural floor confirmed)
