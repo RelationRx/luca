@@ -88,3 +88,33 @@ def test_bias_signs_flip():
 
     for fb, bb in zip(forward_biases, backward_biases):
         assert fb == pytest.approx(-bb, abs=1e-12)
+
+
+def test_backwards_baseline_phenotypes_centered():
+    """Construction guarantee 4: baseline phenotypes stay near 0.5."""
+    for seed in [0, 1, 7, 13]:
+        org = generate_organism(seed=seed)
+        inverted = invert_organism(org)
+        phenos = compute_phenotypes(inverted, inverted.baseline_state, noise=False)
+        for label, val in phenos.items():
+            assert 0.3 <= val <= 0.7, (
+                f"seed={seed}: backwards phenotype {label}={val:.3f} outside [0.3, 0.7]"
+            )
+
+
+def test_backwards_baseline_differs_from_forward():
+    """Sanity: backwards dynamics actually produce different fixed points."""
+    org = generate_organism(seed=0)
+    inverted = invert_organism(org)
+    forward_state = org.baseline_state
+    backward_state = inverted.baseline_state
+
+    # At least one gene should differ by > 0.05 (noise floor); otherwise
+    # inversion is a no-op and the ablation has no signal.
+    max_diff = max(
+        abs(forward_state.get(gid, 0.5) - backward_state.get(gid, 0.5))
+        for gid in forward_state.keys()
+    )
+    assert max_diff > 0.05, (
+        f"Backwards baseline max gene delta {max_diff:.3f} — inversion has no effect"
+    )

@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import copy
 
+import numpy as np
+
 from .schema import Organism
 
 
@@ -60,5 +62,21 @@ def invert_organism(org: Organism) -> Organism:
     # 4. Phenotype readout weights
     for ph in org.phenotypes:
         ph.readout.weights = [-w for w in ph.readout.weights]
+
+    # 5. Re-simulate baseline under backwards dynamics
+    from .dynamics import simulate_sigmoid
+    rng = np.random.default_rng(org.seed)
+    result = simulate_sigmoid(org, interventions={}, active_signals={}, rng=rng)
+    org.baseline_state = result["final_state"]
+
+    # 6. Re-center phenotype readout biases so σ(0) = 0.5 at baseline.
+    #    Mirrors generation.py step 13 (lines 473-476).
+    for ph in org.phenotypes:
+        ro = ph.readout
+        S = sum(
+            w * org.baseline_state.get(gid, 0.0)
+            for gid, w in zip(ro.depends_on, ro.weights)
+        )
+        ro.bias = float(-S)
 
     return org
