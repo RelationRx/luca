@@ -5,6 +5,8 @@ import hashlib
 import json
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Any
 
 import anthropic
@@ -33,16 +35,49 @@ def _prompt_hash(prompt: str) -> str:
 # API call helper
 # ---------------------------------------------------------------------------
 
-_API_TIMEOUT = 120.0   # seconds per request
-_API_RETRIES = 6       # attempts before giving up
-_API_RETRY_WAIT = 15   # seconds between retries
+_API_TIMEOUT = 120.0        # soft timeout passed to the SDK client
+_API_HARD_TIMEOUT = 180.0   # hard wallclock cap per individual call
+_API_RETRIES = 6            # attempts before giving up
+_API_RETRY_WAIT = 15        # seconds between retries
+
+
+def _call_with_hard_timeout(fn, timeout_s: float, *args, **kwargs):
+    """Invoke fn(*args, **kwargs) with a hard wallclock timeout.
+
+    The SDK's timeout parameter has been observed to not fire for some
+    providers (notably DeepSeek via Together AI, which has hung for 10+
+    hours on a single request). This wrapper runs fn in a worker thread
+    and raises TimeoutError if it doesn't return within timeout_s.
+
+    Python can't kill the worker thread, so a genuinely hung call leaks
+    a thread until the process exits. That is acceptable in practice —
+    the outer retry loop catches the TimeoutError and moves on, and
+    stuck threads accumulate slowly.
+    """
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="api_hard_timeout")
+    try:
+        future = executor.submit(fn, *args, **kwargs)
+        try:
+            return future.result(timeout=timeout_s)
+        except FutureTimeout:
+            raise TimeoutError(
+                f"API call exceeded {timeout_s:.0f}s hard wallclock timeout"
+            )
+    finally:
+        executor.shutdown(wait=False)
 
 
 def _with_retry(fn, retryable_exc: tuple, *args, **kwargs):
     """Call fn(*args, **kwargs) up to _API_RETRIES times on retryable_exc errors."""
     for attempt in range(_API_RETRIES):
         try:
-            return fn(*args, **kwargs)
+            return _call_with_hard_timeout(fn, _API_HARD_TIMEOUT, *args, **kwargs)
+        except TimeoutError as exc:
+            if attempt == _API_RETRIES - 1:
+                raise
+            print(f"\n[agent] API hard-timeout ({exc}), retrying in {_API_RETRY_WAIT}s "
+                  f"(attempt {attempt + 1}/{_API_RETRIES})...")
+            time.sleep(_API_RETRY_WAIT)
         except retryable_exc as exc:
             if attempt == _API_RETRIES - 1:
                 raise
