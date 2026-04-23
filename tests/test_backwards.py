@@ -187,3 +187,69 @@ def test_generate_organism_backwards_differs_from_forward():
     bwd_inhibits = len(backward.relations) - bwd_activates
     assert fwd_activates == bwd_inhibits
     assert fwd_inhibits == bwd_activates
+
+
+# --- generate_disease_organism(backwards=True) --------------------------
+
+def test_generate_disease_organism_backwards_valid():
+    """Backwards disease organism must still satisfy detectability guarantee."""
+    org = generate_disease_organism(seed=7, backwards=True)
+    assert len(org.malfunctions) >= 1
+    assert org.cell_type is not None
+    assert org.healthy_baseline != {}
+
+    disease_phenos = compute_phenotypes(org, org.baseline_state, noise=False)
+    aberrant = [
+        lbl for lbl, v in disease_phenos.items()
+        if not (
+            org.healthy_phenotype_ranges[lbl][0]
+            <= v
+            <= org.healthy_phenotype_ranges[lbl][1]
+        )
+    ]
+    assert len(aberrant) >= 1
+
+
+def test_generate_disease_organism_backwards_rescuable():
+    """Backwards disease organism must have a corrective single intervention."""
+    from luca.dynamics import simulate_sigmoid
+    import numpy as np
+
+    org = generate_disease_organism(seed=7, backwards=True)
+    m = org.malfunctions[0]
+
+    if m.type == "LOCK_HI":
+        corrective = {m.target: {"type": "BLOCK"}}
+        active_signals = {}
+    elif m.type == "LOCK_LO":
+        corrective = {m.target: {"type": "BOOST"}}
+        active_signals = {}
+    else:  # PERSIST — deactivate the signal override
+        corrective = {}
+        active_signals = {}
+
+    rescue = simulate_sigmoid(
+        org,
+        interventions=corrective,
+        active_signals=active_signals,
+        rng=np.random.default_rng(7 + 5678),
+    )
+    rescue_phenos = compute_phenotypes(org, rescue["final_state"], noise=False)
+    disease_phenos = compute_phenotypes(org, org.baseline_state, noise=False)
+    aberrant = [
+        lbl for lbl, v in disease_phenos.items()
+        if not (
+            org.healthy_phenotype_ranges[lbl][0]
+            <= v
+            <= org.healthy_phenotype_ranges[lbl][1]
+        )
+    ]
+    rescued = any(
+        org.healthy_phenotype_ranges[lbl][0]
+        <= rescue_phenos.get(lbl, 0.5)
+        <= org.healthy_phenotype_ranges[lbl][1]
+        for lbl in aberrant
+    )
+    assert rescued, (
+        f"No aberrant phenotype was rescued by corrective intervention for {m}"
+    )
