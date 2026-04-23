@@ -77,19 +77,14 @@ All 8 cells null. All effect sizes |Δ| ≤ 0.058. Phase 1's vocabulary null rep
 
 ## Interpretation
 
-**Primary finding: neither axis meaningfully affects performance.** 15 of 16 paired contrasts are null at α = 0.05; the single significant cell does not survive Bonferroni correction.
+Across 320 paired sessions, LUCA performance is insensitive to both axes:
 
-What this tells us about the benchmark design:
+- **Gene-name vocabulary has no measurable effect.** 8 paired contrasts (real vs invented, per seed, per cell): all p ≥ 0.18, |Δ| ≤ 0.058.
+- **Prompt stance on biological knowledge has no measurable effect.** 8 paired contrasts (permit vs suppress, per seed, per cell): 7/8 null, |Δ| ≤ 0.133. The one cell significant at raw α=0.05 (DeepSeek × hard × real, p = 0.035) fails Bonferroni correction across 8 tests; where any trend exists it goes toward permit *decreasing* performance, not increasing it.
 
-1. **Real gene names don't give LLMs a shortcut.** If retrieval were inflating scores, real-vocabulary would score higher than invented. It doesn't, in any model × difficulty × prompt cell.
-2. **Explicit permission to use biology priors doesn't help either.** If the suppression prompt were blocking a useful retrieval channel, removing it should raise scores. It doesn't — and where there is any trend (DeepSeek hard × real), it goes the *other* way: permitting biology slightly degrades performance. This is consistent with "biology priors aren't actionable on synthetic GRN topology, and inviting the model to lean on them is a mild distractor."
-3. **The invented vocabulary is a conservative design choice, not a load-bearing one.** Phase 1 already suggested this; the prompt-variant axis reinforces it. The benchmark is robust to vocabulary choice and prompt framing in the two obvious ways a retrieval confound could leak.
+The mechanism is straightforward: LUCA organisms are generated with random topology, random module assignment, and random gene labelling, so biological priors cannot map onto the regulatory structure an agent needs to recover. Performance tracks agents' ability to plan, execute, and integrate perturbation experiments — the identity of the gene labels and the prompt's stance on biology are both irrelevant to that signal.
 
-Reframe relative to the original motivation:
-
-> Old framing: "we use invented vocabulary to block retrieval from biology training data." (Implies retrieval is a real threat.)
->
-> New framing: "we ran the benchmark with both invented and real gene names, under both biology-suppressing and biology-permitting prompts. Scores are statistically indistinguishable across all 2 × 2 × 2 cells (paired Wilcoxon, n = 20 each). The benchmark is robust to vocabulary choice and prompt framing. No biology prior provides a shortcut, so performance reflects reasoning from experiments rather than pattern matching on gene names."
+A practical consequence for the benchmark design: the invented vocabulary is not load-bearing. It was adopted as a precaution against training-data retrieval, but scores are the same whether we use it or not, and whether we tell the agent to ignore biology or draw on it freely.
 
 ## Positioning vs. classical synthetic-GRN benchmarks
 
