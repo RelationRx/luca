@@ -95,6 +95,7 @@ def generate_organism(
     latent_fraction: float | None = None,
     seed: int | None = None,
     vocabulary: str = "invented",
+    backwards: bool = False,
 ) -> Organism:
     """Generate a synthetic organism with gene regulatory network.
 
@@ -475,7 +476,7 @@ def generate_organism(
         S = sum(w * baseline_state.get(gid, 0.0) for gid, w in zip(ro.depends_on, ro.weights))
         ro.bias = float(-S)
 
-    return Organism(
+    org = Organism(
         id=organism_id,
         genes=genes,
         modules=modules,
@@ -490,11 +491,18 @@ def generate_organism(
         latent_genes=latent_genes,
     )
 
+    if backwards:
+        from .backwards import invert_organism
+        org = invert_organism(org)
+
+    return org
+
 
 def generate_disease_organism(
     n_malfunctions: int = 1,
     malfunction_types: list[str] | None = None,
     min_phenotype_shift: float = 0.25,
+    backwards: bool = False,
     **organism_kwargs,
 ) -> Organism:
     """
@@ -530,8 +538,10 @@ def generate_disease_organism(
     rng_py = random.Random(seed + 9999)  # offset to avoid collision with org rng
     rng_np = np.random.default_rng(seed + 9999)
 
-    # 1. Generate healthy organism
-    org = generate_organism(**organism_kwargs)
+    # 1. Generate healthy organism (backwards if requested — the disease
+    # pre-scan below then runs on backwards dynamics, so malfunctions are
+    # selected to be rescuable under inverted dynamics by construction).
+    org = generate_organism(**organism_kwargs, backwards=backwards)
 
     # 2. Assign cell type
     ct_index = rng_py.randrange(len(CELL_TYPE_LABELS))
