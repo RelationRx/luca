@@ -21,6 +21,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]
+stats = [
+    "statsmodels>=0.14",
+    "pandas>=2.0",
+]
 
 [tool.setuptools.packages.find]
 include = ["luca*"]
