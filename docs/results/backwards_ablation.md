@@ -1,7 +1,7 @@
 # Backwards-Organisms Ablation — Results
 
-**Status:** first draft, ready for paper-subsection adaptation.
-**Date:** 2026-04-23
+**Status:** updated with full open-source coverage (DeepSeek V3.1, Qwen 3.5); ready for paper-subsection adaptation.
+**Dates:** 2026-04-23 (initial 5 LLMs), 2026-04-25 (added DeepSeek + Qwen).
 **Owner:** Anonymous
 **Design spec:** `docs/superpowers/specs/2026-04-22-backwards-organisms-ablation-design.md`
 **Stats artifact:** `experiments/backwards_ablation/backwards_stats.json`
@@ -31,9 +31,10 @@ both directions with the same code version. Analysis is paired per seed:
 percentile-bootstrap 95% CI, and a mixed-effects model
 `score ~ C(model) * C(direction) + (1|seed)`.
 
-**Model set** (5 LLMs + null control): Claude Opus 4.6, Claude Sonnet 4.6,
-GPT-5.1, GPT-4o, GPT-4.1, heuristic. DeepSeek V3.1 and Qwen 3.5 deferred
-(Together AI credits); adding them is tracked as follow-up work.
+**Model set** (7 LLMs + null control): Claude Opus 4.6, Claude Sonnet 4.6,
+GPT-5.1, GPT-4o, GPT-4.1, DeepSeek V3.1, Qwen 3.5, and the heuristic null
+control. DeepSeek and Qwen were added in the 2026-04-25 update; their
+data uses the same code version as the original 5-LLM sweep.
 
 **Null control.** The heuristic baseline runs the same systematic BLOCK
 sweep and additive prediction on both directions. It contains no
@@ -61,6 +62,8 @@ the full canonical seed set.
 | gpt-5.1 | 20 | 0.750 ± 0.127 | 0.767 ± 0.166 | **−0.017** | [−0.100, +0.067] | 0.67 | −0.008 |
 | gpt-4o | 20 | 0.658 ± 0.138 | 0.733 ± 0.137 | **−0.075** | [−0.125, −0.025] | **0.017** | −0.067 |
 | gpt-4.1 | 20 | 0.733 ± 0.137 | 0.708 ± 0.119 | +0.025 | [−0.050, +0.108] | 0.56 | +0.033 |
+| deepseek-v3 | 20 | 0.925 ± 0.101 | 0.858 ± 0.146 | **+0.067** | [−0.008, +0.150] | 0.17 | +0.075 |
+| qwen-3.5 | 16 | 0.875 ± 0.114 | 0.885 ± 0.199 | **−0.010** | [−0.115, +0.104] | 0.72 | −0.002 |
 | heuristic | 20 | 0.583 ± 0.148 | 0.592 ± 0.175 | −0.008 | [−0.083, +0.075] | 0.73 | — |
 
 ![Panel A — healthy](../experiments/backwards_ablation/figs/panel_a_delta_healthy.png)
@@ -68,14 +71,20 @@ the full canonical seed set.
 ![Panel B — healthy](../experiments/backwards_ablation/figs/panel_b_scatter_healthy.png)
 
 **Finding.** No LLM shows a prior-reliance signal on healthy-mode composite
-scores. Four of five models have paired deltas whose bootstrap CI crosses
-zero; the one significant result (GPT-4o, p = 0.017) goes the "wrong"
-direction — GPT-4o scores *higher* on backwards than forward. The
-heuristic-adjusted column is small and mixed in sign for every model.
+scores. Six of seven models have paired deltas whose bootstrap CI crosses
+zero; the one significant cell (GPT-4o, p = 0.017) goes the "wrong"
+direction — GPT-4o scores *higher* on backwards than forward. DeepSeek
+trends toward a positive delta (+0.067, +0.075 heuristic-adjusted) but
+the bootstrap CI still crosses zero (p = 0.17). The heuristic-adjusted
+column is small and mixed in sign for every model.
 
-The mixed-effects model confirms: no `C(model) × C(direction)` interaction
-term is significant on healthy (all p > 0.24). Models behave
-indistinguishably across directions.
+The mixed-effects model (fitted on the original 5 LLMs + heuristic; see
+Limitations) confirms: no `C(model) × C(direction)` interaction term is
+significant on healthy (all p > 0.24). Models behave indistinguishably
+across directions. DeepSeek and Qwen, added in the 2026-04-25 update,
+were not refit into the joint mixed-effects model since the underlying
+session-level JSONLs from the original 5-LLM sweep are not stored in the
+repository (gitignored); their per-model paired tests are unaffected.
 
 **Interpretation.** Prediction tasks on medium-healthy organisms are learned
 from perturbation observations, not from priors about how GRNs "should"
@@ -91,6 +100,8 @@ prediction as the least-ambiguous capability in the benchmark.
 | gpt-5.1 | 20 | 0.397 ± 0.193 | 0.314 ± 0.141 | +0.083 | [−0.017, +0.186] | 0.23 | +0.211 |
 | gpt-4o | 20 | 0.425 ± 0.143 | 0.472 ± 0.220 | −0.047 | [−0.155, +0.061] | 0.51 | +0.081 |
 | gpt-4.1 | 20 | 0.389 ± 0.208 | 0.392 ± 0.232 | −0.003 | [−0.125, +0.114] | 0.96 | +0.125 |
+| deepseek-v3 | 20 | 0.639 ± 0.142 | 0.667 ± 0.145 | −0.028 | [−0.125, +0.067] | 0.62 | +0.100 |
+| qwen-3.5 | 18 | 0.664 ± 0.170 | 0.701 ± 0.180 | −0.037 | [−0.145, +0.071] | 0.46 | +0.091 |
 | heuristic | 20 | 0.522 ± 0.150 | 0.650 ± 0.226 | **−0.128** | [−0.256, +0.006] | 0.07 | — |
 
 ![Panel A — disease](../experiments/backwards_ablation/figs/panel_a_delta_disease.png)
@@ -103,9 +114,11 @@ structurally easier for a prior-free additive model. This contaminates raw
 `Δ (F−B)` deltas — every LLM's raw delta is offset by the substrate effect.
 The **heuristic-adjusted column** isolates the LLM-specific signal.
 
-All LLMs have positive heuristic-adjusted disease deltas (+0.08 to +0.23).
-Opus has the largest (+0.23). **After controlling for the substrate effect,
-every LLM drops on backwards disease.**
+**All seven LLMs have positive heuristic-adjusted disease deltas**
+(+0.08 to +0.23, spanning Anthropic, OpenAI, DeepSeek, and Qwen
+families). Opus has the largest (+0.23). **After controlling for the
+substrate effect, every LLM drops on backwards disease relative to the
+prior-free null.** The pattern replicates across model providers.
 
 The mixed-effects model picks this up: `C(model)[heuristic] × C(direction)`
 is significant (β = −0.23, p = **0.006**) — heuristic's direction-response
@@ -123,6 +136,8 @@ Paired deltas on the three disease sub-scores (forward − backward):
 | gpt-5.1 | +0.008 | +0.075 | +0.167 |
 | gpt-4o | −0.025 | −0.150 | +0.033 |
 | gpt-4.1 | +0.058 | −0.050 | −0.017 |
+| deepseek-v3 | −0.050 | +0.000 | −0.033 |
+| qwen-3.5 | −0.037 | −0.056 | −0.019 |
 | heuristic | +0.067 | **−0.400** | −0.050 |
 
 ![Disease sub-scores](../experiments/backwards_ablation/figs/disease_subscores.png)
@@ -149,6 +164,19 @@ downstream" — violates those priors, and top LLMs struggle to update
 despite direct experimental evidence. Prediction and rescue, which are
 observation-driven, remain robust.
 
+**Provider asymmetry.** The diagnosis-Δ effect is concentrated in the
+proprietary models with the strongest forward-mode diagnosis baseline:
+Opus (+0.250) and GPT-5.1 (+0.075). The two open-source models, DeepSeek
+and Qwen, show diagnosis Δ near zero (+0.000 and −0.056) — their
+diagnosis is *already* low on forward (forward diagnosis ≈ 0.3 for both;
+contrast Opus 0.55 forward) so there is little prior-driven height to
+fall from. Their composite-level positive heuristic-adjusted Δ comes
+predominantly from the substrate effect on prediction and rescue, not
+from a diagnosis collapse. This is a softer prior-reliance signature
+than the proprietary models exhibit, consistent with open-source LLMs
+having less real-biology training data to translate into diagnosis-time
+priors.
+
 ### 3.5 Connection to the paper's rescue-without-diagnosis finding
 
 The paper's headline result is that LLMs intervene successfully (high
@@ -166,11 +194,21 @@ could not have isolated.
 - **Medium tier only.** Easy is near-linear (weak discriminator); hard has
   backwards-convergence issues (mutual inhibition from flipped feedback
   edges) — deferred to future work.
-- **Five LLMs, not seven.** DeepSeek V3.1 and Qwen 3.5 not included due to a
-  Together AI credit shortfall at sweep time. Their inclusion would test
-  whether the diagnosis prior-reliance generalises to the open-source family.
-  Tracked as follow-up; credit top-up + ~40-session sweep + re-run
-  `analyze.py` is a single-morning task.
+- **Mixed-effects fit covers only the original 5 LLMs + heuristic.** The
+  underlying session-level JSONLs from the original 5-LLM sweep are not
+  stored in the repository (project convention: `*.jsonl` is gitignored).
+  The 2026-04-25 update generates DeepSeek + Qwen JSONLs locally and
+  computes their per-model paired stats from those JSONLs, then merges
+  the result with the precomputed 5-LLM stats. Refitting the joint
+  mixed-effects model on all 7 LLMs would require re-running the original
+  sweep or sharing JSONLs out-of-band. The per-model paired Wilcoxon
+  tests and bootstrap CIs cover all 7 LLMs and are the load-bearing
+  evidence; the 5-LLM mixed-effects interaction is supportive context.
+- **Qwen completed on 16/20 healthy and 18/20 disease seeds** (4 and 2
+  Together AI errors respectively — `400 invalid_request_error` on long
+  sessions, `503 service_unavailable` on transient outages). DeepSeek
+  completed cleanly on 20/20 in both modes. The Qwen paired tests use
+  the seed-intersection.
 - **Uniform sign-flip policy only.** We do not test partial-inversion
   variants (e.g. flipping only edge weights). Design spec §2.1 discusses
   rejected alternatives; a partial variant would leak priors and likely
@@ -198,19 +236,21 @@ could not have isolated.
 > by inverting every signed quantity (edge weights, biases, signal modes,
 > phenotype readout weights). Topology, magnitudes, and noise are
 > preserved; baselines are re-centered so phenotype readings remain ≈ 0.5
-> at steady state. We then evaluated five LLMs (Opus 4.6, Sonnet 4.6,
-> GPT-5.1, GPT-4o, GPT-4.1) and the heuristic baseline in a paired-seed
-> design on both directions.
+> at steady state. We evaluated all seven LLMs (Opus 4.6, Sonnet 4.6,
+> GPT-5.1, GPT-4o, GPT-4.1, DeepSeek V3.1, Qwen 3.5) and the heuristic
+> baseline in a paired-seed design on both directions.
 >
 > Healthy-mode composite scores are indistinguishable across directions
 > for every model tested (|Δ| ≤ 0.08, no significant model × direction
 > interaction). In disease mode, however, the heuristic baseline rises
 > substantially on backwards organisms (Δ = −0.128; p = 0.07), reflecting
 > a *substrate* effect — prior-free additive models find backwards
-> disease organisms structurally easier. After heuristic-adjustment, every
-> LLM drops 0.08–0.23 on backwards disease relative to the null control,
-> with Opus the largest (+0.23; mixed-effects p on the heuristic ×
-> direction interaction = 0.006).
+> disease organisms structurally easier. **After heuristic-adjustment,
+> every LLM across all four model families (Anthropic, OpenAI, DeepSeek,
+> Qwen) drops 0.08–0.23 on backwards disease relative to the null
+> control**, with Opus the largest (+0.23). The mixed-effects p on the
+> heuristic × direction interaction is 0.006 (fitted on the original five
+> LLMs; the per-model paired tests cover all seven).
 >
 > Decomposing the disease composite into prediction, diagnosis, and rescue
 > localises the prior-reliance signal to diagnosis alone: prediction and
@@ -221,12 +261,13 @@ could not have isolated.
 > intervention-response observation, which inversion leaves intact, while
 > diagnosis depends on abductive inference over candidate malfunctions
 > whose likelihood rankings draw on real-biology priors that backwards
-> organisms violate. Healthy-mode prediction — also observation-driven —
-> is equivalently robust.
->
-> Two open-source models (DeepSeek V3.1, Qwen 3.5) are excluded from this
-> sweep; whether their diagnosis performance shows the same prior-reliance
-> pattern is a natural extension.
+> organisms violate. The diagnosis-Δ effect is concentrated in the
+> proprietary models with the strongest forward-mode diagnosis baseline
+> (Opus, GPT-5.1); the two open-source models, whose forward diagnosis
+> is already near 0.3, show diagnosis Δ near zero — consistent with their
+> reduced exposure to real-biology training data. Healthy-mode
+> prediction — also observation-driven — is equivalently robust across
+> all seven models.
 
 ## 6. Reproduction
 
