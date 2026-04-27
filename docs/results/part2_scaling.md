@@ -40,23 +40,57 @@ _† Heuristic N=1280 stopped at 5 seeds: 0.667±0.000, structural floor confirm
 
 ### §1 Baseline performance
 
-Both heuristic and random converge to 0.667±0.000 at N≥160 and stay flat through N=1280
-(heuristic N=1280 confirmed on 5 seeds; zero variance made further seeds unnecessary).
-This is a structural floor: all medium organisms have exactly 3 phenotypes, and the benchmark
-prediction tasks involve two-gene cross-module interventions. The additive heuristic predicts
-the sum of individual BLOCK effects — this approximation fails on the nonlinear sigmoid readout.
-Predicting 0.5 everywhere lands 2/3 of phenotypes within ±0.10 by chance alone (since ≈2 of
-3 outcomes fall in the mid-range), which is exactly what random achieves.
+Random reaches the structural floor of 0.667±0.000 at N≥160; heuristic reaches the same
+floor at N≥320 (still 0.583±0.154 at N=160). Both stay flat through N=1280 (heuristic
+N=1280 confirmed on 5 seeds; zero variance made further seeds unnecessary).
 
-A striking finding: **random beats or ties heuristic at every N**. At N=20, random (0.650) >
-heuristic (0.550). The heuristic's additive approximation actively misleads — structured search
-with a wrong model is worse than no model at all. The crossover at N≥320 where heuristic
-catches up to random (both 0.667) is because both are hitting the same floor, not because
-the heuristic improves.
+#### Why the floor is exactly 2/3
 
-**Implication for RQ2**: heuristic failure is not N-dependent. The mechanism is the prediction
-task design — cross-module double-gene interventions activate sigmoid nonlinearities that
-additivity cannot represent. This is true at N=20 and N=1280 equally.
+Random predicts 0.5 for every phenotype regardless of intervention. With the ±0.10
+accuracy threshold, scoring correct on a phenotype requires the post-intervention value
+to land in [0.4, 0.6]. The 2/3 floor follows from the construction of LUCA prediction
+tasks (`luca/experiment.py:_generate_tasks`):
+
+1. **Two genes are sampled from a single phenotype's readout dependencies** (preferring
+   shared-readout pairs to ensure non-additivity through the sigmoid). Each receives a
+   {BLOCK, BOOST, DAMPEN} intervention.
+2. **Non-triviality retry**: the pair is re-sampled up to 20 times until at least one
+   phenotype shifts by ≥ 0.10 from baseline (`min_shift = 0.1`). This guarantees ≥1 of
+   the 3 phenotypes is pushed outside [0.4, 0.6] — random cannot trivially score 1.0.
+3. **Cross-module structure** (inter-module edge density 0.04 / 0.08 / 0.15 across
+   easy/medium/hard tiers; see `benchmark_design.md` §3) means the two perturbed genes
+   feeding into one phenotype's readout typically leave the other two phenotypes near
+   their baseline value. The readout bias is constructed so σ(0) = 0.5 at baseline.
+
+Per-task expected accuracy:
+
+```
+acc_random = #{phenotypes still in [0.4, 0.6]} / 3 ≈ 2 / 3 = 0.667
+```
+
+The floor is *exact* at N≥160: random scores 0.667±0.000, meaning every task lands
+precisely 1 phenotype outside the band and 2 inside. At small N (≤80), occasional
+spillover from the perturbed genes to a second phenotype lowers the score (e.g.
+0.650±0.050 at N=20). As N grows, cross-module structure becomes more strict relative
+to intra-module density, the perturbed genes' effect concentrates on the single
+shared-readout phenotype, and the floor becomes a perfect attractor.
+
+#### Why heuristic doesn't simply hit 2/3 at small N
+
+Heuristic does not hit the same floor by accident. It actively misleads on shared-readout
+2-gene perturbations: the additive single-gene approximation fails through the sigmoid
+nonlinearity, predicting effects that compound when in reality they saturate. At N=20
+this drives heuristic to 0.550 — *below* random's 0.650.
+
+A striking finding: **random beats or ties heuristic at every N**. The crossover at N≥320
+where both converge to 0.667 is not because the heuristic improves; it is because most
+phenotypes are structurally unaffected by the intervention at large N, so the additive
+model's misspecification on the one affected phenotype is amortised away. Both methods
+end up landing in the same 2-of-3-phenotypes-near-baseline regime.
+
+**Implication for RQ2**: heuristic failure is not N-dependent. The mechanism is the
+prediction task design — cross-module double-gene interventions activate sigmoid
+nonlinearities that additivity cannot represent. This is true at N=20 and N=1280 equally.
 
 ### §2 Scaling behaviour (RQ1)
 
