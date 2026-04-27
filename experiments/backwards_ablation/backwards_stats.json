@@ -30,10 +30,32 @@
         "delta_vs_heuristic": 0.05
       },
       "deepseek-v3": {
-        "n_pairs": 0
+        "n_pairs": 20,
+        "forward_mean": 0.925,
+        "forward_std": 0.1008,
+        "backward_mean": 0.8583,
+        "backward_std": 0.1458,
+        "delta_mean": 0.0667,
+        "delta_ci_95": [
+          -0.0083,
+          0.15
+        ],
+        "wilcoxon_p": 0.167254,
+        "delta_vs_heuristic": 0.075
       },
       "qwen-3.5": {
-        "n_pairs": 0
+        "n_pairs": 16,
+        "forward_mean": 0.875,
+        "forward_std": 0.1139,
+        "backward_mean": 0.8854,
+        "backward_std": 0.1992,
+        "delta_mean": -0.0104,
+        "delta_ci_95": [
+          -0.1146,
+          0.1041
+        ],
+        "wilcoxon_p": 0.722108,
+        "delta_vs_heuristic": -0.0021
       },
       "gpt-5.1": {
         "n_pairs": 20,
@@ -148,10 +170,32 @@
         "delta_vs_heuristic": 0.1389
       },
       "deepseek-v3": {
-        "n_pairs": 0
+        "n_pairs": 20,
+        "forward_mean": 0.6389,
+        "forward_std": 0.1425,
+        "backward_mean": 0.6667,
+        "backward_std": 0.1453,
+        "delta_mean": -0.0278,
+        "delta_ci_95": [
+          -0.125,
+          0.0667
+        ],
+        "wilcoxon_p": 0.616491,
+        "delta_vs_heuristic": 0.1
       },
       "qwen-3.5": {
-        "n_pairs": 0
+        "n_pairs": 18,
+        "forward_mean": 0.6636,
+        "forward_std": 0.1699,
+        "backward_mean": 0.7006,
+        "backward_std": 0.1799,
+        "delta_mean": -0.037,
+        "delta_ci_95": [
+          -0.145,
+          0.071
+        ],
+        "wilcoxon_p": 0.460302,
+        "delta_vs_heuristic": 0.0908
       },
       "gpt-5.1": {
         "n_pairs": 20,
