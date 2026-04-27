@@ -2,7 +2,7 @@
 
 **Status:** first draft, ready for paper-subsection adaptation.
 **Date:** 2026-04-23
-**Owner:** Karl Gemayel
+**Owner:** Anonymous
 **Design spec:** `docs/superpowers/specs/2026-04-22-backwards-organisms-ablation-design.md`
 **Stats artifact:** `experiments/backwards_ablation/backwards_stats.json`
 **Tables artifact:** `experiments/backwards_ablation/tables.md`

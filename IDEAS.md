@@ -74,7 +74,7 @@ _Additional figures for the paper — implement in the paper repo._
 
 ## Conflict-of-Interest Controls
 
-_Addresses the concern that the benchmark was authored using Claude Code and may inadvertently favour Claude's reasoning style. Two distinct sub-questions; both deferred until after initial submission._
+_Addresses the concern that the benchmark was authored with LLM assistance and may inadvertently favour certain model families. Two distinct sub-questions; both deferred until after initial submission._
 
 - **Gemini as benchmark agent** (quantitative): run the full Part 1 sweep (or at minimum
   `A_medium_healthy`, 20 seeds) with `gemini-2.5-pro` or `gemini-2.0-flash` as the agent.
