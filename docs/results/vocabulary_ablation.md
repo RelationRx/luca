@@ -26,7 +26,7 @@ Fixed: 20 seeds per cell (same seeds paper_v1 used), healthy mode, `{predict, di
 
 **Total**: 2 models × 2 difficulties × 2 vocabs × 2 prompts × 20 seeds = **320 sessions**.
 
-Design doc: `docs/superpowers/specs/2026-04-20-real-vocabulary-ablation-design.md` (vocabulary axis only; prompt axis added after Phase 1 suggested the need).
+Design doc: `docs/designs/2026-04-20-real-vocabulary-ablation-design.md` (vocabulary axis only; prompt axis added after Phase 1 suggested the need).
 
 ## Primary results
 
@@ -103,7 +103,7 @@ This ablation specifically addresses an LLM-era concern that doesn't arise in cl
 
 ### Hang in the permit run
 
-Phase 2 (permit arm) encountered a pathological hang: a single DeepSeek-V3.1 request via Together AI blocked for 10+ hours on `medium_real_permit` seed 12. The nominal 120 s SDK timeout did not fire. Fixed in commit `ac209d9` (PR #103) by wrapping every API call in a worker-thread wallclock cap (`_API_HARD_TIMEOUT = 180 s`). Max per-session stuck time is now bounded at ~20 minutes. The permit run was killed after `medium_real_permit` completed and restarted for hard tier only under the new code.
+Phase 2 (permit arm) encountered a pathological hang: a single DeepSeek-V3.1 request via Together AI blocked for 10+ hours on `medium_real_permit` seed 12. The nominal 120 s SDK timeout did not fire. Fixed in commit `b829ad9` (PR #103) by wrapping every API call in a worker-thread wallclock cap (`_API_HARD_TIMEOUT = 180 s`). Max per-session stuck time is now bounded at ~20 minutes. The permit run was killed after `medium_real_permit` completed and restarted for hard tier only under the new code.
 
 ### Caching
 
@@ -156,10 +156,10 @@ Seeds are pulled from `experiments/paper_v1/selected_seeds.json` so results can 
 
 | PR | commit | change |
 |---|---|---|
-| #99  | `dd0604f` merge | vocabulary axis: `luca/vocabulary_real.py`, `generate_organism(vocabulary=...)`, `evaluate_model(vocabulary=...)`, runner |
-| #101 | `beb2cbb` merge | prompt caching on Anthropic path |
-| #102 | `7177b47` merge | prompt-permission axis: `system_prompt_variant` plumbed through, `_PERMIT_BLOCK` constant |
-| #103 | `d3cb8b0` merge | hard wallclock timeout on API calls (fixes hang) |
+| #99  | `a0a5a8c` merge | vocabulary axis: `luca/vocabulary_real.py`, `generate_organism(vocabulary=...)`, `evaluate_model(vocabulary=...)`, runner |
+| #101 | `2de1536` merge | prompt caching on Anthropic path |
+| #102 | `cf75dea` merge | prompt-permission axis: `system_prompt_variant` plumbed through, `_PERMIT_BLOCK` constant |
+| #103 | `671f10b` merge | hard wallclock timeout on API calls (fixes hang) |
 
 Generation commit for organisms: `v1-generation-freeze-2` (same as paper_v1).
 

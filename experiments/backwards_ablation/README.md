@@ -4,8 +4,7 @@ Test whether top-LLM performance on LUCA reflects genuine causal inference or
 transferred structural priors by running models on backwards-inverted organisms
 (every signed quantity flipped) and comparing to the paper's forward results.
 
-See the design spec:
-`docs/superpowers/specs/2026-04-22-backwards-organisms-ablation-design.md`
+Results: `docs/results/backwards_ablation.md`.
 
 ## Scope
 

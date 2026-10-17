@@ -284,7 +284,7 @@ difficulty)` is fully deterministic: seed + parameters → organism. The seed li
 
 The risk is generation code changes invalidating results (as happened with PR #21). Guard:
 
-- Generation code frozen at git tag **`v1-generation-freeze-2`** (commit `57f7be7`, 2026-03-17).
+- Generation code frozen at git tag **`v1-generation-freeze-2`** (commit `8880d24`, 2026-03-17).
 - All Part 1 runs must use this tag or a later commit that does not touch `luca/generation.py`
   or `luca/experiment.py`.
 - Each results JSONL records the git commit hash at run time (via `run.py` metadata).
@@ -383,7 +383,7 @@ whether understanding the causal structure predicts scoring well.
 
 Full run complete: 7 models × 4 sweeps × 20 seeds = **560/560 sessions, all N=20**.
 (5 LLMs + heuristic + random baselines.)
-Generation frozen at `v1-generation-freeze-2` (commit `57f7be7`).
+Generation frozen at `v1-generation-freeze-2` (commit `8880d24`).
 
 Fixes applied during this run:
 - Early-stop bug fixed in `luca/agent.py` (gpt-5.1/gpt-4.1 exiting before submitting; now nudged to complete).
