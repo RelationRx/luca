@@ -258,10 +258,14 @@ networkx>=3.0        # GRN graph layout
 If you use LUCA in your research, please cite:
 
 ```bibtex
-@misc{luca2026,
-  title  = {{LUCA}: A Synthetic Organism Reasoning Benchmark for LLM Agents},
-  author = {Anonymous},
-  year   = {2026},
-  url    = {https://anonymous.4open.science/r/luca},
+@inproceedings{gogleva2026luca,
+  title     = {{LUCA}: A Synthetic World for Experimental Reasoning},
+  author    = {Anna Gogleva and Thomas Charman and Martin Balla and Karl Gemayel},
+  booktitle = {NeurIPS 2026 Workshop on Evaluation of Interactive Agents (IAEval)},
+  year      = {2026},
+  note      = {Non-archival workshop paper},
 }
 ```
+
+The workshop is non-archival, so there are no proceedings. This entry will be
+replaced if a preprint or an archival version appears.

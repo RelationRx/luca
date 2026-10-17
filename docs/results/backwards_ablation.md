@@ -2,7 +2,6 @@
 
 **Status:** updated with full open-source coverage (DeepSeek V3.1, Qwen 3.5); ready for paper-subsection adaptation.
 **Dates:** 2026-04-23 (initial 5 LLMs), 2026-04-25 (added DeepSeek + Qwen).
-**Owner:** Anonymous
 **Design spec:** `docs/superpowers/specs/2026-04-22-backwards-organisms-ablation-design.md`
 **Stats artifact:** `experiments/backwards_ablation/backwards_stats.json`
 **Tables artifact:** `experiments/backwards_ablation/tables.md`
