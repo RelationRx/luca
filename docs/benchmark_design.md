@@ -351,7 +351,7 @@ Notable behaviours documented in `docs/results/part1_benchmark.md`:
 ## 11. Reproducibility
 
 **Generation freeze**: all paper v1 results use generation code frozen at tag
-`v1-generation-freeze-2` (commit `57f7be7`). Results from the initial freeze
+`v1-generation-freeze-2` (commit `8880d24`). Results from the initial freeze
 (`v1-generation-freeze`) were invalidated by organism quality fixes in PR #21.
 
 **Seed selection**: seeds 0–19 per sweep, pre-screened by `select_seeds.py` to

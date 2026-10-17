@@ -88,8 +88,11 @@ the same seed when run in different processes — discovered 2026-03-17, fixed i
 ### Generation freeze tags
 **Decision:** Git tags mark canonical generation versions used for paper results.
 - `v1-generation-freeze` — initial freeze (invalidated by organism quality fixes in PR #21)
-- `v1-generation-freeze-2` (commit `57f7be7`) — current canonical version; all paper v1 results use this
+- `v1-generation-freeze-2` (commit `8880d24`) — current canonical version; all paper v1 results use this
 **Why:** Ensures results are reproducible even if generation code changes later.
+**Note on references:** commit hashes throughout this repository resolve here; PR
+numbers refer to pull requests in the private development repository and cannot be
+opened from outside. The tags are the reliable handle for reproducing a result.
 
 ### 20 seeds per sweep
 **Decision:** 20 seeds per model × sweep combination.

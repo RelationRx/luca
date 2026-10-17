@@ -77,7 +77,7 @@ LUCA is a benchmark for causal reasoning under a fixed experimental budget. Each
 ## ⚡ Quick Start
 
 ```bash
-pip install -r requirements.txt
+pip install -e .
 
 # Smoke test
 python -c "from luca import generate_organism; o = generate_organism(seed=0); print(o.id)"
@@ -227,7 +227,7 @@ evaluate.py           # Benchmark evaluation script
 demo.py               # Smoke tests + agent demo entry point
 inspect_organism.py   # CLI inspector and replay tool
 docs/                 # Design docs, results, custom agent guide
-tests/                # pytest suite (50 tests)
+tests/                # pytest suite (124 tests)
 requirements.txt
 ```
 

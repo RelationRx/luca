@@ -7,6 +7,12 @@ name = "luca"
 version = "0.1.0"
 description = "Synthetic organism reasoning benchmark for LLM agents"
 readme = "README.md"
+authors = [
+    { name = "Anna Gogleva" },
+    { name = "Thomas Charman" },
+    { name = "Martin Balla" },
+    { name = "Karl Gemayel" },
+]
 requires-python = ">=3.10"
 license = "MIT"
 dependencies = [

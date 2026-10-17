@@ -34,7 +34,7 @@ For chronological context and run notes see `experiments/paper_v1/LAB_JOURNAL.md
 - *Heuristic*: systematically BLOCKs each gene, uses additive model for prediction, exhaustive hypothesis enumeration for diagnosis.
 - *Random*: predicts 0.5 everywhere, submits a random diagnosis. Runs no experiments.
 
-**Generation**: frozen at tag `v1-generation-freeze-2` (commit `57f7be7`), n_genes=20.
+**Generation**: frozen at tag `v1-generation-freeze-2` (commit `8880d24`), n_genes=20.
 
 ---
 
