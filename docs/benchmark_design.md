@@ -397,8 +397,8 @@ than performing novel inference.
 **Planned**: *backwards organisms* — organisms where the expected direction of
 regulatory effects is systematically inverted relative to typical GRN conventions.
 A model relying on learned reasoning heuristics would perform worse on backwards
-organisms; a model reasoning from perturbation evidence would not. See IDEAS.md
-for design notes.
+organisms; a model reasoning from perturbation evidence would not. See
+`docs/results/backwards_ablation.md` for results.
 
 ### Prompt sensitivity
 

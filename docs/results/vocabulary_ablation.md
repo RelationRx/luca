@@ -163,17 +163,16 @@ Seeds are pulled from `experiments/paper_v1/selected_seeds.json` so results can 
 
 Generation commit for organisms: `v1-generation-freeze-2` (same as paper_v1).
 
-## Phase 3 (not yet run)
+## Possible extensions
 
-If reviewers ask for broader coverage:
-- Sonnet 4.6 — complements Opus within the Anthropic family
-- GPT-5.1 — different provider (OpenAI), different training data composition; the strongest test of generalisation across model families
+Coverage could be widened to Sonnet 4.6 (complements Opus within the Anthropic
+family) and GPT-5.1 (a different provider and training mix, the strongest test of
+generalisation across model families). The current two-model, two-provider grid
+(Anthropic plus Together/DeepSeek) is already cross-provider.
 
-Cost: ~$20–40 for the two models × same 2 × 2 × 20 grid. Not critical unless a reviewer demands breadth. Current 2-model × 2-provider coverage (Anthropic + Together/DeepSeek) is already cross-provider.
+## Summary paragraphs
 
-## Draft paragraphs for the paper
-
-Not included in the current submission (no room). Drop-in text kept here for later — camera-ready insertion, rebuttal, v2 submission, or supplementary.
+Two write-ups of this result, at different lengths.
 
 ### Compact (main-text control paragraph, ~70 words)
 

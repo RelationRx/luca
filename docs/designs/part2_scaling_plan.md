@@ -1,7 +1,6 @@
 # Part 2 — Scaling Study Plan
 
 **Last updated:** 2026-03-22
-**Target:** NeurIPS 2026 (~2026-05-02)
 
 ---
 
