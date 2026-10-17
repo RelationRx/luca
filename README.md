@@ -260,7 +260,7 @@ If you use LUCA in your research, please cite:
 ```bibtex
 @inproceedings{gogleva2026luca,
   title     = {{LUCA}: A Synthetic World for Experimental Reasoning},
-  author    = {Gogleva, Anna and Charman, Thomas and Balla, Martin and Gemayel, Karl},
+  author    = {Anna Gogleva and Thomas Charman and Martin Balla and Karl Gemayel},
   booktitle = {NeurIPS 2026 Workshop on Evaluation of Interactive Agents (IAEval)},
   year      = {2026},
   note      = {Non-archival workshop paper},
