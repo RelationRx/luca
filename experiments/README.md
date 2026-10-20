@@ -1,15 +1,17 @@
 # Experiments
 
-Each subdirectory is a self-contained study. Scripts are tracked; per-session logs are not.
+Each subdirectory is a self-contained study behind a result reported in the
+paper. Scripts and small summary artefacts are tracked; per-session logs are
+not.
 
 ## Layout
 
 ```
 <study>/
-├── run_*.py          # sweep / agent runner — generates results_*.jsonl
-├── fig_*.py          # visualisation — reads results and saves *.png
-├── results*.jsonl    # summary results (tracked, one record per run)
-├── metadata.json     # run configuration (tracked, if present)
+├── run*.py           # sweep / agent runner — writes session logs
+├── analyse*.py       # analysis over the session logs
+├── plot.py, fig_*.py # visualisation (where present)
+├── *.json            # tracked inputs and summary statistics
 └── logs/             # per-session agent traces — NOT tracked (regenerate locally)
     ├── *.json        # structured turn-by-turn log
     └── *.html        # self-contained diagnostic report
@@ -17,13 +19,14 @@ Each subdirectory is a self-contained study. Scripts are tracked; per-session lo
 
 ## Studies
 
-| Directory | Description |
-|-----------|-------------|
-| `scaling_study_v1/` | Main scaling sweep: n_genes × budget × seed |
-| `difficulty_pilot/` | Difficulty tier pilot: easy / medium / hard comparison |
-| `difficulty_2d/` | 2D grid: n_genes × difficulty, single seed |
-| `medium_vs_hard/` | Medium vs hard difficulty at varying n_genes |
-| `harder_regimes/` | Large n (75–100) and budget sensitivity; heuristic baseline |
+| Directory | What it produced |
+|-----------|------------------|
+| `paper_v1/` | Main benchmark: 10 models × 6 conditions × 20 seeds (1,200 sessions) |
+| `scaling_v1/` | Scaling study: network sizes N = 20 … 1280 |
+| `vocabulary_ablation/` | Invented vs real vocabulary × prompt permission |
+| `backwards_ablation/` | Backwards-inverted organisms; see its own README |
+
+Results for all four are reported in the paper.
 
 ## Running an experiment
 
@@ -31,11 +34,11 @@ Each subdirectory is a self-contained study. Scripts are tracked; per-session lo
 # Install the package first
 pip install -e .
 
-# Run a sweep (generates results*.jsonl and logs/)
-python experiments/scaling_study_v1/run_sweep.py
+# Run the main benchmark sweep (writes session logs under logs/)
+python experiments/paper_v1/run.py
 
-# Plot results (reads results*.jsonl, saves *.png)
-python experiments/scaling_study_v1/fig_paper_main.py
+# Analyse the resulting logs
+python experiments/paper_v1/analyse.py
 ```
 
 > Session logs are gitignored. To share a specific run, copy the relevant
