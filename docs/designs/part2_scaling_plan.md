@@ -151,9 +151,9 @@ Figures:
 3. *Optional*: heuristic failure decomposition (prediction error by phenotype type).
 
 ### Step 6 — Update paper
-- Fill in Part 2 placeholder in `luca-paper/main.tex`
+- Fill in the Part 2 placeholder in the paper
 - Add scaling figure
-- Update LAB_JOURNAL.md §13 with final results
+- Record the final results
 
 ---
 

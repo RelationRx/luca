@@ -134,7 +134,7 @@ hard organisms require genuine causal reasoning. Changed from ±0.15 in PR #36.
 **Decision:** `.jsonl` result files are gitignored; only scripts and `.md` conclusions are committed.
 **Why:** Results are regeneratable from scripts + seeds. Committing them bloats the repo,
 creates noisy diffs, and gives false assurance (the code is the ground truth, not the outputs).
-Conclusions go in `LAB_JOURNAL.md`.
+Conclusions are reported in the paper.
 
 ### Retry logic for API overloads
 **Decision:** `_with_retry()` retries on HTTP 500/503/529 with exponential backoff (15s×attempt,
@@ -160,7 +160,7 @@ sweeps fail on high-feedback organisms where single-gene perturbations are domin
 effects. On medium disease, heuristic diagnosis = 0.100, below gpt-5.1 (0.200) and gpt-4.1
 (0.167) — exhaustive enumeration is insufficient when signal malfunctions introduce ambiguity
 that gene-level enumeration cannot resolve. (An earlier run recorded 0.35; superseded by the
-final run with corrected seed exclusions. See `docs/results/part1_benchmark.md` §4.)
+final run with corrected seed exclusions.)
 
 ### Random baseline
 **Decision:** Predicts 0.5 everywhere, runs zero experiments, submits random hypothesis.
@@ -176,10 +176,9 @@ This is consistent with `evaluate.py` (`_composite_score` treats None as 0.0).
 **Why:** Not attempting a task is a failure mode, not missing data. GPT-5.1 and GPT-4.1
 frequently exhaust their context window before reaching the diagnosis/rescue phase
 (attempt rates as low as 20–60%). Excluding these sessions would inflate their scores
-and hide the context exhaustion failure. The attempt rate is reported separately in
-`docs/results/part1_benchmark.md` §5a for transparency.
+and hide the context exhaustion failure. The attempt rate is reported separately for transparency.
 **Rejected alternative:** Mean-over-submitted (only count sessions where the model tried).
-This was used in an earlier draft of `docs/results/part1_benchmark.md` and produced misleadingly high
+This was used in an earlier draft of the results write-up and produced misleadingly high
 GPT rescue scores (e.g. GPT-4.1 medium rescue 0.967 over 10 attempts vs 0.483 over 20 seeds).
 The composite column was always computed with None=0, creating an internal inconsistency.
 Corrected 2026-04-09.

@@ -1,7 +1,7 @@
 """
 Vocabulary + prompt-permission ablation analysis.
 
-Reproduces the headline tables in docs/results/vocabulary_ablation.md:
+Reproduces the headline ablation tables:
   1. Per-cell accuracy means and standard deviations (2x2x2 design).
   2. Paired Wilcoxon signed-rank tests, permit - suppress (same vocab,
      same seed).
