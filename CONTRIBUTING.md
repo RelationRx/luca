@@ -16,7 +16,7 @@ No contribution is too small. Even a bug report or a note about unclear docs is 
 ## Setup
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/RelationRx/luca.git
 cd luca
 pip install -e ".[dev]"
 ```
