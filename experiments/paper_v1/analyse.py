@@ -66,7 +66,7 @@ def load_all_logs() -> list[dict]:
                 hyp = s.get("malfunction_hypothesis") or {}
                 diag = hyp.get("score") or 0.0
                 rescues = s.get("rescue_results") or []
-                rescue = max((r.get("restored_fraction", 0.0) for r in rescues), default=0.0)
+                rescue = max(((r.get("restored_fraction") or 0.0) for r in rescues), default=0.0)
                 composite = statistics.mean([pred_acc, diag, rescue])
             else:
                 composite = pred_acc

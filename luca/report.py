@@ -68,7 +68,7 @@ def print_session_trace(log: dict) -> None:
             print(f"  Malfunction:  {sym}  {mh['target_name']} ({mh['malfunction_type']})  score={score}")
         rr = summary.get("rescue_results", [])
         if rr:
-            best = max(r["restored_fraction"] for r in rr)
+            best = max((r.get("restored_fraction") or 0.0) for r in rr)
             best_mse = min(r["mse_vs_healthy"] for r in rr)
             sym = "✓" if best >= 1.0 else ("~" if best >= 0.5 else "✗")
             print(f"  Best rescue:  {sym}  restored={best:.0%}  mse_vs_healthy={best_mse}")
@@ -138,7 +138,7 @@ def _print_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> N
     elif tool == "test_rescue":
         iv  = _normalise_iv(inp.get("interventions", {}))
         bud = res.get("budget_remaining", "?")
-        rf  = res.get("restored_fraction", 0.0)
+        rf  = res.get("restored_fraction") or 0.0
         mse = res.get("mse_vs_healthy", "?")
         sym = "✓" if rf >= 1.0 else ("~" if rf >= 0.5 else "✗")
         print(f"  ▶ test_rescue({_fmt_iv(iv)})  [budget→{bud}]")
@@ -687,7 +687,7 @@ def _build_html(log: dict) -> str:
 
     rr = summary.get("rescue_results", [])
     if rr:
-        best     = max(r["restored_fraction"] for r in rr)
+        best     = max((r.get("restored_fraction") or 0.0) for r in rr)
         best_mse = min(r["mse_vs_healthy"] for r in rr)
         badge    = _badge(best, 1.0, 0.5)
         parts.append(
@@ -774,7 +774,7 @@ def _html_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> st
             rows.append('<span class="warn">⚠ did not converge</span>')
 
     elif tool == "test_rescue":
-        rf  = res.get("restored_fraction", 0.0)
+        rf  = res.get("restored_fraction") or 0.0
         mse = res.get("mse_vs_healthy", "?")
         cls = "ok" if rf >= 1.0 else ("warn" if rf >= 0.5 else "err")
         rows.append(f'<span class="{cls}">restored={rf:.0%}  mse_vs_healthy={mse}</span>')
