@@ -78,6 +78,22 @@ class ExperimentSession:
         self._hypothesis_locked: bool = False   # True after first hypothesis submission
         self._rescue_results: list[dict] = []
 
+        # A PERSIST malfunction is a chronic signal override. Gene malfunctions
+        # live in dynamics.rule, but signal malfunctions do not. Every
+        # simulation in this session must therefore include these overrides.
+        # Without them, only the displayed baseline is diseased, and any
+        # experiment appears to cure the organism. The value convention
+        # (strength * severity, negated for inhibiting signals) matches
+        # chronic_signal_overrides in generation.py.
+        self._malfunction_signal_overrides: dict[str, float] = {}
+        for m in organism.malfunctions or []:
+            if m.type == "PERSIST":
+                sig = next(s for s in organism.signals if s.id == m.target)
+                amp = sig.strength * m.severity
+                self._malfunction_signal_overrides[m.target] = (
+                    amp if sig.mode == "activates" else -amp
+                )
+
         # Network reconstruction state
         self._submitted_network: list[dict] | None = None
 
@@ -142,7 +158,12 @@ class ExperimentSession:
                 result = simulate_sigmoid(
                     self.organism,
                     interventions=interventions,
-                    active_signals={},
+                    # Held-out ground truths are computed under the diseased
+                    # condition: chronic malfunction signals stay active.
+                    active_signals=dict(self._malfunction_signal_overrides),
+                    # 65536 keeps this RNG stream separate from the
+                    # per-experiment streams, which use [seed, budget_used]
+                    # with budget_used < ~50.
                     rng=np.random.default_rng([self._seed if self._seed is not None else 0,
                                                65536 + i * 100 + _attempt]),
                 )
@@ -235,15 +256,7 @@ class ExperimentSession:
 
         if self._is_disease:
             org = self.organism
-            disease_phenos = baseline_phenotypes  # already computed above
-            aberrant = [
-                label for label, val in disease_phenos.items()
-                if not (
-                    org.healthy_phenotype_ranges[label][0]
-                    <= val
-                    <= org.healthy_phenotype_ranges[label][1]
-                )
-            ]
+            aberrant = self._aberrant_phenotype_labels()
             info["cell_type"] = org.cell_type.label if org.cell_type else None
             info["cell_type_description"] = (
                 org.cell_type.description if org.cell_type else None
@@ -318,6 +331,9 @@ class ExperimentSession:
 
         if active_signals:
             signal_overrides.update(active_signals)
+        # The chronic malfunction signal wins over any agent-supplied override
+        # of the same signal: agents cannot switch the disease off.
+        signal_overrides.update(self._malfunction_signal_overrides)
 
         result = simulate_sigmoid(
             self.organism,
@@ -463,6 +479,12 @@ class ExperimentSession:
         Cost 1. Test whether a proposed intervention restores aberrant phenotypes
         to healthy ranges. Runs simulate_sigmoid from the disease baseline.
 
+        Scoring: restored_fraction = (aberrant phenotypes now in their healthy
+        range) / (aberrant phenotypes at the disease baseline). Phenotypes that
+        were already healthy are NOT counted, so an intervention that changes
+        nothing scores 0.0. Phenotypes the intervention pushes out of range are
+        reported separately as healthy_phenotypes_broken.
+
         Requires: submit_malfunction_hypothesis() must be called first.
 
         interventions: {gene_name → {"type": "BLOCK"|"BOOST"|"DAMPEN"}} or
@@ -479,6 +501,9 @@ class ExperimentSession:
         if isinstance(resolved, dict):
             return resolved  # error
         gene_interventions, signal_overrides = resolved
+        # Rescue must be achieved *despite* the chronic malfunction signal —
+        # it cannot be switched off, only compensated for.
+        signal_overrides.update(self._malfunction_signal_overrides)
 
         result = simulate_sigmoid(
             self.organism,
@@ -494,25 +519,48 @@ class ExperimentSession:
         phenotype_in_range: dict[str, bool] = {}
         healthy_phenos = self._compute_phenotypes_from_state(org.healthy_baseline)
         mse_sum = 0.0
-        restored = 0
+        in_range_count = 0
         total = len(org.healthy_phenotype_ranges)
         for label, (lo, hi) in org.healthy_phenotype_ranges.items():
             val = rescue_phenos.get(label, 0.5)
             in_range = lo <= val <= hi
             phenotype_in_range[label] = in_range
             if in_range:
-                restored += 1
+                in_range_count += 1
             healthy_val = healthy_phenos.get(label, 0.5)
             mse_sum += (val - healthy_val) ** 2
 
-        restored_fraction = restored / max(total, 1)
+        # restored_fraction scores ONLY the phenotypes that were aberrant at the
+        # disease baseline. A phenotype that was already healthy and stayed
+        # healthy earns no credit: an empty intervention scores 0.0, not
+        # n_healthy/n_total. Phenotypes broken by the intervention are counted
+        # separately in healthy_phenotypes_broken rather than folded into the
+        # score, so "did it fix the disease" and "did it cause collateral
+        # damage" stay separable.
+        aberrant_labels = self._aberrant_phenotype_labels()
+        n_aberrant = len(aberrant_labels)
+        restored = sum(1 for label in aberrant_labels if phenotype_in_range[label])
+        # Generation guarantees >= 1 aberrant phenotype on a disease organism;
+        # the guard keeps the score defined if that ever stops holding.
+        restored_fraction = restored / n_aberrant if n_aberrant else None
+        broken = sum(
+            1
+            for label in phenotype_in_range
+            if label not in aberrant_labels and not phenotype_in_range[label]
+        )
         mse_vs_healthy = mse_sum / max(total, 1)
 
         rescue_result = {
             "interventions": interventions,
             "phenotypes": rescue_phenos,
             "phenotype_in_healthy_range": phenotype_in_range,
-            "restored_fraction": round(restored_fraction, 4),
+            "aberrant_phenotypes": aberrant_labels,
+            "n_aberrant": n_aberrant,
+            "restored_fraction": (
+                round(restored_fraction, 4) if restored_fraction is not None else None
+            ),
+            "healthy_phenotypes_broken": broken,
+            "all_phenotypes_in_range_fraction": round(in_range_count / max(total, 1), 4),
             "mse_vs_healthy": round(mse_vs_healthy, 4),
             "budget_remaining": self.budget - self.budget_used,
         }
@@ -656,12 +704,7 @@ class ExperimentSession:
                         round(org.healthy_phenotype_ranges[label][1], 4),
                     ],
                 }
-                for label, val in baseline_phenotypes.items()
-                if not (
-                    org.healthy_phenotype_ranges[label][0]
-                    <= val
-                    <= org.healthy_phenotype_ranges[label][1]
-                )
+                for label in self._aberrant_phenotype_labels()
             }
             summary["true_malfunction"] = [
                 {"target_name": m.target_name, "malfunction_type": m.type}
@@ -697,6 +740,27 @@ class ExperimentSession:
             summary["network_reconstruction"] = None
 
         return summary
+
+    def _aberrant_phenotype_labels(self) -> list[str]:
+        """
+        Labels of the phenotypes that sit OUTSIDE their healthy range at the
+        disease baseline, i.e. the ones a rescue has to fix.
+
+        Single source of truth for get_info(), get_summary() and test_rescue(),
+        so the three can never disagree about what counts as aberrant.
+        Deterministic: _compute_baseline_phenotypes() is noise-free.
+        """
+        org = self.organism
+        baseline = self._compute_baseline_phenotypes()
+        return [
+            label
+            for label, val in baseline.items()
+            if not (
+                org.healthy_phenotype_ranges[label][0]
+                <= val
+                <= org.healthy_phenotype_ranges[label][1]
+            )
+        ]
 
     def _compute_baseline_phenotypes(self) -> dict[str, float]:
         from .dynamics import compute_phenotypes

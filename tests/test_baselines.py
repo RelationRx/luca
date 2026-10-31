@@ -142,3 +142,19 @@ class TestCausalSweepBaseline:
         run_causal_sweep(session)
         summary = session.get_summary()
         assert summary["avg_accuracy"] == 1.0
+
+
+def test_causal_sweep_runs_through_evaluate_dispatch():
+    """
+    CausalSweep must be reachable by model name, not only by direct import.
+
+    Regression test: evaluate.py dispatched only "random" and "heuristic", so
+    `--model causal-sweep` fell through to the LLM path and failed on every
+    seed with "Cannot infer provider from model name 'causal-sweep'". The
+    paper reports a CausalSweep row, so the baseline has to be runnable from
+    committed code.
+    """
+    import evaluate
+    assert hasattr(evaluate, "run_causal_sweep")
+    src = open(evaluate.__file__).read()
+    assert 'model_name == "causal-sweep"' in src

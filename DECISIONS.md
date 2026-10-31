@@ -119,6 +119,27 @@ disease mode results tables; composite is a summary convenience only. This makes
 inflation transparent and lets readers assess each capability independently. The sub-scores are
 already computed and stored in all session logs — no re-runs needed.
 
+### Rescue score counts only the aberrant phenotypes (2026-10-31)
+**Decision:** `restored_fraction` = (aberrant phenotypes back inside their healthy range) /
+(aberrant phenotypes at the disease baseline). Phenotypes that were already healthy earn no
+credit, so an intervention that changes nothing scores 0.0.
+**Why:** The previous formula divided by ALL phenotypes, so a phenotype that was healthy before
+and stayed healthy counted as "restored". Most disease organisms have exactly 1 of 3 phenotypes
+aberrant, so doing nothing scored 2/3 = 0.6667. Reported by a reviewer of the workshop paper,
+who found the empty intervention on (medium, seed 1) scoring 0.6667 while fixing zero
+abnormalities. Reproduced exactly; it now scores 0.0.
+**Collateral damage is reported, not scored:** `healthy_phenotypes_broken` counts phenotypes the
+intervention pushed OUT of range. The old formula penalised those by accident, mixing "did it fix
+the disease" with "did it break something else". They are now separable.
+**Rejected:** scoring 1.0 only when every aberrant phenotype is fixed AND nothing is broken --
+harsher than the task description, and it hides partial rescues. Also rejected: silently
+redefining the old number. `all_phenotypes_in_range_fraction` keeps it under a name that says
+what it measures.
+**Note on reproducibility:** a no-intervention control scores about 0.15 rather than 0.00. A few
+organisms have an aberrant phenotype within 0.02 of its healthy range, and the rescue readout
+carries simulation noise, so those can register as restored. The same organisms make rescue
+scores vary by about one seed in twenty between runs. Diagnosis is unaffected.
+
 ### Prediction accuracy threshold (±0.10)
 **Decision:** A prediction is "correct" if within 0.10 of the true phenotype value.
 **Why:** Phenotypes are in [0,1]; ±0.10 is 10% of the full range. At ±0.15 the heuristic and
