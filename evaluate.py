@@ -51,7 +51,7 @@ DEFAULT_N_MODULES = 4
 # Built-in baselines (moved to luca/baselines/)
 # ---------------------------------------------------------------------------
 
-from luca.baselines import run_random, run_heuristic
+from luca.baselines import run_random, run_heuristic, run_causal_sweep
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +167,14 @@ def evaluate_model(
             elif model_name == "heuristic":
                 summary = run_heuristic(session, active_tasks=active_tasks)
                 _write_baseline_log(log_path, model_name, seed, summary)
+            elif model_name == "causal-sweep":
+                # run_causal_sweep mutates the session and returns None, so the
+                # summary is read back off the session, like the agent_fn path.
+                # It takes no active_tasks: it always runs the full
+                # explore/predict/diagnose/rescue strategy.
+                run_causal_sweep(session)
+                summary = session.get_summary()
+                _write_baseline_log(log_path, model_name, seed, summary)
             elif agent_fn is not None:
                 agent_fn(session)
                 summary = session.get_summary()
@@ -239,7 +247,7 @@ def _make_record(seed, org, summary, model_name, disease, difficulty, active_tas
         hyp = summary.get("malfunction_hypothesis") or {}
         rescue_results = summary.get("rescue_results") or []
         best_rescue = max(
-            (r.get("restored_fraction", 0.0) for r in rescue_results), default=None
+            ((r.get("restored_fraction") or 0.0) for r in rescue_results), default=None
         )
         record["true_malfunction"] = summary.get("true_malfunction")
         record["diagnosis_score"] = hyp.get("score")
@@ -317,6 +325,10 @@ def main() -> None:
         help="Include the heuristic baseline: BLOCKs each gene once, then predicts additively. No API key required.",
     )
     parser.add_argument(
+        "--causal-sweep", action="store_true",
+        help="Include the CausalSweep baseline: a privileged sweep that reads the ground-truth dynamics model. No API key required.",
+    )
+    parser.add_argument(
         "--disease", action="store_true",
         help="Evaluate in disease mode (default: healthy)",
     )
@@ -375,6 +387,8 @@ def main() -> None:
         models.append("random")
     if args.heuristic:
         models.append("heuristic")
+    if args.causal_sweep:
+        models.append("causal-sweep")
 
     agent_fn = None
     agent_model_name = None
@@ -384,7 +398,7 @@ def main() -> None:
         models.append(agent_model_name)
 
     if not models:
-        parser.error("Specify at least one --model, --heuristic, --random, or --agent")
+        parser.error("Specify at least one --model, --heuristic, --random, --causal-sweep, or --agent")
 
     task_set = set(args.tasks)
     if "all" in task_set:
@@ -414,6 +428,8 @@ def main() -> None:
             print(f"\n[random]  (random baseline: no experiments, predict 0.5 everywhere — no LLM)")
         elif model_name == "heuristic":
             print(f"\n[heuristic]  (systematic baseline: BLOCK each gene once, predict additively — no LLM)")
+        elif model_name == "causal-sweep":
+            print(f"\n[causal-sweep]  (privileged baseline: sweeps with the ground-truth dynamics model — no LLM)")
         else:
             print(f"\n[{model_name}]")
         fn = agent_fn if (agent_model_name and model_name == agent_model_name) else None

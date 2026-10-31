@@ -27,9 +27,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
 import threading
 import urllib.request
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -57,6 +59,20 @@ def notify_slack(text: str) -> None:
         urllib.request.urlopen(req, timeout=10)
     except Exception:
         pass  # never let a notification failure break an experiment run
+
+
+def _backup_existing(model_file: Path) -> Path | None:
+    """Copy an existing results file aside before it is rewritten.
+
+    Results files are gitignored, so an overwrite destroys the only copy.
+    Returns the backup path, or None if there was nothing to back up.
+    """
+    if not model_file.exists():
+        return None
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup = model_file.with_name(f"{model_file.name}.bak-{stamp}")
+    shutil.copy2(model_file, backup)
+    return backup
 
 
 def _run_one_model(
@@ -91,13 +107,28 @@ def _run_one_model(
 
     model_file = results_dir / f"{model_name.replace('/', '_')}.jsonl"
     with _write_lock:
+        backup = _backup_existing(model_file)
+        if backup is not None:
+            print(f"  (previous results backed up to {backup.name})")
         if resume and model_file.exists():
             existing = [json.loads(l) for l in model_file.read_text().splitlines() if l.strip()]
+            existing_by_seed = {r["seed"]: r for r in existing}
             new_seeds = {r["seed"] for r in records}
-            records = sorted(
-                [r for r in existing if r["seed"] not in new_seeds] + records,
-                key=lambda r: r["seed"],
-            )
+            kept_old = [r for r in existing if r["seed"] not in new_seeds]
+            merged_new = []
+            for r in records:
+                old = existing_by_seed.get(r["seed"])
+                if "error" in r and old is not None and "error" not in old:
+                    # A failed rerun attempt must never destroy a previously
+                    # valid record for the same seed — keep the old one.
+                    # Without this, a --resume rerun that hits a provider error
+                    # writes a bare {"error": ...} record over a real result.
+                    print(f"  ⚠️ rerun of seed {r['seed']} failed ({r.get('error')!r}); "
+                          "keeping previous valid record, not overwriting")
+                    merged_new.append(old)
+                else:
+                    merged_new.append(r)
+            records = sorted(kept_old + merged_new, key=lambda r: r["seed"])
         with open(model_file, "w") as f:
             for r in records:
                 f.write(json.dumps(r) + "\n")

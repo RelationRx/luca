@@ -67,6 +67,17 @@ def _call_with_hard_timeout(fn, timeout_s: float, *args, **kwargs):
         executor.shutdown(wait=False)
 
 
+class _EmptyResponseError(Exception):
+    """Raised when a chat-completion call returns HTTP 200 with no usable
+    choices — seen on OpenRouter when the underlying provider fails or
+    times out mid-request but OpenRouter still returns a well-formed
+    envelope (`choices: null`) instead of an HTTP error. The OpenAI SDK
+    doesn't raise for this shape, so `response.choices[0]` crashes with
+    a bare TypeError unless callers check first. Wrapping it in a
+    dedicated retryable exception lets the existing retry loop handle it
+    like any other transient provider failure."""
+
+
 def _with_retry(fn, retryable_exc: tuple, *args, **kwargs):
     """Call fn(*args, **kwargs) up to _API_RETRIES times on retryable_exc errors."""
     for attempt in range(_API_RETRIES):
@@ -611,6 +622,44 @@ def _normalise_prediction(tool_input: dict) -> dict[str, float] | None:
     return prediction or None
 
 
+def _normalise_edges(raw: Any) -> list | str:
+    """
+    Convert any submit_network ``edges`` format a model might send into a
+    list of edge dicts. ExperimentSession.submit_network validates each
+    edge's contents (gene/phenotype/direction) already — this only
+    handles the outer container shape, mirroring _normalise_interventions.
+
+    Handles:
+    - Correct list format (no-op)
+    - JSON string (unwrap)
+    - A single edge dict, not wrapped in a list
+
+    Without this, a string or bare dict gets iterated element-by-element
+    (characters, or dict keys) by submit_network's `for edge in edges`
+    loop, producing a confusing "edge N: must be a dict" error per
+    character/key instead of a clear one. Seen in real qwen-3.5 sessions
+    (seam-bug audit item 3); the model recovered by retrying with a
+    correct list on the next turn in both observed cases, so this isn't
+    known to have caused any silent mis-scoring — it's a robustness fix,
+    not a correctness fix.
+
+    Returns an error string if the input cannot be parsed.
+    """
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            return f"edges must be a list, got string: {raw!r}"
+
+    if isinstance(raw, dict):
+        return [raw]
+
+    if isinstance(raw, list):
+        return raw
+
+    return []
+
+
 # ---------------------------------------------------------------------------
 # Tool dispatch
 # ---------------------------------------------------------------------------
@@ -643,7 +692,10 @@ def dispatch_tool(session: ExperimentSession, tool_name: str, tool_input: dict) 
     elif tool_name == "submit_hypothesis":
         return session.submit_hypothesis(tool_input["text"])
     elif tool_name == "submit_network":
-        return session.submit_network(tool_input.get("edges", []))
+        edges = _normalise_edges(tool_input.get("edges", []))
+        if isinstance(edges, str):
+            return {"error": edges}
+        return session.submit_network(edges)
     elif tool_name == "test_rescue":
         raw = tool_input.get("interventions", {})
         interventions = _normalise_interventions(raw)
@@ -772,11 +824,41 @@ def _run_agent_anthropic(
         # Add assistant response to history
         messages.append({"role": "assistant", "content": response.content})
 
-        # Check if done
+        # Check if done. Disease sessions with an active "diagnose" task are
+        # only actually done once the *scored* hypothesis is locked in via
+        # submit_malfunction_hypothesis(). submit_hypothesis() is a free-text
+        # scratchpad that never locks anything — accepting end_turn here
+        # would let the model narrate a correct-sounding diagnosis in prose
+        # and stop without ever calling the tool that scores it. This
+        # mirrors the fix applied to _run_agent_openai for the same bug
+        # class (see LAB_JOURNAL for the write-up); the Anthropic loop had
+        # no equivalent check at all, verified clean only empirically
+        # (0/120 existing Claude disease sessions hit it) — this closes
+        # the gap defensively rather than leaving it unguarded.
         if response.stop_reason == "end_turn":
+            requires_malfunction_lock = disease_mode and "diagnose" in active_tasks
+            hypothesis_done = (
+                session._hypothesis_locked if requires_malfunction_lock
+                else ("predict" not in active_tasks or session._hypothesis is not None)
+            )
+            if hypothesis_done:
+                if verbose:
+                    print("[agent] Agent finished naturally.")
+                break
+            final_call = (
+                "submit_malfunction_hypothesis(target_name, malfunction_type)"
+                if requires_malfunction_lock else "submit_hypothesis()"
+            )
             if verbose:
-                print("[agent] Agent finished naturally.")
-            break
+                print(f"[agent] stop_reason=end_turn but {final_call} was never called. Nudging.")
+            messages.append({
+                "role": "user",
+                "content": (
+                    f"You stopped without calling {final_call}. "
+                    f"Please call it now to complete the session."
+                ),
+            })
+            continue
 
         # max_tokens: response was truncated mid-generation.  Process any tool
         # calls that were already emitted in the partial response and continue.
@@ -979,7 +1061,7 @@ def _run_agent_openai(
     if api_key is not None:
         client_kwargs["api_key"] = api_key
     client = OpenAI(**client_kwargs)
-    _openai_retryable = (OAITimeoutError, OAIConnectionError, OAIRateLimitError)
+    _openai_retryable = (OAITimeoutError, OAIConnectionError, OAIRateLimitError, _EmptyResponseError)
 
     if disease_mode is None:
         disease_mode = session.is_disease
@@ -1034,6 +1116,14 @@ def _run_agent_openai(
             ),
         })
 
+    def _create_completion(**kwargs) -> Any:
+        response = client.chat.completions.create(**kwargs)
+        if not getattr(response, "choices", None):
+            raise _EmptyResponseError(
+                f"Response had no choices (upstream provider failure?): {response!r}"
+            )
+        return response
+
     def _run_turn(msgs: list[dict]) -> Any:
         kwargs: dict[str, Any] = dict(
             model=model,
@@ -1045,7 +1135,7 @@ def _run_agent_openai(
             # gpt-5.1+ requires max_completion_tokens; older models accept max_tokens.
             # max_completion_tokens is accepted by all current OpenAI chat models.
             kwargs["max_completion_tokens"] = max_tokens_per_turn
-        return _with_retry(client.chat.completions.create, _openai_retryable, **kwargs)
+        return _with_retry(_create_completion, _openai_retryable, **kwargs)
 
     def _process_tool_calls(response_message, turn_log: dict) -> list[dict]:
         """Dispatch all tool calls and return tool result messages."""
@@ -1100,9 +1190,21 @@ def _run_agent_openai(
             n_tasks = len(session._tasks) if "predict" in session._active_tasks else 0
             n_submitted = len(session._prediction_results)
             tasks_done = n_submitted >= n_tasks
-            hypothesis_done = (
-                "predict" not in session._active_tasks or session._hypothesis is not None
-            )
+            # Disease sessions with an active "diagnose" task are only actually
+            # done once the *scored* hypothesis is locked in via
+            # submit_malfunction_hypothesis(). submit_hypothesis() is a free-text
+            # scratchpad that never locks anything — accepting it here let models
+            # narrate a correct-sounding diagnosis in prose and stop without ever
+            # calling the tool that scores it (diagnosis_score=0, rescue_results=[]
+            # since test_rescue() also requires the lock). See LAB_JOURNAL for the
+            # bug writeup.
+            requires_malfunction_lock = disease_mode and "diagnose" in session._active_tasks
+            if requires_malfunction_lock:
+                hypothesis_done = session._hypothesis_locked
+            else:
+                hypothesis_done = (
+                    "predict" not in session._active_tasks or session._hypothesis is not None
+                )
             if tasks_done and hypothesis_done:
                 if verbose:
                     print("[agent] Agent finished naturally.")
@@ -1112,10 +1214,19 @@ def _run_agent_openai(
             if not tasks_done:
                 missing.append(f"predictions ({n_submitted}/{n_tasks} submitted)")
             if not hypothesis_done:
-                missing.append("hypothesis")
+                missing.append(
+                    "malfunction hypothesis (submit_malfunction_hypothesis)"
+                    if requires_malfunction_lock else "hypothesis"
+                )
             print(
                 f"[agent] finish_reason=stop on turn {turn + 1} but session incomplete "
                 f"({', '.join(missing)} missing). Injecting recovery prompt."
+            )
+            final_call = (
+                "finally submit_malfunction_hypothesis(target_name, malfunction_type) — "
+                "this is the call that is scored, not submit_hypothesis()."
+                if requires_malfunction_lock
+                else "finally submit_hypothesis()."
             )
             messages.append({
                 "role": "user",
@@ -1123,7 +1234,7 @@ def _run_agent_openai(
                     "You stopped before completing the session. "
                     f"Please finish: {', '.join(missing)}. "
                     "Call get_next_prediction_task() if you haven't yet, then submit_prediction() "
-                    "for each task, and finally submit_hypothesis()."
+                    f"for each task, and {final_call}"
                 ),
             })
             continue
@@ -1159,13 +1270,18 @@ def _run_agent_openai(
 
         # Check budget
         remaining = session.budget - session.budget_used
+        requires_malfunction_lock = disease_mode and "diagnose" in session._active_tasks
+        final_call = (
+            "submit_malfunction_hypothesis(target_name, malfunction_type)"
+            if requires_malfunction_lock else "submit_hypothesis()"
+        )
         if 0 < remaining <= 5:
             messages.append({
                 "role": "user",
                 "content": (
                     f"WARNING: Only {remaining} budget unit(s) remaining. "
                     "Stop running experiments. Call get_next_prediction_task() now "
-                    "and submit your predictions, then submit_hypothesis()."
+                    f"and submit your predictions, then {final_call}."
                 ),
             })
         if remaining <= 0:
@@ -1173,7 +1289,10 @@ def _run_agent_openai(
                 print("[agent] Budget exhausted.")
             messages.append({
                 "role": "user",
-                "content": "Budget exhausted. Please submit your predictions and hypothesis now.",
+                "content": (
+                    "Budget exhausted. Please submit your predictions now, then "
+                    f"{final_call}."
+                ),
             })
             # Allow up to 5 cleanup turns (free tools: get_next_prediction_task,
             # submit_prediction, submit_hypothesis, submit_malfunction_hypothesis)
@@ -1237,15 +1356,24 @@ def _run_agent_openai(
 _ANTHROPIC_PREFIXES = ("claude-",)
 _OPENAI_PREFIXES = ("gpt-", "o1", "o3", "o4")
 
-# Together AI — OpenAI-compatible endpoint for open-source models.
-# Keys: short display name used in --model / results / logs.
-# Values: full model ID on Together's platform.
-_TOGETHER_MODELS: dict[str, str] = {
-    "deepseek-v3": "deepseek-ai/DeepSeek-V3.1",
-    "qwen-3.5": "Qwen/Qwen3.5-397B-A17B",
+# OpenRouter — OpenAI-compatible endpoint aggregating many providers.
+# Keys: short display name used in --model / results / logs (unchanged
+# from the Together AI era, so existing result files stay comparable).
+# Values: full model ID on OpenRouter.
+#
+# Switched from Together AI 2026-08-21: Together removed serverless
+# access for both models (a dedicated endpoint would be required), and
+# OpenRouter serves the same released weights serverless, no dedicated
+# endpoint or waitlist. See project_together_ai_backfill memory for the
+# provider comparison. Note: OpenRouter routes across several backend
+# providers with varying quantization (FP8/FP4/etc.) — not necessarily
+# bit-identical inference to the original Together-served sessions.
+_OPENROUTER_MODELS: dict[str, str] = {
+    "deepseek-v3": "deepseek/deepseek-chat-v3.1",
+    "qwen-3.5": "qwen/qwen3.5-397b-a17b",
 }
-_TOGETHER_BASE_URL = "https://api.together.xyz/v1"
-_TOGETHER_API_KEY_ENV = "TOGETHER_API_KEY"
+_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+_OPENROUTER_API_KEY_ENV = "OPENROUTER_API_KEY"
 
 
 def run_agent(
@@ -1266,7 +1394,7 @@ def run_agent(
     Automatically routes to the correct provider based on the model name:
     - claude-*                        → Anthropic API  (requires ANTHROPIC_API_KEY)
     - gpt-* / o1 / o3 / o4           → OpenAI API     (requires OPENAI_API_KEY)
-    - deepseek-v3 / qwen-3.5           → Together AI    (requires TOGETHER_API_KEY)
+    - deepseek-v3 / qwen-3.5           → OpenRouter     (requires OPENROUTER_API_KEY)
 
     Args:
         session:      An ExperimentSession wrapping a generated organism.
@@ -1287,23 +1415,23 @@ def run_agent(
         return _run_agent_anthropic(session, model, max_turns, verbose, disease_mode, log_path, active_tasks, max_tokens_per_turn, use_prompt_cache, system_prompt_variant)
     if any(model.startswith(p) for p in _OPENAI_PREFIXES):
         return _run_agent_openai(session, model, max_turns, verbose, disease_mode, log_path, active_tasks, max_tokens_per_turn, system_prompt_variant=system_prompt_variant)
-    if model in _TOGETHER_MODELS:
+    if model in _OPENROUTER_MODELS:
         import os
-        api_key = os.environ.get(_TOGETHER_API_KEY_ENV)
+        api_key = os.environ.get(_OPENROUTER_API_KEY_ENV)
         if not api_key:
             raise EnvironmentError(
-                f"{_TOGETHER_API_KEY_ENV} not set. Required for model {model!r}."
+                f"{_OPENROUTER_API_KEY_ENV} not set. Required for model {model!r}."
             )
         return _run_agent_openai(
             session,
-            model=_TOGETHER_MODELS[model],
+            model=_OPENROUTER_MODELS[model],
             max_turns=max_turns,
             verbose=verbose,
             disease_mode=disease_mode,
             log_path=log_path,
             active_tasks=active_tasks,
             max_tokens_per_turn=max_tokens_per_turn,
-            base_url=_TOGETHER_BASE_URL,
+            base_url=_OPENROUTER_BASE_URL,
             api_key=api_key,
             display_name=model,
             system_prompt_variant=system_prompt_variant,
@@ -1311,5 +1439,5 @@ def run_agent(
     raise ValueError(
         f"Cannot infer provider from model name {model!r}. "
         "Use a model name starting with 'claude-' (Anthropic) or 'gpt-'/'o1'/'o3' (OpenAI), "
-        f"or one of the Together AI models: {list(_TOGETHER_MODELS.keys())}."
+        f"or one of the OpenRouter models: {list(_OPENROUTER_MODELS.keys())}."
     )

@@ -262,3 +262,221 @@ def test_malfunction_hypothesis_scoring():
     s_wrong = ExperimentSession(org, budget=5)
     s_wrong.submit_malfunction_hypothesis(other_gene, m.type)
     assert s_wrong._malfunction_guess["score"] == 0.0
+
+
+# ----------------------------------------------------------------------
+# PERSIST malfunctions must remain active during in-session simulations.
+# Regression test for the bug where the chronic signal override was baked
+# into the displayed disease baseline but dropped from run_experiment /
+# test_rescue / prediction-task simulations, so PERSIST organisms silently
+# relaxed to healthy no matter what the agent did.
+# ----------------------------------------------------------------------
+
+def _persist_disease_organism():
+    """First seed whose disease organism carries a PERSIST malfunction."""
+    for seed in range(40):
+        org = generate_disease_organism(difficulty="medium", seed=seed)
+        if any(m.type == "PERSIST" for m in org.malfunctions):
+            return org
+    pytest.skip("no PERSIST organism found in seed range")
+
+
+def _aberrant(org, phenos):
+    return [
+        lbl for lbl, v in phenos.items()
+        if not (org.healthy_phenotype_ranges[lbl][0] <= v <= org.healthy_phenotype_ranges[lbl][1])
+    ]
+
+
+def test_persist_malfunction_active_during_experiments():
+    org = _persist_disease_organism()
+    session = ExperimentSession(org, seed=0)
+
+    baseline = session.get_info()["baseline_phenotypes"]
+    assert _aberrant(org, baseline), "disease baseline should be aberrant"
+
+    # A do-nothing experiment must NOT cure the organism: the persistent
+    # signal is part of the disease, not just of the displayed baseline.
+    result = session.run_experiment({})
+    assert _aberrant(org, result["phenotypes"]), (
+        "PERSIST organism relaxed to healthy under a null experiment — "
+        "the chronic signal override is not being applied at runtime"
+    )
+
+
+def test_persist_malfunction_active_during_rescue():
+    org = _persist_disease_organism()
+    session = ExperimentSession(org, seed=0)
+    m = org.malfunctions[0]
+    session.submit_malfunction_hypothesis(m.target_name, m.type)
+
+    # A null rescue must not restore all aberrant phenotypes by itself.
+    rescue = session.test_rescue({})
+    assert rescue["restored_fraction"] < 1.0, (
+        "null rescue reported full restoration — persistent signal missing "
+        "from the rescue simulation"
+    )
+
+
+# ----------------------------------------------------------------------
+# LOCK_HI / LOCK_LO malfunctions must remain active during in-session
+# simulations, and must be genuinely rescuable by the documented
+# corrective intervention (BLOCK for LOCK_HI, BOOST for LOCK_LO).
+#
+# Regression test for seam-bug audit item 2 (2026-08-20,
+# BUG_AUDIT_JOBSPEC.md): PERSIST got dedicated tests after its runtime
+# bug (PR #127); LOCK_HI/LOCK_LO never got the equivalent check. They use
+# a different mechanism — the malfunction's bias is baked into
+# org.dynamics.rule at generation time (generation.py), not re-injected
+# per-call like PERSIST's signal override — so no equivalent runtime
+# guard exists in ExperimentSession, nor is one needed: simulate_sigmoid
+# always reads the mutated rule. Verified clean by reading generation.py;
+# this test locks that behaviour in rather than leaving it unverified.
+# ----------------------------------------------------------------------
+
+def _lock_organism(mtype, margin=0.05):
+    """First seed whose disease organism carries a *robustly* aberrant
+    malfunction of mtype: the deterministic (noise=False) baseline must
+    clear the healthy range by more than `margin`, so run_experiment's
+    per-call simulation noise (noise_sigma=0.01, phenotype noise 2x that)
+    can't flip aberrant/healthy by chance and produce a false pass/fail.
+    Found by direct testing: the first LOCK_HI organism (seed 8) had only
+    a 0.008 margin and flipped healthy under noise on ~40% of draws — not
+    a runtime-application bug, just too close to the boundary to test
+    against reliably.
+    """
+    for seed in range(60):
+        org = generate_disease_organism(difficulty="medium", seed=seed)
+        if not any(m.type == mtype for m in org.malfunctions):
+            continue
+        baseline = ExperimentSession(org, seed=0)._compute_baseline_phenotypes()
+        for lbl, v in baseline.items():
+            lo, hi = org.healthy_phenotype_ranges[lbl]
+            if v < lo - margin or v > hi + margin:
+                return org
+    pytest.skip(f"no robustly-aberrant {mtype} organism found in seed range")
+
+
+def test_lock_hi_malfunction_active_during_experiments():
+    org = _lock_organism("LOCK_HI")
+    session = ExperimentSession(org, seed=0)
+
+    baseline = session.get_info()["baseline_phenotypes"]
+    assert _aberrant(org, baseline), "disease baseline should be aberrant"
+
+    # A do-nothing experiment must NOT cure the organism: the locked-high
+    # gene's bias is baked into the organism's dynamics rule, not
+    # something a null intervention can undo.
+    result = session.run_experiment({})
+    assert _aberrant(org, result["phenotypes"]), (
+        "LOCK_HI organism relaxed to healthy under a null experiment — "
+        "the locked-high gene bias is not being applied at runtime"
+    )
+
+
+def test_lock_hi_malfunction_rescuable_by_block():
+    org = _lock_organism("LOCK_HI")
+    session = ExperimentSession(org, seed=0)
+    m = next(mm for mm in org.malfunctions if mm.type == "LOCK_HI")
+    session.submit_malfunction_hypothesis(m.target_name, m.type)
+
+    # A null rescue must not restore all aberrant phenotypes by itself.
+    null_rescue = session.test_rescue({})
+    assert null_rescue["restored_fraction"] < 1.0, (
+        "null rescue reported full restoration for a LOCK_HI organism"
+    )
+
+    # BLOCKing the locked-high gene is the documented corrective action
+    # (generation.py's own generation-time probe verifies this before
+    # selecting a malfunction as "effective") — it must actually help.
+    blocked_rescue = session.test_rescue({m.target_name: {"type": "BLOCK"}})
+    assert blocked_rescue["restored_fraction"] > null_rescue["restored_fraction"], (
+        "BLOCKing the locked-high gene did not improve rescue over doing nothing"
+    )
+
+
+def test_lock_lo_malfunction_active_during_experiments():
+    org = _lock_organism("LOCK_LO")
+    session = ExperimentSession(org, seed=0)
+
+    baseline = session.get_info()["baseline_phenotypes"]
+    assert _aberrant(org, baseline), "disease baseline should be aberrant"
+
+    result = session.run_experiment({})
+    assert _aberrant(org, result["phenotypes"]), (
+        "LOCK_LO organism relaxed to healthy under a null experiment — "
+        "the locked-low gene bias is not being applied at runtime"
+    )
+
+
+def test_lock_lo_malfunction_rescuable_by_boost():
+    org = _lock_organism("LOCK_LO")
+    session = ExperimentSession(org, seed=0)
+    m = next(mm for mm in org.malfunctions if mm.type == "LOCK_LO")
+    session.submit_malfunction_hypothesis(m.target_name, m.type)
+
+    null_rescue = session.test_rescue({})
+    assert null_rescue["restored_fraction"] < 1.0, (
+        "null rescue reported full restoration for a LOCK_LO organism"
+    )
+
+    boosted_rescue = session.test_rescue({m.target_name: {"type": "BOOST"}})
+    assert boosted_rescue["restored_fraction"] > null_rescue["restored_fraction"], (
+        "BOOSTing the locked-low gene did not improve rescue over doing nothing"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Rescue scoring: only the aberrant phenotypes count
+# ---------------------------------------------------------------------------
+
+def _locked_disease_session(seed: int = 1, **kwargs):
+    """A disease session with the hypothesis submitted, so rescue is unlocked."""
+    org = generate_disease_organism(seed=seed, **kwargs)
+    session = ExperimentSession(org)
+    session.submit_malfunction_hypothesis(org.genes[0].name, "LOCK_HI")
+    return org, session
+
+
+def test_empty_intervention_scores_zero():
+    """
+    An intervention that changes nothing must score 0.0.
+
+    Regression test for the scoring bug a reviewer found: restored_fraction
+    used to count every phenotype inside its healthy range, so an empty
+    intervention on an organism with 1 of 3 phenotypes aberrant scored
+    2/3 = 0.6667 while fixing nothing.
+    """
+    org, session = _locked_disease_session(seed=1)
+    result = session.test_rescue({})
+    assert result["restored_fraction"] == 0.0
+    # The old quantity is still reported, under a name that says what it is.
+    assert result["all_phenotypes_in_range_fraction"] > 0.0
+
+
+def test_rescue_counts_only_aberrant_phenotypes():
+    """restored_fraction is scored against the aberrant set, not all phenotypes."""
+    org, session = _locked_disease_session(seed=1)
+    result = session.test_rescue({})
+    aberrant = result["aberrant_phenotypes"]
+    assert 0 < len(aberrant) < len(org.healthy_phenotype_ranges)
+    assert result["n_aberrant"] == len(aberrant)
+    # Every aberrant phenotype is still out of range after doing nothing.
+    assert all(not result["phenotype_in_healthy_range"][p] for p in aberrant)
+
+
+def test_rescue_reports_collateral_damage_separately():
+    """Breaking a healthy phenotype is counted, not folded into the score."""
+    org, session = _locked_disease_session(seed=1)
+    result = session.test_rescue({})
+    assert result["healthy_phenotypes_broken"] == 0
+    assert "healthy_phenotypes_broken" in result
+
+
+def test_aberrant_set_agrees_across_api():
+    """get_info, get_summary and test_rescue must report the same aberrant set."""
+    org, session = _locked_disease_session(seed=1)
+    from_info = set(session.get_info()["aberrant_phenotypes"])
+    from_rescue = set(session.test_rescue({})["aberrant_phenotypes"])
+    from_summary = set(session.get_summary()["aberrant_phenotypes"])
+    assert from_info == from_rescue == from_summary
