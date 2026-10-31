@@ -121,7 +121,7 @@ def walkthrough() -> None:
     rescue_gene = obs_names[1] if len(obs_names) > 1 else obs_names[0]
     rescue = disease_session.test_rescue({rescue_gene: {"type": "BLOCK"}})
     print(f"\nRescue attempt (BLOCK {rescue_gene}):")
-    print(f"  Phenotypes restored: {rescue['restored_fraction']:.0%}")
+    print(f"  Aberrant phenotypes restored: {(rescue['restored_fraction'] or 0.0):.0%}")
     print(f"  MSE vs healthy:      {rescue['mse_vs_healthy']:.4f}")
 
     # ------------------------------------------------------------------
