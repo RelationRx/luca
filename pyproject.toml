@@ -14,7 +14,7 @@ authors = [
     { name = "Karl Gemayel" },
 ]
 requires-python = ">=3.10"
-license = "MIT"
+license = "CC-BY-NC-4.0"
 dependencies = [
     "anthropic>=0.40.0",
     "openai>=1.30.0",
