@@ -1,5 +1,16 @@
 # LUCA
 
+> ### ⚠️ Known issues — read before using this benchmark
+>
+> A November 2026 code review found defects in the benchmark engine and in
+> the analysis scripts behind our published numbers. Fixes are in progress
+> and an audit is still running, so the list is not final.
+>
+> In particular: the **easy and medium tiers do not test non-additive causal
+> reasoning** as the text below claims, and the **baseline numbers are
+> wrong**. See **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** before relying on
+> anything here, and record the commit you run.
+
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 
