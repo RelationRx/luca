@@ -378,3 +378,26 @@ def test_anthropic_loop_accepts_end_turn_once_hypothesis_locked(monkeypatch):
     )
 
     assert session._hypothesis_locked is True
+
+
+# ---------------------------------------------------------------------------
+# The held-out rule has to reach the agent, not only the engine.
+#
+# Issue 1's fix makes run_experiment and test_rescue refuse a revealed task's
+# exact combination. An agent that was never told this spends a turn
+# discovering it.
+# ---------------------------------------------------------------------------
+
+def _tool(tools, name):
+    return next(t for t in tools if t["name"] == name)
+
+
+def test_run_experiment_tool_states_the_held_out_rule():
+    from luca.agent import TOOLS
+    assert "held out" in _tool(TOOLS, "run_experiment")["description"].lower()
+
+
+def test_prediction_task_tool_states_that_one_answer_is_scored():
+    from luca.agent import TOOLS
+    description = _tool(TOOLS, "submit_prediction")["description"].lower()
+    assert "once" in description or "one answer" in description
