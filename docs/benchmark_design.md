@@ -265,6 +265,12 @@ values. Key properties:
   combination, and `run_experiment` and `test_rescue` refuse it at no budget
   cost until the task is answered. Before that date the claim was stated but
   not enforced; see [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) issue 1.
+  The seal compares gene-and-type pairs, so it holds only because an
+  intervention type the simulator cannot read is itself refused (issue 12).
+  Adding a third gene with an unreadable type used to change the combination
+  and do nothing, which returned the held-out answer. A signal change is part
+  of the comparison: the task's genes under a changed signal is a different
+  experiment, and it is allowed.
 - **Sequential reveal**: tasks are released one at a time. Task 2 is not visible
   until task 1 is submitted, so the agent cannot observe task 2's intervention
   directly before predicting it.
