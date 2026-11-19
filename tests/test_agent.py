@@ -395,3 +395,9 @@ def _tool(tools, name):
 def test_run_experiment_tool_states_the_held_out_rule():
     from luca.agent import TOOLS
     assert "held out" in _tool(TOOLS, "run_experiment")["description"].lower()
+
+
+def test_prediction_task_tool_states_that_one_answer_is_scored():
+    from luca.agent import TOOLS
+    description = _tool(TOOLS, "submit_prediction")["description"].lower()
+    assert "once" in description or "one answer" in description

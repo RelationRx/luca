@@ -423,9 +423,21 @@ class ExperimentSession:
         task_id: str,
         prediction: dict[str, float],
     ) -> dict[str, Any]:
-        """Cost 0. Score a prediction for a task."""
+        """
+        Cost 0. Score a prediction for a task.
+
+        One scored answer per task. The feedback discloses ground truth so an
+        agent can learn from it, but a second submission for the same task is
+        refused: scoring retries would let an agent copy the disclosed answer
+        back and raise its own average. Seven paper v1 sessions did that.
+        See KNOWN_ISSUES.md issue 4.
+        """
         if task_id not in self._tasks:
             return {"error": f"Unknown task_id: {task_id}"}
+        if any(r.task_id == task_id for r in self._prediction_results):
+            return {"error": f"Task {task_id} has already been answered. "
+                             "Each task is scored once. Move on with "
+                             "get_next_prediction_task()."}
 
         task = self._tasks[task_id]
         gt = task.ground_truth

@@ -497,6 +497,43 @@ def _healthy_session(seed=0, difficulty="medium"):
     return ExperimentSession(org, seed=seed)
 
 
+class TestAnswerIsImmutable:
+    """Issue 4 — submit_prediction discloses ground truth and scored every retry."""
+
+    def test_second_submission_is_refused(self):
+        session = _healthy_session()
+        task = session.get_next_prediction_task()
+        first = session.submit_prediction(
+            task["task_id"], {l: 0.5 for l in task["phenotype_labels"]}
+        )
+        truth = {l: d["ground_truth"] for l, d in first["details"].items()}
+        again = session.submit_prediction(task["task_id"], truth)
+        assert "error" in again
+
+    def test_retry_does_not_add_a_scored_record(self):
+        session = _healthy_session()
+        task = session.get_next_prediction_task()
+        first = session.submit_prediction(
+            task["task_id"], {l: 0.5 for l in task["phenotype_labels"]}
+        )
+        truth = {l: d["ground_truth"] for l, d in first["details"].items()}
+        before = session.get_summary()["avg_accuracy"]
+        for _ in range(5):
+            session.submit_prediction(task["task_id"], truth)
+        assert len(session._prediction_results) == 1
+        assert session.get_summary()["avg_accuracy"] == before
+
+    def test_first_submission_still_scores_and_discloses(self):
+        session = _healthy_session()
+        task = session.get_next_prediction_task()
+        result = session.submit_prediction(
+            task["task_id"], {l: 0.5 for l in task["phenotype_labels"]}
+        )
+        assert "error" not in result
+        assert result["accuracy"] is not None
+        assert all("ground_truth" in d for d in result["details"].values())
+
+
 class TestRevealedTaskIsHeldOut:
     """Issue 1 — run_experiment would execute the very combination it asked about."""
 

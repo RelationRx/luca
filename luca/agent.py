@@ -227,7 +227,8 @@ TOOLS: list[dict] = [
         "name": "submit_prediction",
         "description": (
             "Submit a prediction for one of the prediction tasks. No budget cost. "
-            "You MUST provide both 'task_id' and 'prediction'. "
+            "Each task is scored once; a second submission for the same task is "
+            "refused. You MUST provide both 'task_id' and 'prediction'. "
             "'prediction' is a JSON object mapping each phenotype label to a float in [0.0, 1.0]. "
             "Example: {\"task_id\": \"task_00\", \"prediction\": {\"stress-index\": 0.4, \"integrity-index\": 0.6}}. "
             "Returns MSE and accuracy (fraction within 0.10 threshold)."
