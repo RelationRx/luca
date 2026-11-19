@@ -40,12 +40,12 @@ most likely to affect what you measure.
   computed its own predictions with an inverted sign (issue 6).
 - **Treat disease-mode results with particular care.** Signal-level
   malfunctions behave differently from the documentation (issue 5).
-- **Check your own agent's calls against the documented format.** If your
-  agent does not use the `interventions` key, its experiments may be doing
-  nothing (issue 13). A returned result is not proof that an intervention was
-  applied. An unreadable intervention *type* is now refused rather than
-  ignored (issue 12), so an agent that sent one will see errors where it
-  previously saw normal-looking results.
+- **Re-run before you compare models.** The tool layer used to discard
+  experiments it could not read (issue 13). It now applies the flat form and
+  refuses everything else with an error, and an unreadable intervention *type*
+  is refused too (issue 12). An agent that sent either shape will see errors
+  where it previously saw normal-looking results. Every published table
+  predates both fixes.
 - **Results generated before these fixes are not comparable to results
   generated after.** Record the commit you ran, not just the seed.
 
@@ -57,7 +57,7 @@ you discover it later.
 
 ✅ fixed in this repository · ⚠️ fixed elsewhere, not yet here · ⬜ open
 
-Four of fifteen are fixed here: issues 1, 4, 12 and 13.
+Four of eighteen are fixed here: issues 1, 4, 12 and 13.
 
 | # | Issue | Affects | Status |
 |---|---|---|---|
@@ -76,11 +76,15 @@ Four of fifteen are fixed here: issues 1, 4, 12 and 13.
 | 13 | **The tool layer accepted intervention formats that it then ignored.** A request that did not use the documented `interventions` key reached the engine as an empty experiment: charged one unit of budget, returning the unperturbed organism and no error | **cross-model comparisons** | ✅ **fixed 2026-11-19** — see below |
 | 14 | `report.py` renders a refused `test_rescue` as `restored=0%` with no error line, so a reader cannot tell a refused rescue from a failed one | session reports only | ⬜ open |
 | 15 | `_generate_tasks` does not de-duplicate. Seed 10 medium produces `task_00` and `task_01` with the identical gene-and-type pair and different ground truth, so one organism asks the same question twice and scores it twice | prediction scoring | ⬜ open |
+| 16 | The list intervention form accepts only `BLOCK`, `BOOST` and `DAMPEN`, so it cannot express a signal, and its refusal message never mentions signals. The dict form accepts `{"wave-X": "activate"}` | agent feedback | ⬜ open |
+| 17 | `inspect.py` reads an intervention value of `"BLOCK"` as `""` when it colours the heatmap marker, so a string-valued intervention renders as a white `?`. Line 1443 reads the same value correctly | diagnostic figures only | ⬜ open |
+| 18 | Nothing shows an agent that a signal goes in the interventions map. 78 of 18,356 stored calls asked for a signal-only experiment through shapes the engine does not read, such as `{"signal_activations": ["burst-I"]}` and `{"interventions": [], "signals": [...]}` | disease mode, signal diagnosis | ⬜ open |
 
 Issues 1–8 came from the November 2026 review. Issues 9–11 were found while
 investigating it. Issues 12 and 13 were found by a subsequent audit of the
 analysis layer. Issues 14 and 15 were found by the code review of the issue 1
-and 4 fix.
+and 4 fix. Issues 16, 17 and 18 were found by the code review of the issue 13
+fix, and 18 by a scan of the stored calls that followed it.
 
 ## ✅ Issues 1, 4 and 12, as fixed on 2026-11-19
 
@@ -211,6 +215,34 @@ sessions. The 1,220 logs add the three baselines, which run no model:
 This change makes the engine refuse calls it used to accept and bill. A model
 that sent an unreadable payload will now see errors where it previously saw
 normal-looking results. That is the point: the old behaviour failed in silence.
+
+### What the code review of this fix added
+
+- **The trace agreed with the engine again.** `report.py` read the
+  `interventions` key alone, so once the tool layer applied the flat form, a
+  flat experiment ran in the engine and then showed in the trace as an empty
+  one, beside the phenotype values it had moved. Edge inference dropped it too.
+  Both modules now resolve a payload through `luca/payloads.py`, so there is
+  one source of truth rather than two readings that drifted apart.
+- **A refusal names the documented shape.** 472 stored calls used an
+  alternative container, such as `{"BLOCK": ["G001"]}` or
+  `{"perturbations": {...}}`. Every one ran as an empty experiment and was
+  billed; none returned an error. They are refused now, and the message names
+  the `interventions` key so a model can correct itself.
+- **An empty list is refused.** All four stored empty-list calls were
+  `{"interventions": [], "signals": [...]}` — a signal-only experiment that
+  ran as a null one and was billed. `{"interventions": {}}` is still the
+  explicit null experiment.
+- **A null wrapper falls through to the alternate key**, as it did before the
+  key-presence test replaced the original `or`.
+- **`test_rescue` reports its state errors first.** A malformed payload used to
+  mask "submit_malfunction_hypothesis() must be called first" and "not a
+  disease organism", so an agent fixed the payload, resent, and only then
+  learned the real blocker. `ExperimentSession.rescue_state_error()` now serves
+  both the engine and the tool layer.
+
+Three further findings are recorded as issues 16, 17 and 18, and are not fixed
+here.
 
 ## Corrections to issues 10 and 11
 
