@@ -480,3 +480,74 @@ def test_aberrant_set_agrees_across_api():
     from_rescue = set(session.test_rescue({})["aberrant_phenotypes"])
     from_summary = set(session.get_summary()["aberrant_phenotypes"])
     assert from_info == from_rescue == from_summary
+
+
+# ---------------------------------------------------------------------------
+# Held-out prediction protocol
+#
+# The November 2026 review showed two ways to score a prediction task without
+# predicting it (issues 1 and 4), and the log audit found agents using both.
+# Across 860 paper sessions, 105 task submissions copied a value measured from
+# that same task, and 7 sessions resubmitted a task after its answer was
+# disclosed. See KNOWN_ISSUES.md.
+# ---------------------------------------------------------------------------
+
+def _healthy_session(seed=0, difficulty="medium"):
+    org = generate_organism(seed=seed, difficulty=difficulty)
+    return ExperimentSession(org, seed=seed)
+
+
+class TestRevealedTaskIsHeldOut:
+    """Issue 1 — run_experiment would execute the very combination it asked about."""
+
+    def _revealed(self, session):
+        task = session.get_next_prediction_task()
+        return task, {g: dict(iv) for g, iv in task["interventions"].items()}
+
+    def test_experiment_on_the_revealed_combination_is_refused(self):
+        session = _healthy_session()
+        _task, interventions = self._revealed(session)
+        result = session.run_experiment(interventions)
+        assert "error" in result
+
+    def test_refused_experiment_costs_no_budget(self):
+        session = _healthy_session()
+        _task, interventions = self._revealed(session)
+        before = session.budget_used
+        session.run_experiment(interventions)
+        assert session.budget_used == before
+
+    def test_single_gene_experiments_are_still_allowed(self):
+        """The additive strategy is legitimate; only the joint task is held out."""
+        session = _healthy_session()
+        _task, interventions = self._revealed(session)
+        gene = sorted(interventions)[0]
+        result = session.run_experiment({gene: interventions[gene]})
+        assert "error" not in result
+
+    def test_same_genes_with_other_types_are_allowed(self):
+        session = _healthy_session()
+        _task, interventions = self._revealed(session)
+        other = {
+            g: {"type": "BOOST" if iv.get("type") != "BOOST" else "BLOCK"}
+            for g, iv in interventions.items()
+        }
+        result = session.run_experiment(other)
+        assert "error" not in result
+
+    def test_allowed_again_once_the_task_is_submitted(self):
+        session = _healthy_session()
+        task, interventions = self._revealed(session)
+        session.submit_prediction(
+            task["task_id"], {l: 0.5 for l in task["phenotype_labels"]}
+        )
+        result = session.run_experiment(interventions)
+        assert "error" not in result
+
+    def test_rescue_route_is_held_out_too(self):
+        org = generate_disease_organism(seed=0, difficulty="medium")
+        session = ExperimentSession(org, seed=0)
+        _task, interventions = self._revealed(session)
+        session.submit_malfunction_hypothesis("G001", "LOCK_HI")
+        result = session.test_rescue(interventions)
+        assert "error" in result

@@ -116,6 +116,7 @@ DISEASE_TOOLS: list[dict] = [
         "description": (
             "Test whether a proposed intervention restores aberrant phenotypes to healthy ranges. "
             "Costs 1 budget. Requires submit_malfunction_hypothesis() to be called first. "
+            "A revealed prediction task's exact combination is held out here too. "
             "Runs the organism from the disease baseline with your intervention "
             "and reports per-phenotype restoration status and MSE vs healthy baseline."
         ),
@@ -200,7 +201,11 @@ TOOLS: list[dict] = [
         "description": (
             "Run a perturbation experiment on the organism. Costs 1 unit of budget. "
             "Specify gene interventions (BLOCK=suppress to zero, BOOST=saturate to max, DAMPEN=reduce to low) "
-            "and/or signal activations. Returns phenotype readouts."
+            "and/or signal activations. Returns phenotype readouts. "
+            "Once a prediction task has been revealed, that task's exact "
+            "combination of genes and intervention types is held out until you "
+            "answer it: this tool refuses it and no budget is charged. Running "
+            "each of its genes on its own is allowed."
         ),
         "input_schema": {
             "type": "object",

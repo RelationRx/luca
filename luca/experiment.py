@@ -47,6 +47,17 @@ class PredictionResult:
 
 
 
+def _sealed_message(task_id: str) -> str:
+    """Error returned when an agent asks the simulator for a held-out answer."""
+    return (
+        f"That is exactly the intervention combination of prediction task "
+        f"{task_id}, which has been revealed to you and is held out until you "
+        f"answer it. Predict it from what you have already measured — you may "
+        f"still perturb each of its genes separately. Submit with "
+        f"submit_prediction(task_id='{task_id}', ...)."
+    )
+
+
 class ExperimentSession:
     def __init__(
         self,
@@ -71,6 +82,13 @@ class ExperimentSession:
         self._prediction_results: list[PredictionResult] = []
         self._hypothesis: str | None = None
         self._experiment_log: list[dict] = []
+
+        # Held-out protocol state. A task's gene/type combination is sealed the
+        # moment the task is revealed, and stays sealed until it is answered.
+        # Without this an agent could reveal a task, run exactly that
+        # combination, and submit the readout. In the paper v1 logs 105 task
+        # submissions did precisely that. See KNOWN_ISSUES.md issue 1.
+        self._revealed_task_ids: set[str] = set()
 
         # Disease mode state
         self._is_disease = bool(organism.malfunctions)
@@ -268,6 +286,37 @@ class ExperimentSession:
 
         return info
 
+    @staticmethod
+    def _intervention_signature(interventions: dict[str, Any]) -> frozenset:
+        """{gene_id: {"type": T}} or {gene_id: "T"} → frozenset of (gene_id, T)."""
+        signature = set()
+        for gene_id, value in interventions.items():
+            itype = value.get("type") if isinstance(value, dict) else value
+            signature.add((gene_id, str(itype).upper()))
+        return frozenset(signature)
+
+    def _sealed_task_for(self, gene_interventions: dict[str, Any]) -> str | None:
+        """
+        Return the id of a revealed, unanswered task whose exact combination
+        this is, or None.
+
+        Exact match only. An experiment that adds a third gene is a different
+        experiment and is allowed, as is either task gene on its own: measuring
+        single genes and adding the effects is a legitimate strategy, and the
+        held-out quantity is the joint outcome.
+        """
+        if not gene_interventions:
+            return None
+        answered = {r.task_id for r in self._prediction_results}
+        signature = self._intervention_signature(gene_interventions)
+        for task_id in self._revealed_task_ids:
+            if task_id in answered:
+                continue
+            task = self._tasks.get(task_id)
+            if task and self._intervention_signature(task.interventions) == signature:
+                return task_id
+        return None
+
     def get_next_prediction_task(self) -> dict[str, Any]:
         """
         Free: reveal the next prediction task.
@@ -284,6 +333,7 @@ class ExperimentSession:
 
         for tid, task in self._tasks.items():
             if tid not in submitted_ids:
+                self._revealed_task_ids.add(tid)
                 iv_by_name = {
                     gene_id_to_name.get(gid, gid): iv
                     for gid, iv in task.interventions.items()
@@ -320,6 +370,9 @@ class ExperimentSession:
         interventions: {gene_name → {"type": "BLOCK"|"BOOST"|"DAMPEN"}} or
                        {signal_label → "activate"}
         Returns phenotype readout + dynamics status.
+
+        A revealed prediction task's exact combination is held out until you
+        submit your prediction for it. Measure the genes separately instead.
         """
         if self.budget_used >= self.budget:
             return {"error": "Budget exhausted"}
@@ -328,6 +381,10 @@ class ExperimentSession:
         if isinstance(resolved, dict):
             return resolved  # error
         gene_interventions, signal_overrides = resolved
+
+        sealed = self._sealed_task_for(gene_interventions)
+        if sealed is not None:
+            return {"error": _sealed_message(sealed)}
 
         if active_signals:
             signal_overrides.update(active_signals)
@@ -501,6 +558,13 @@ class ExperimentSession:
         if isinstance(resolved, dict):
             return resolved  # error
         gene_interventions, signal_overrides = resolved
+
+        # test_rescue also returns simulated phenotypes, so it is a second route
+        # to the same held-out answer and is sealed on the same terms.
+        sealed = self._sealed_task_for(gene_interventions)
+        if sealed is not None:
+            return {"error": _sealed_message(sealed)}
+
         # Rescue must be achieved *despite* the chronic malfunction signal —
         # it cannot be switched off, only compensated for.
         signal_overrides.update(self._malfunction_signal_overrides)
