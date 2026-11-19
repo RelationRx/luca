@@ -5,6 +5,8 @@ import json
 import os
 from typing import Any
 
+from .payloads import canonical_interventions, intervention_payload
+
 
 # ---------------------------------------------------------------------------
 # Text trace
@@ -113,7 +115,7 @@ def _print_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> N
             print(f"  ▶ get_next_prediction_task()  → all tasks submitted")
 
     elif tool == "run_experiment":
-        iv  = _normalise_iv(inp.get("interventions", {}))
+        iv  = _tool_call_iv(inp)
         bud = res.get("budget_remaining", "?")
         status = res.get("status", "")
         print(f"  ▶ run_experiment({_fmt_iv(iv)})  [budget→{bud}]")
@@ -136,7 +138,7 @@ def _print_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> N
             print("     ⚠ simulation did not converge")
 
     elif tool == "test_rescue":
-        iv  = _normalise_iv(inp.get("interventions", {}))
+        iv  = _tool_call_iv(inp)
         bud = res.get("budget_remaining", "?")
         rf  = res.get("restored_fraction") or 0.0
         mse = res.get("mse_vs_healthy", "?")
@@ -183,6 +185,20 @@ def _print_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> N
             print(f"     ✗ ERROR: {res['error']}")
 
 
+def _tool_call_iv(inp: Any) -> dict:
+    """The interventions of a stored call, read the way the engine read them.
+
+    `report.py` used to read the `interventions` key alone. Issue 13 taught the
+    tool layer to apply the flat form `{"G001": "BLOCK"}` as well, so a flat
+    experiment ran in the engine and then showed here as an empty one, beside
+    the phenotype values it had moved. Both now call `intervention_payload`.
+    """
+    if not isinstance(inp, dict):
+        return {}
+    raw, _from_flat = intervention_payload(inp)
+    return canonical_interventions(raw)
+
+
 def _normalise_iv(iv) -> dict:
     if isinstance(iv, list):
         return {item["gene"]: {"type": item.get("mode", "BLOCK")} for item in iv if "gene" in item}
@@ -223,7 +239,7 @@ def _build_discovered_network(
         for tc in turn.get("tool_calls", []):
             if tc["tool"] not in ("run_experiment", "test_rescue"):
                 continue
-            ivs = _normalise_iv(tc["input"].get("interventions", {}))
+            ivs = _tool_call_iv(tc["input"])
             result = tc.get("result", {})
             if not result or "error" in result:
                 continue
@@ -581,7 +597,7 @@ def _build_html(log: dict) -> str:
         current_phenos: dict[str, float] | None = None
         for tc in calls:
             if tc["tool"] in ("run_experiment", "test_rescue"):
-                ivs = _normalise_iv(tc["input"].get("interventions", {}))
+                ivs = _tool_call_iv(tc["input"])
                 for name, val in ivs.items():
                     if isinstance(val, dict):
                         current_ivs[name] = val.get("type", "BLOCK")

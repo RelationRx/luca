@@ -401,3 +401,433 @@ def test_prediction_task_tool_states_that_one_answer_is_scored():
     from luca.agent import TOOLS
     description = _tool(TOOLS, "submit_prediction")["description"].lower()
     assert "once" in description or "one answer" in description
+
+
+# ---------------------------------------------------------------------------
+# Issue 13 — the tool layer billed GPT for experiments it never ran
+#
+# dispatch_tool read only the "interventions" and "gene_interventions" keys.
+# gpt-4.1, gpt-4o and gpt-5.1 often sent the flat form {"G001": "BLOCK"} with
+# no wrapper, which reached the engine as {}. The engine simulated the
+# unperturbed organism, charged one unit of budget and returned a normal
+# success result. No error was returned, so the model never learned and
+# repeated the format for the whole session.
+#
+# Measured over the 1,220 stored session logs, of 18,356 run_experiment and
+# test_rescue calls: 1,450 used the flat form and 85 carried no payload at
+# all. Both shapes came only from gpt-4o, gpt-4.1, gpt-5.1 and qwen-3.5;
+# claude-opus-4-6, claude-sonnet-4-6 and deepseek-v3 sent 9,008 calls between
+# them and never used either.
+#
+# These tests assert the intervention REACHES THE ENGINE, not merely that the
+# call returned without an error. Asserting `"phenotypes" in result` passes
+# against the bug, which is exactly how it survived.
+# ---------------------------------------------------------------------------
+
+def _healthy_dispatch_session(budget=5):
+    session = ExperimentSession(generate_organism(seed=0), budget=budget, seed=0)
+    return session.get_info()["gene_names"][0], session
+
+
+class TestFlatInterventionsReachTheEngine:
+
+    def test_flat_payload_is_applied(self):
+        gene, session = _healthy_dispatch_session()
+        dispatch_tool(session, "run_experiment", {gene: "BLOCK"})
+        applied = session._experiment_log[-1]["interventions"]
+        assert applied != {}, "the tool layer discarded the interventions"
+        assert gene in applied
+
+    def test_flat_form_matches_the_canonical_form(self):
+        """Same seed and same budget_used draw the same RNG, so any
+        difference is the tool layer, not noise."""
+        gene, flat_session = _healthy_dispatch_session()
+        _, wrapped_session = _healthy_dispatch_session()
+        flat = dispatch_tool(flat_session, "run_experiment", {gene: "BLOCK"})
+        wrapped = dispatch_tool(
+            wrapped_session, "run_experiment", {"interventions": {gene: {"type": "BLOCK"}}}
+        )
+        assert "error" not in flat
+        assert flat["phenotypes"] == wrapped["phenotypes"]
+
+    def test_flat_payload_with_dict_values_is_applied(self):
+        gene, session = _healthy_dispatch_session()
+        dispatch_tool(session, "run_experiment", {gene: {"type": "BLOCK"}})
+        assert gene in session._experiment_log[-1]["interventions"]
+
+    def test_a_wrapper_key_wins_over_stray_top_level_keys(self):
+        """The flat-form fallback must not override an explicit key."""
+        _gene, session = _healthy_dispatch_session()
+        names = session.get_info()["gene_names"]
+        wanted, stray = names[0], names[1]
+        dispatch_tool(
+            session, "run_experiment",
+            {"interventions": {wanted: {"type": "BLOCK"}}, stray: "BOOST"},
+        )
+        applied = session._experiment_log[-1]["interventions"]
+        assert wanted in applied
+        assert stray not in applied
+
+    def test_rescue_applies_a_flat_payload(self):
+        """test_rescue read one key name only, so it was narrower still.
+
+        Seed 1 is a LOCK_LO fault on G014, so BOOST rescues it. This seed is
+        chosen because it DISCRIMINATES: an empty rescue scores 0.0 here. On
+        many seeds an empty rescue already scores 1.0 — the organism recovers
+        on its own — and a comparison there would pass against the bug while
+        proving nothing.
+        """
+        def rescue_with(tool_input):
+            session = ExperimentSession(
+                generate_disease_organism(seed=1), budget=5, seed=1
+            )
+            dispatch_tool(session, "submit_malfunction_hypothesis",
+                          {"target_name": "G014", "malfunction_type": "LOCK_LO"})
+            return dispatch_tool(session, "test_rescue", tool_input)
+
+        nothing = rescue_with({"interventions": {}})
+        wrapped = rescue_with({"interventions": {"G014": {"type": "BOOST"}}})
+        flat = rescue_with({"G014": "BOOST"})
+        alt_key = rescue_with({"gene_interventions": {"G014": {"type": "BOOST"}}})
+
+        assert nothing["restored_fraction"] == 0.0, (
+            "this seed must not rescue itself, or the test proves nothing")
+        assert wrapped["restored_fraction"] == 1.0
+        assert flat["restored_fraction"] == wrapped["restored_fraction"]
+        assert alt_key["restored_fraction"] == wrapped["restored_fraction"]
+
+
+class TestUnreadablePayloadsAreRefused:
+    """An experiment either applies what was asked, or says why it did not."""
+
+    def test_payload_with_no_recognisable_target_is_refused(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"foo": "bar"})
+        assert "error" in result
+        assert session.budget_used == 0
+
+    def test_missing_payload_is_refused(self):
+        """An absent interventions key is a malformed call, not a null
+        experiment. 85 stored calls carried no payload; every one came from a
+        model that also sent the flat form, and the agent text beside them
+        announces an intervention it then failed to send."""
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {})
+        assert "error" in result
+        assert session.budget_used == 0
+
+    def test_explicit_empty_interventions_still_runs(self):
+        """{"interventions": {}} is a deliberate null experiment."""
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"interventions": {}})
+        assert "error" not in result
+        assert session.budget_used == 1
+
+    def test_non_mapping_value_is_refused_not_emptied(self):
+        """_normalise_interventions turned anything it could not read into {}."""
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"interventions": 42})
+        assert "error" in result
+        assert session.budget_used == 0
+
+    def test_list_form_with_no_readable_item_is_refused(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(
+            session, "run_experiment", {"interventions": [{"nonsense": 1}]}
+        )
+        assert "error" in result
+        assert session.budget_used == 0
+
+    def test_list_form_with_one_unreadable_item_is_refused(self):
+        """A partial drop corrupts the session the same way a full one does."""
+        gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"interventions": [
+            {"gene": gene, "type": "BLOCK"},
+            {"gene": "G002", "type": "NONSENSE"},
+        ]})
+        assert "error" in result
+        assert session.budget_used == 0
+
+    def test_list_form_that_reads_cleanly_is_applied(self):
+        gene, session = _healthy_dispatch_session()
+        dispatch_tool(session, "run_experiment", {"interventions": [
+            {"gene": gene, "type": "BLOCK"},
+        ]})
+        assert gene in session._experiment_log[-1]["interventions"]
+
+    def test_rescue_refuses_an_unreadable_payload(self):
+        session = ExperimentSession(
+            generate_disease_organism(seed=1), budget=5, seed=1
+        )
+        dispatch_tool(session, "submit_malfunction_hypothesis",
+                      {"target_name": "G014", "malfunction_type": "LOCK_LO"})
+        before = session.budget_used
+        result = dispatch_tool(session, "test_rescue", {"foo": "bar"})
+        assert "error" in result
+        assert session.budget_used == before
+
+
+# ---------------------------------------------------------------------------
+# Review of the issue 13 fix. Measured over the 1,220 stored session logs, of
+# 18,356 run_experiment and test_rescue calls.
+# ---------------------------------------------------------------------------
+
+def _disease_dispatch_session(budget=5):
+    org = generate_disease_organism(seed=0, difficulty="medium")
+    return ExperimentSession(org, budget=budget, seed=0)
+
+
+class TestRefusalNamesTheDocumentedShape:
+    """Finding 2. 472 stored calls sent an alternative container name, such as
+    {"BLOCK": ["G001"]} or {"perturbations": {...}}. Every one of them ran as
+    an empty experiment and was billed; none returned an error. They are now
+    refused, which is correct, but the message named only the stray key. A
+    model cannot correct itself from that."""
+
+    def test_unknown_target_error_names_the_wrapper_key(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"BLOCK": ["G001"]})
+        assert "error" in result
+        assert "BLOCK" in result["error"]
+        assert "interventions" in result["error"], (
+            "the message must name the key the model should have used"
+        )
+
+    def test_the_refusal_still_costs_no_budget(self):
+        _gene, session = _healthy_dispatch_session()
+        dispatch_tool(session, "run_experiment", {"perturbations": {"G001": "BLOCK"}})
+        assert session.budget_used == 0
+
+
+class TestWrapperKeyEdgeCases:
+
+    def test_a_null_wrapper_falls_through_to_the_alternate_key(self):
+        """Finding 3. The old code used `or`, so a null primary key fell
+        through. The key-presence loop stopped that. No stored call sent a
+        null wrapper, but the old behaviour was correct and is restored."""
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {
+            "interventions": None,
+            "gene_interventions": {"G001": {"type": "BLOCK"}},
+        })
+        assert "error" not in result, result
+        assert "G001" in session._experiment_log[-1]["interventions"]
+
+    def test_an_empty_list_payload_is_refused(self):
+        """Finding 4. All four stored empty-list calls were
+        {"interventions": [], "signals": [...]} — a signal-only experiment.
+        Each one ran as a null experiment and was billed. An empty list
+        carries no genes, so it is refused like a missing key."""
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"interventions": []})
+        assert "error" in result
+        assert session.budget_used == 0
+
+    def test_an_explicit_empty_map_is_still_a_null_experiment(self):
+        """The guard. {"interventions": {}} stays deliberate."""
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"interventions": {}})
+        assert "error" not in result
+        assert session.budget_used == 1
+
+
+class TestRescueStateErrorsComeFirst:
+    """Finding 5. The payload check ran before the session saw the call, so a
+    malformed payload masked the two state errors. The agent fixed the
+    payload, resent, and only then learned the real blocker. That costs a turn
+    each time."""
+
+    def test_the_missing_hypothesis_error_wins(self):
+        session = _disease_dispatch_session()
+        result = dispatch_tool(session, "test_rescue", {})
+        assert "error" in result
+        assert "submit_malfunction_hypothesis" in result["error"]
+
+    def test_the_healthy_organism_error_wins(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "test_rescue", {})
+        assert "error" in result
+        assert "not a disease organism" in result["error"]
+
+    def test_a_malformed_payload_is_still_refused_once_the_state_is_right(self):
+        session = _disease_dispatch_session()
+        dispatch_tool(session, "submit_malfunction_hypothesis",
+                      {"target_name": "G014", "malfunction_type": "LOCK_LO"})
+        result = dispatch_tool(session, "test_rescue", {})
+        assert "error" in result
+        assert "interventions" in result["error"]
+        assert session.budget_used == 0
+
+
+class TestMalformedListEntriesAreRefusedNotRaised:
+    """Review finding 1. The guards covered `item` and `action` but not
+    `target`, so an unhashable target reached `normalised[target]` and raised
+    TypeError. dispatch_tool is called bare, so one malformed list ended the
+    whole session. 'Refused, not emptied' must not become 'crashed'."""
+
+    def test_an_unhashable_target_is_refused(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {
+            "interventions": [{"gene": ["G001"], "type": "BLOCK"}]
+        })
+        assert "error" in result
+        assert session.budget_used == 0
+
+    def test_a_numeric_target_is_refused(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {
+            "interventions": [{"gene": 7, "type": "BLOCK"}]
+        })
+        assert "error" in result
+
+    def test_a_readable_entry_beside_an_unhashable_one_is_still_refused(self):
+        """The partial case: a session must not run on fewer genes than the
+        model believes."""
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {
+            "interventions": [
+                {"gene": "G001", "type": "BLOCK"},
+                {"gene": ["G002"], "type": "BOOST"},
+            ]
+        })
+        assert "error" in result
+        assert session.budget_used == 0
+
+
+class TestRefusalsDoNotAdviseANoOp:
+    """Review finding 2. The empty-list refusal told the model to send
+    {"interventions": {"wave-X": "activate"}}. Every signal in seed 0 makes
+    that bit-identical to a null experiment, because `activate` resolves to the
+    strength the simulator already uses (issue 5). The four stored empty-list
+    calls were signal-only requests, so that advice would send exactly the
+    wrong audience into a billed no-op — the failure issue 13 removes."""
+
+    def test_the_empty_list_refusal_does_not_promise_signal_support(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"interventions": []})
+        assert "error" in result
+        assert "activate" not in result["error"], (
+            "a signal activation is a no-op today; see issues 5 and 18"
+        )
+
+    def test_the_empty_list_refusal_names_the_deliberate_null_form(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"interventions": []})
+        assert '{"interventions": {}}' in result["error"]
+
+
+class TestStateErrorsOutrankPayloadErrors:
+    """Round 3, finding 7. rescue_state_error() stopped a payload error from
+    masking the two rescue state errors, but the budget check was left behind
+    it. An agent with no budget was told to fix its payload instead."""
+
+    def test_budget_exhausted_wins_over_a_payload_error(self):
+        session = ExperimentSession(generate_organism(seed=0), budget=0, seed=0)
+        result = dispatch_tool(session, "run_experiment", {})
+        assert "error" in result
+        assert "Budget exhausted" in result["error"]
+
+    def test_a_payload_error_still_wins_when_budget_remains(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {})
+        assert "interventions" in result["error"]
+
+
+class TestHypothesisPayloadIsRefusedNotRaised:
+    """Round 3, finding 6. submit_malfunction_hypothesis read tool_input by
+    index, so a missing key raised KeyError. dispatch_tool is called bare, so
+    one malformed hypothesis ended the session — the crash class fixed for the
+    list form in 3ad30c3, still open here."""
+
+    def test_a_missing_target_name_is_refused(self):
+        session = _disease_dispatch_session()
+        result = dispatch_tool(session, "submit_malfunction_hypothesis",
+                               {"target": "G014"})
+        assert "error" in result
+        assert "target_name" in result["error"]
+
+    def test_a_missing_malfunction_type_is_refused(self):
+        session = _disease_dispatch_session()
+        result = dispatch_tool(session, "submit_malfunction_hypothesis",
+                               {"target_name": "G014"})
+        assert "error" in result
+
+    def test_a_complete_hypothesis_still_works(self):
+        session = _disease_dispatch_session()
+        result = dispatch_tool(session, "submit_malfunction_hypothesis",
+                               {"target_name": "G014", "malfunction_type": "LOCK_LO"})
+        assert "error" not in result
+
+
+class TestTheFlatHintOnlyFiresWhenNothingWasRecognised:
+    """Round 3, finding 8. The hint fired on a flat call the layer had read
+    correctly, telling a model whose only fault was one wrong gene name to
+    re-send under the wrapper. The wrapper fails the same way, so the advice
+    cost a turn."""
+
+    def test_no_hint_when_a_real_gene_was_recognised(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment",
+                               {"G001": "BLOCK", "G999": "BOOST"})
+        assert "error" in result
+        assert "G999" in result["error"]
+        assert "send them under" not in result["error"]
+
+    def test_the_hint_still_fires_when_nothing_was_recognised(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"BLOCK": ["G001"]})
+        assert "interventions" in result["error"]
+
+
+class TestANonDictToolInputIsRefusedNotRaised:
+    """A targeted review of luca/payloads.py. `intervention_payload` called
+    `tool_input.get`, and dispatch_tool does not guard its argument, so a
+    provider that delivers the arguments object as a string ended the session.
+    The same crash class as the list form and the hypothesis keys."""
+
+    def test_a_string_tool_input_is_read_not_raised(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", '{"G001": "BLOCK"}')
+        assert isinstance(result, dict)
+        assert "error" not in result, result
+        assert "G001" in session._experiment_log[-1]["interventions"]
+
+    def test_an_unreadable_string_tool_input_is_refused(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", "not json at all")
+        assert "error" in result
+        assert session.budget_used == 0
+
+    def test_a_list_tool_input_is_refused(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", [1, 2, 3])
+        assert "error" in result
+
+
+class TestAnEmptyWrapperDoesNotBeatAPopulatedOne:
+    """The review asked whether this was intended. It was not.
+
+    The original `or` chain fell through an empty `interventions` to a
+    populated `gene_interventions`. The key-presence rule stopped that, so a
+    model that sent both ran an empty experiment and was billed for it — the
+    issue 13 failure under a new name. A deliberate null experiment is a call
+    where every wrapper present is empty.
+    """
+
+    def test_a_populated_alternate_key_wins_over_an_empty_one(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {
+            "interventions": {},
+            "gene_interventions": {"G001": {"type": "BLOCK"}},
+        })
+        assert "error" not in result, result
+        assert "G001" in session._experiment_log[-1]["interventions"]
+
+    def test_every_wrapper_empty_is_still_a_deliberate_null(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {
+            "interventions": {},
+            "gene_interventions": {},
+        })
+        assert "error" not in result
+        assert session._experiment_log[-1]["interventions"] == {}

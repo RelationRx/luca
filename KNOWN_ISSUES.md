@@ -22,11 +22,16 @@ sealed combination and measure the held-out answer anyway. Results you
 generated before this change are not comparable with results generated after
 it. Record the commit you ran.
 
+**2026-11-19: issue 13 is fixed in this repository.** An experiment the tool
+layer cannot read is refused instead of quietly emptied. This is the change
+most likely to affect what you measure.
+
 ## If you are using this repository
 
 - **Do not compare models to each other using our published tables.** The
   tool layer silently discarded experiments from some models and not others
-  (issue 13). This is the most serious issue on this page.
+  (issue 13). This is the most serious issue on this page. The engine is
+  fixed, but every published table predates the fix. Re-run before comparing.
 - **Do not treat the easy or medium tiers as a test of non-additive causal
   reasoning.** Every prediction task at those tiers is solvable by measuring
   each gene separately and adding the effects (issue 2). The hard tier is
@@ -35,12 +40,12 @@ it. Record the commit you ran.
   computed its own predictions with an inverted sign (issue 6).
 - **Treat disease-mode results with particular care.** Signal-level
   malfunctions behave differently from the documentation (issue 5).
-- **Check your own agent's calls against the documented format.** If your
-  agent does not use the `interventions` key, its experiments may be doing
-  nothing (issue 13). A returned result is not proof that an intervention was
-  applied. An unreadable intervention *type* is now refused rather than
-  ignored (issue 12), so an agent that sent one will see errors where it
-  previously saw normal-looking results.
+- **Re-run before you compare models.** The tool layer used to discard
+  experiments it could not read (issue 13). It now applies the flat form and
+  refuses everything else with an error, and an unreadable intervention *type*
+  is refused too (issue 12). An agent that sent either shape will see errors
+  where it previously saw normal-looking results. Every published table
+  predates both fixes.
 - **Results generated before these fixes are not comparable to results
   generated after.** Record the commit you ran, not just the seed.
 
@@ -52,7 +57,7 @@ you discover it later.
 
 ✅ fixed in this repository · ⚠️ fixed elsewhere, not yet here · ⬜ open
 
-Three of fifteen are fixed here: issues 1, 4 and 12.
+Four of eighteen are fixed here: issues 1, 4, 12 and 13.
 
 | # | Issue | Affects | Status |
 |---|---|---|---|
@@ -68,14 +73,18 @@ Three of fifteen are fixed here: issues 1, 4 and 12.
 | 10 | **(corrected)** Five analysis scripts model a signal activation as a tenfold override. The live engine applies the signal's ordinary strength, and with the sign taken from the requested action rather than from the signal's mode | discriminating-evidence analysis | ⬜ open — measured effect smaller than first reported, see below |
 | 11 | **(corrected)** The probe item builder uses the same tenfold, mode-signed convention as issue 10 when it constructs items about signal activation | probe studies | ⬜ open — **no item is mis-keyed**, see below |
 | 12 | `run_experiment` never validates an intervention's type. An unrecognised type is silently ignored, costs one unit of budget, and returns no error | agent feedback, held-out protocol | ✅ **fixed 2026-11-19** |
-| 13 | **The tool layer accepted intervention formats that it then ignored.** A request that did not use the documented `interventions` key reached the engine as an empty experiment: charged one unit of budget, returning the unperturbed organism and no error | **cross-model comparisons** | ⬜ open — see below |
+| 13 | **The tool layer accepted intervention formats that it then ignored.** A request that did not use the documented `interventions` key reached the engine as an empty experiment: charged one unit of budget, returning the unperturbed organism and no error | **cross-model comparisons** | ✅ **fixed 2026-11-19** — see below |
 | 14 | `report.py` renders a refused `test_rescue` as `restored=0%` with no error line, so a reader cannot tell a refused rescue from a failed one | session reports only | ⬜ open |
 | 15 | `_generate_tasks` does not de-duplicate. Seed 10 medium produces `task_00` and `task_01` with the identical gene-and-type pair and different ground truth, so one organism asks the same question twice and scores it twice | prediction scoring | ⬜ open |
+| 16 | The list intervention form accepts only `BLOCK`, `BOOST` and `DAMPEN`, so it cannot express a signal, and its refusal message never mentions signals. The dict form accepts `{"wave-X": "activate"}` | agent feedback | ⬜ open |
+| 17 | `inspect.py` reads an intervention value of `"BLOCK"` as `""` when it colours the heatmap marker, so a string-valued intervention renders as a white `?`. Line 1443 reads the same value correctly | diagnostic figures only | ⬜ open |
+| 18 | Nothing shows an agent that a signal goes in the interventions map. 78 of 18,356 stored calls asked for a signal-only experiment through shapes the engine does not read, such as `{"signal_activations": ["burst-I"]}` and `{"interventions": [], "signals": [...]}` | disease mode, signal diagnosis | ⬜ open |
 
 Issues 1–8 came from the November 2026 review. Issues 9–11 were found while
 investigating it. Issues 12 and 13 were found by a subsequent audit of the
 analysis layer. Issues 14 and 15 were found by the code review of the issue 1
-and 4 fix.
+and 4 fix. Issues 16, 17 and 18 were found by the code review of the issue 13
+fix, and 18 by a scan of the stored calls that followed it.
 
 ## ✅ Issues 1, 4 and 12, as fixed on 2026-11-19
 
@@ -133,7 +142,7 @@ turn discovering them. Regression tests:
 
     pytest tests/test_experiment.py -k "HeldOut or Immutable or Seal or InterventionType or PredictionLabels"
 
-## Issue 13, in detail
+## ✅ Issue 13, in detail
 
 This is the one most likely to affect a reader's conclusions.
 
@@ -167,6 +176,143 @@ claiming the corrected ordering is right — those subsets are small, and the
 split conditions on a model's own behaviour. We are saying the published
 ordering rests on sessions in which one model's experiments were discarded,
 and should not be relied on.
+
+### As fixed on 2026-11-19
+
+The tool layer now reads every shape a model actually sent, and refuses the
+shapes it cannot read.
+
+- A payload with no wrapper key is read as the intervention map itself, so the
+  flat form `{"G001": "BLOCK"}` works.
+- A wrapper key still wins when one is present, including when it is empty.
+  `{"interventions": {}}` is a deliberate null experiment, not an invitation to
+  read the rest of the call as genes.
+- A value that is not a mapping is refused.
+- A list is refused when **any** entry is unreadable. The partial case matters
+  as much as the whole one. An experiment that silently runs on fewer genes
+  than the model believes corrupts the session just as thoroughly.
+- A call carrying no payload at all is refused, rather than run as an empty
+  experiment. All 85 such calls came from models that also sent the flat form,
+  and the agent text beside them announces an intervention that was then not
+  sent. Treating that as a deliberate null experiment would preserve the
+  original defect under a new name.
+- `test_rescue` read one key name only, so it was narrower still. It now uses
+  the same path.
+
+Every refusal costs no budget and names the shape it could not read, so a
+model is told rather than left to repeat the format for a whole session.
+
+Measured over the 1,220 stored session logs, of 18,356 `run_experiment` and
+`test_rescue` calls: 16,821 were wrapped, 1,450 were flat and 85 were empty.
+Flat and empty came only from gpt-4o, gpt-4.1, gpt-5.1 and qwen-3.5.
+claude-opus-4-6, claude-sonnet-4-6 and deepseek-v3 sent 9,008 calls between
+them and used neither shape.
+
+The two denominators on this page agree. The table above counts the 860 LLM
+sessions. The 1,220 logs add the three baselines, which run no model:
+860 + 3 x 120 = 1,220.
+
+This change makes the engine refuse calls it used to accept and bill. A model
+that sent an unreadable payload will now see errors where it previously saw
+normal-looking results. That is the point: the old behaviour failed in silence.
+
+### What four rounds of code review added
+
+The fix was reviewed four times. Each round read the previous round's
+changes, and most of what rounds two, three and four found had been introduced
+by the fixes themselves, not by the original defect. That is the main lesson
+of this page: a fix that widens what a component must understand widens what
+can disagree.
+
+**One reading, for the engine and the trace.** `report.py` read the
+`interventions` key alone. Once the tool layer applied the flat form, a flat
+experiment ran in the engine and then showed in the trace as an empty one,
+beside the phenotype values it had moved. On seed 0, `{"G001": "BLOCK"}` moved
+`replication-index` by -0.105 while the trace printed `run_experiment(∅)`, and
+edge inference returned nothing. `luca/payloads.py` now holds that reading, and
+both modules call it.
+
+That reading also has to be canonical, because the engine normalises and the
+trace did not. Three defects shared that one cause: the HTML schematic labelled
+every string value `activate` while the engine applied `BLOCK`; a lowercase
+`{"G001": "block"}` was applied by the engine and dropped by edge inference;
+and a payload of `42` or `"BLOCK G001"` raised while rendering, on shapes the
+engine now refuses and that will therefore appear in new logs. The shared
+reader returns `{target: {"type": T}}` for any shape and `{}` for anything
+unreadable. A gene type is upper-cased. A signal action keeps its case, because
+`report.py` colours `"activate"` by that exact string. A payload sent as a JSON
+string is decoded in that one place, so the engine and the trace cannot
+disagree about it.
+
+**A refusal has to teach, and must not teach the wrong thing.** 472 stored
+calls used an alternative container, such as `{"BLOCK": ["G001"]}` or
+`{"perturbations": {...}}`. Every one ran as an empty experiment and was
+billed; none returned an error. They are refused now, and the message names the
+`interventions` key.
+
+Two drafts of those messages were themselves defects. One told the model to
+send `{"interventions": {"wave-X": "activate"}}`; for every signal on seed 0
+that is bit-identical to a null experiment and still costs budget, because
+`activate` resolves to the strength the simulator already uses (issue 5). The
+four stored empty-list calls were signal-only requests, so that advice would
+have sent exactly that audience into a billed no-op — the failure this fix
+removes. The other fired on a flat call the layer had read correctly, telling a
+model whose only fault was one wrong gene name to re-send under the wrapper,
+which fails in the same way. The hint now fires only when no target in the
+payload was recognised.
+
+**Nothing refused may crash.** `dispatch_tool` is called without a guard, so an
+exception ends the session rather than the call. A list entry whose target was
+unhashable, such as `{"gene": ["G001"], "type": "BLOCK"}`, raised `TypeError`.
+`submit_malfunction_hypothesis` read its keys by index and raised `KeyError` on
+a missing one. "Refused, not emptied" must not become "crashed".
+
+**No error may hide a better one.** A malformed payload masked
+"submit_malfunction_hypothesis() must be called first", "not a disease
+organism" and "Budget exhausted". The agent fixed the payload, resent the call,
+and only then learned the real blocker, at one turn each time.
+`ExperimentSession.rescue_state_error()` and `budget_error()` answer those
+questions once, for the engine and the tool layer alike.
+
+**Two payload shapes were decided on the evidence.** An empty list is refused:
+all four stored empty-list calls were `{"interventions": [], "signals": [...]}`,
+a signal-only experiment that ran as a null one and was billed.
+`{"interventions": {}}` is still the explicit null experiment. A null wrapper
+falls through to the alternate key, as the original `or` did; no stored call
+sent one, but a null is an absent payload, not an empty one.
+
+**One reading means one reading.** The fourth round reviewed
+`luca/payloads.py` alone and found that the module written to hold a single
+reading held two. `canonical_interventions` carried its own copy of the rule
+for reading one list entry, and the copy disagreed with the engine on key
+precedence:
+
+    [{"target": "G001", "gene": "G002", "mode": "BOOST"}]
+        engine G001   trace G002
+    [{"gene": "G001", "action": "BOOST", "mode": "BLOCK"}]
+        engine BOOST  trace BLOCK
+
+The first names a gene the engine never perturbed. The second inverts an
+inferred edge, because the discovered network maps a positive change to
+opposite directions for `BLOCK` and `BOOST`. `entry_target` and `entry_action`
+now live in one place and both readers call them. A test compares the trace
+against `_resolve_interventions`, which is the last word on what the simulator
+perturbs.
+
+The same round found three more: a list entry with no readable action rendered
+as a real `BLOCK` while the engine refuses the call; an invented container was
+drawn as a target, so 472 stored calls showed a gene called `perturbations` or
+`BLOCK`; and a payload delivered as a bare string raised rather than being
+read, which ended the session.
+
+It also asked whether one rule was intended, and it was not. With
+`{"interventions": {}, "gene_interventions": {...}}` the key-presence rule ran
+an empty experiment and billed for it, where the original `or` chain ran the
+populated map. A populated wrapper now wins. A call where every wrapper present
+is empty is still a deliberate null experiment.
+
+Three further findings are recorded as issues 16, 17 and 18, and are not fixed
+here.
 
 ## Corrections to issues 10 and 11
 
@@ -208,8 +354,8 @@ measurement, not by inspection alone.
 1. ~~Finish auditing the analysis scripts.~~ A first pass is done; it produced
    issues 12 and 13 and the corrections to 10 and 11. The scaling-study logs
    and several analysis scripts are still unexamined.
-2. Land the remaining engine fixes. Issues 1, 4 and 12 are done; issues 3
-   and 13 are next.
+2. Land the remaining engine fixes. Issues 1, 4, 12 and 13 are done; issue 3
+   is next.
 3. Recompute every affected number, and re-run the sessions that the
    held-out protocol change invalidates.
 4. Post corrected versions of the write-ups, with the corrections stated

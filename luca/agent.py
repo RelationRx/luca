@@ -105,6 +105,13 @@ def _with_retry(fn, retryable_exc: tuple, *args, **kwargs):
             time.sleep(wait)
 
 from .experiment import ExperimentSession
+from .payloads import (
+    MISSING_INTERVENTIONS_ERROR,
+    entry_action,
+    entry_target,
+    flat_form_hint,
+    intervention_payload,
+)
 
 # ---------------------------------------------------------------------------
 # Tool schemas
@@ -585,19 +592,76 @@ def _normalise_interventions(raw: Any) -> dict[str, Any] | str:
         return raw  # canonical format — no-op
 
     if isinstance(raw, list):
+        if not raw:
+            # An empty list carries no genes, so it is an absent payload, not
+            # a deliberate null experiment. All four stored empty-list calls
+            # were {"interventions": [], "signals": [...]}: the model asked for
+            # a signal-only experiment, got an untouched organism, and was
+            # billed for it. {"interventions": {}} remains the explicit null.
+            return (
+                "interventions was an empty list, so no gene was named. Name "
+                'at least one gene, for example {"interventions": {"G001": '
+                '{"type": "BLOCK"}}}. For a deliberate null experiment send '
+                '{"interventions": {}}. A signal-only experiment is not '
+                "supported yet; see KNOWN_ISSUES.md issues 5 and 18."
+            )
         # gpt-5.1 compat: list of per-gene dicts with varying key names
         normalised: dict[str, Any] = {}
+        unreadable: list[Any] = []
         for item in raw:
-            target = item.get("target") or item.get("gene") or item.get("name")
-            action = (
-                item.get("action") or item.get("mode")
-                or item.get("intervention") or item.get("type")
+            # entry_target and entry_action live in payloads.py so that the
+            # engine and the trace read one entry the same way. They used to be
+            # two copies, and the copies disagreed on key precedence.
+            target, action = entry_target(item), entry_action(item)
+            if target is not None and action is not None:
+                normalised[target] = {"type": action}
+            else:
+                unreadable.append(item)
+        if unreadable:
+            # Issue 13: entries that did not parse used to be dropped in
+            # silence. The experiment then ran on fewer genes than the model
+            # believed, cost a unit of budget, and returned a normal readout.
+            return (
+                f"could not read {len(unreadable)} of {len(raw)} intervention "
+                f"entries: {unreadable!r}. Each entry needs a gene name and one "
+                f"of BLOCK, BOOST, DAMPEN, for example "
+                f'{{"gene": "G001", "type": "BLOCK"}}.'
             )
-            if target and action and action.upper() in ("BLOCK", "BOOST", "DAMPEN"):
-                normalised[target] = {"type": action.upper()}
         return normalised
 
-    return {}
+    return (
+        f"interventions must be an object mapping gene names to BLOCK, BOOST "
+        f"or DAMPEN, got {type(raw).__name__}: {raw!r}"
+    )
+
+
+def _with_flat_form_hint(
+    result: dict, from_flat: bool, session: ExperimentSession, interventions: dict
+) -> dict:
+    """Name the documented wrapper when a flat-form guess hit an unknown target.
+
+    472 of the 18,356 stored calls sent an alternative container name, such as
+    {"BLOCK": ["G001"]} or {"perturbations": {...}}. Before issue 13 each one
+    ran as an empty experiment and was billed. They are refused now, which is
+    correct, but "Unknown target: BLOCK" alone does not tell a model what to
+    send instead.
+    """
+    if not from_flat or "error" not in result:
+        return result
+    message = result["error"]
+    if not message.startswith("Unknown target: "):
+        return result
+    info = session.get_info()
+    known = set(info.get("gene_names") or ())
+    known |= {
+        s.get("label") for s in (info.get("signals") or ()) if isinstance(s, dict)
+    }
+    if any(target in known for target in interventions):
+        # The flat read worked and one name was simply wrong. Pointing at the
+        # wrapper would fail in exactly the same way and cost another turn.
+        return result
+    stray = message[len("Unknown target: "):].strip()
+    return {**result, "error": message + flat_form_hint(stray)}
 
 
 def _normalise_prediction(tool_input: dict) -> dict[str, float] | None:
@@ -678,11 +742,17 @@ def dispatch_tool(session: ExperimentSession, tool_name: str, tool_input: dict) 
     elif tool_name == "get_next_prediction_task":
         return session.get_next_prediction_task()
     elif tool_name == "run_experiment":
-        raw = tool_input.get("interventions") or tool_input.get("gene_interventions", {})
+        exhausted = session.budget_error()
+        if exhausted is not None:
+            return exhausted
+        raw, from_flat = intervention_payload(tool_input)
+        if raw is None:
+            return {"error": MISSING_INTERVENTIONS_ERROR}
         interventions = _normalise_interventions(raw)
         if isinstance(interventions, str):
             return {"error": interventions}
-        return session.run_experiment(interventions)
+        result = session.run_experiment(interventions)
+        return _with_flat_form_hint(result, from_flat, session, interventions)
     elif tool_name == "submit_prediction":
         prediction = _normalise_prediction(tool_input)
         if prediction is None:
@@ -703,12 +773,31 @@ def dispatch_tool(session: ExperimentSession, tool_name: str, tool_input: dict) 
             return {"error": edges}
         return session.submit_network(edges)
     elif tool_name == "test_rescue":
-        raw = tool_input.get("interventions", {})
+        # The session's own state errors come first. A malformed payload used
+        # to mask them, so the agent fixed the payload, resent, and only then
+        # learned that it had not submitted a hypothesis. That cost a turn.
+        blocked = session.rescue_state_error() or session.budget_error()
+        if blocked is not None:
+            return blocked
+        raw, from_flat = intervention_payload(tool_input)
+        if raw is None:
+            return {"error": MISSING_INTERVENTIONS_ERROR}
         interventions = _normalise_interventions(raw)
         if isinstance(interventions, str):
             return {"error": interventions}
-        return session.test_rescue(interventions)
+        result = session.test_rescue(interventions)
+        return _with_flat_form_hint(result, from_flat, session, interventions)
     elif tool_name == "submit_malfunction_hypothesis":
+        # dispatch_tool is called bare in three places, so a KeyError here
+        # ended the whole session. Same crash class as the list form.
+        missing = [k for k in ("target_name", "malfunction_type")
+                   if not tool_input.get(k)]
+        if missing:
+            return {"error": (
+                f"Missing required parameter(s): {', '.join(missing)}. Send "
+                '{"target_name": "G001", "malfunction_type": "LOCK_HI"}. '
+                "Nothing was recorded, and the hypothesis is still open."
+            )}
         return session.submit_malfunction_hypothesis(
             tool_input["target_name"],
             tool_input["malfunction_type"],
