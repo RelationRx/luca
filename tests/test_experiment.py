@@ -588,3 +588,230 @@ class TestRevealedTaskIsHeldOut:
         session.submit_malfunction_hypothesis("G001", "LOCK_HI")
         result = session.test_rescue(interventions)
         assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# Issue 12 — an unrecognised intervention type was a no-op that cost budget
+#
+# _resolve_interventions passed the value straight to the simulator, which
+# matches on "BLOCK", "BOOST" and "DAMPEN". Anything else fell through every
+# branch, so the gene was never perturbed, the call still cost a unit of
+# budget, and the readout came back looking normal. Lower case failed the same
+# way: {"type": "block"} was accepted and then ignored.
+# ---------------------------------------------------------------------------
+
+class TestInterventionTypeIsValidated:
+
+    def test_unknown_type_is_refused(self):
+        session = _healthy_session()
+        gene = session.get_info()["gene_names"][0]
+        result = session.run_experiment({gene: {"type": "KNOCKOUT"}})
+        assert "error" in result
+        assert "KNOCKOUT" in result["error"]
+
+    def test_refused_type_costs_no_budget(self):
+        session = _healthy_session()
+        gene = session.get_info()["gene_names"][0]
+        before = session.budget_used
+        session.run_experiment({gene: {"type": "KNOCKOUT"}})
+        assert session.budget_used == before
+
+    def test_bare_string_type_blocks_the_gene(self):
+        """{"G001": "BLOCK"} is the flat form several models send."""
+        gene = _healthy_session().get_info()["gene_names"][0]
+        bare = _healthy_session().run_experiment({gene: "BLOCK"})
+        wrapped = _healthy_session().run_experiment({gene: {"type": "BLOCK"}})
+        assert "error" not in bare
+        assert bare["phenotypes"] == wrapped["phenotypes"]
+
+    def test_lowercase_type_blocks_the_gene(self):
+        """Lowercase used to be accepted and then silently do nothing."""
+        gene = _healthy_session().get_info()["gene_names"][0]
+        lower = _healthy_session().run_experiment({gene: {"type": "block"}})
+        upper = _healthy_session().run_experiment({gene: {"type": "BLOCK"}})
+        assert "error" not in lower
+        assert lower["phenotypes"] == upper["phenotypes"]
+
+    def test_all_three_documented_types_are_accepted(self):
+        session = _healthy_session()
+        gene = session.get_info()["gene_names"][0]
+        for itype in ("BLOCK", "BOOST", "DAMPEN"):
+            result = session.run_experiment({gene: {"type": itype}})
+            assert "error" not in result, itype
+
+    def test_a_refused_type_is_not_logged_as_an_experiment(self):
+        session = _healthy_session()
+        gene = session.get_info()["gene_names"][0]
+        session.run_experiment({gene: {"type": "KNOCKOUT"}})
+        assert session._experiment_log == []
+
+
+# ---------------------------------------------------------------------------
+# Review of PR #9, finding 1 — the hold-out seal was bypassable in one call.
+#
+# _intervention_signature compares (gene_id, type) pairs, and nothing validated
+# the type. dynamics.apply_interventions matches "BLOCK", "BOOST" and "DAMPEN"
+# exactly and has no else branch, so any other string was a silent no-op. An
+# agent added a third gene with a fake type: the signature no longer matched,
+# the seal let the call through, the fake type did nothing, and the readout was
+# the task's own answer. Measured on seed 0 medium: accuracy 1.0, mse 0.0003.
+# ---------------------------------------------------------------------------
+
+class TestSealCannotBeBypassedByAFakeType:
+
+    def _revealed(self, session):
+        task = session.get_next_prediction_task()
+        return task, {g: dict(iv) for g, iv in task["interventions"].items()}
+
+    def _spare_gene(self, session, interventions):
+        return [g for g in session.get_info()["gene_names"] if g not in interventions][0]
+
+    def test_the_combination_plus_a_fake_type_is_refused(self):
+        session = _healthy_session()
+        _task, interventions = self._revealed(session)
+        probe = dict(interventions)
+        probe[self._spare_gene(session, interventions)] = {"type": "NONE"}
+        result = session.run_experiment(probe)
+        assert "error" in result
+
+    def test_the_bypass_costs_no_budget(self):
+        session = _healthy_session()
+        _task, interventions = self._revealed(session)
+        probe = dict(interventions)
+        probe[self._spare_gene(session, interventions)] = {"type": "NONE"}
+        before = session.budget_used
+        session.run_experiment(probe)
+        assert session.budget_used == before
+
+    def test_a_real_third_gene_is_still_allowed(self):
+        """Only the fake type is refused. A genuine third gene is a different
+        experiment and stays legitimate."""
+        session = _healthy_session()
+        _task, interventions = self._revealed(session)
+        probe = dict(interventions)
+        probe[self._spare_gene(session, interventions)] = {"type": "BLOCK"}
+        result = session.run_experiment(probe)
+        assert "error" not in result
+
+
+# ---------------------------------------------------------------------------
+# Review of PR #9, finding 3 — the seal ignored signals.
+#
+# _sealed_task_for received gene_interventions only. A prediction task carries
+# no signal change, so the task genes plus a signal change is a different
+# experiment with a different outcome. The seal refused it anyway, and the
+# refusal text then described an experiment the agent had not sent.
+# ---------------------------------------------------------------------------
+
+class TestSealCoversSignals:
+
+    def _revealed(self, session):
+        task = session.get_next_prediction_task()
+        return task, {g: dict(iv) for g, iv in task["interventions"].items()}
+
+    def test_the_combination_plus_a_signal_override_is_allowed(self):
+        session = _healthy_session()
+        _task, interventions = self._revealed(session)
+        signal = session.organism.signals[0].label
+        probe = dict(interventions)
+        probe[signal] = "deactivate"
+        result = session.run_experiment(probe)
+        assert "error" not in result
+
+    def test_the_combination_with_active_signals_is_allowed(self):
+        session = _healthy_session()
+        _task, interventions = self._revealed(session)
+        signal = session.organism.signals[0].label
+        result = session.run_experiment(
+            dict(interventions), active_signals={signal: False}
+        )
+        assert "error" not in result
+
+    def test_the_bare_combination_is_still_refused(self):
+        session = _healthy_session()
+        _task, interventions = self._revealed(session)
+        result = session.run_experiment(dict(interventions))
+        assert "error" in result
+        assert "task_00" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# Review of PR #9, finding 6 — _revealed_task_ids is a set.
+#
+# CLAUDE.md forbids bare set iteration. _generate_tasks does not de-duplicate:
+# seed 10 medium produces task_00 and task_01 with the identical gene-and-type
+# pair and different ground truth. _sealed_task_for then names whichever id the
+# set happened to yield. Two revealed unanswered tasks are not reachable through
+# the public API today, so this is latent, not observable. The seal must still
+# name the lowest matching id, every run.
+# ---------------------------------------------------------------------------
+
+class TestSealNamesTheLowestMatchingTask:
+
+    def test_duplicate_tasks_resolve_to_the_lowest_id(self):
+        org = generate_organism(seed=10, difficulty="medium")
+        session = ExperimentSession(org, seed=10)
+        assert session._intervention_signature(
+            session._tasks["task_00"].interventions
+        ) == session._intervention_signature(
+            session._tasks["task_01"].interventions
+        ), "seed 10 medium must still generate the duplicate pair"
+        session._revealed_task_ids = {"task_01", "task_00"}
+        sealed = session._sealed_task_for(session._tasks["task_00"].interventions)
+        assert sealed == "task_00"
+
+
+# ---------------------------------------------------------------------------
+# Review of PR #9, finding 2 — a malformed first prediction was scored, and the
+# scoring then locked the task forever.
+#
+# prediction.get(label, 0.5) filled every missing label with 0.5, so a model
+# that answered with the wrong label names received a permanent score it never
+# intended. On seed 0 medium, {"stress": 0.4, "integrity": 0.6} scored
+# accuracy 0.6667. Issue 4's one-answer rule then refused the correction.
+# The repo measured 1,450 flat and 85 empty payloads in 18,356 calls, so this
+# shape of error is common.
+# ---------------------------------------------------------------------------
+
+class TestPredictionLabelsAreChecked:
+
+    def test_a_prediction_with_no_known_label_is_refused(self):
+        session = _healthy_session()
+        task = session.get_next_prediction_task()
+        result = session.submit_prediction(
+            task["task_id"], {"stress": 0.4, "integrity": 0.6}
+        )
+        assert "error" in result
+        assert "accuracy" not in result
+
+    def test_a_refused_prediction_does_not_lock_the_task(self):
+        session = _healthy_session()
+        task = session.get_next_prediction_task()
+        session.submit_prediction(task["task_id"], {"stress": 0.4})
+        good = session.submit_prediction(
+            task["task_id"], {l: 0.5 for l in task["phenotype_labels"]}
+        )
+        assert "error" not in good
+        assert good["accuracy"] is not None
+
+    def test_a_refused_prediction_is_not_recorded(self):
+        session = _healthy_session()
+        task = session.get_next_prediction_task()
+        session.submit_prediction(task["task_id"], {"stress": 0.4})
+        assert session._prediction_results == []
+
+    def test_an_empty_prediction_is_refused(self):
+        session = _healthy_session()
+        task = session.get_next_prediction_task()
+        result = session.submit_prediction(task["task_id"], {})
+        assert "error" in result
+
+    def test_a_partial_prediction_is_still_scored(self):
+        """One recognised label is enough. Only a wholly unreadable answer is
+        refused; the 0.5 default still fills the rest."""
+        session = _healthy_session()
+        task = session.get_next_prediction_task()
+        one = task["phenotype_labels"][0]
+        result = session.submit_prediction(task["task_id"], {one: 0.5})
+        assert "error" not in result
+        assert result["accuracy"] is not None

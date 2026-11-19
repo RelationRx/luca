@@ -58,6 +58,12 @@ def _sealed_message(task_id: str) -> str:
     )
 
 
+# The three documented intervention types. dynamics.apply_interventions matches
+# these exactly and has no else branch, so any other string is a silent no-op.
+# Issue 12, and the bypass in finding 1 of the PR #9 review.
+_INTERVENTION_TYPES = ("BLOCK", "BOOST", "DAMPEN")
+
+
 class ExperimentSession:
     def __init__(
         self,
@@ -237,7 +243,19 @@ class ExperimentSession:
                 gid = name_to_id[key]
                 if gid in latent_ids:
                     return {"error": f"Gene {key} is not accessible for intervention"}
-                gene_interventions[gid] = val
+                # Issue 12. The value used to pass straight through to the
+                # simulator, which matches BLOCK/BOOST/DAMPEN exactly. Anything
+                # else fell through every branch, so the gene was never
+                # perturbed, the call still cost a unit of budget, and the
+                # readout came back looking normal. Lower case failed the same
+                # way. An unreadable type is now refused, like an unknown target.
+                itype = val.get("type") if isinstance(val, dict) else val
+                if not isinstance(itype, str) or itype.upper() not in _INTERVENTION_TYPES:
+                    return {"error": (
+                        f"Unknown intervention type for {key}: {itype!r}. "
+                        f"Use one of {', '.join(_INTERVENTION_TYPES)}."
+                    )}
+                gene_interventions[gid] = {"type": itype.upper()}
             elif key in label_to_signal:
                 sig = label_to_signal[key]
                 mult = 1.0 if val in ("activate", "activates") else -1.0
@@ -295,7 +313,11 @@ class ExperimentSession:
             signature.add((gene_id, str(itype).upper()))
         return frozenset(signature)
 
-    def _sealed_task_for(self, gene_interventions: dict[str, Any]) -> str | None:
+    def _sealed_task_for(
+        self,
+        gene_interventions: dict[str, Any],
+        signal_overrides: dict[str, float] | None = None,
+    ) -> str | None:
         """
         Return the id of a revealed, unanswered task whose exact combination
         this is, or None.
@@ -304,12 +326,25 @@ class ExperimentSession:
         experiment and is allowed, as is either task gene on its own: measuring
         single genes and adding the effects is a legitimate strategy, and the
         held-out quantity is the joint outcome.
+
+        signal_overrides covers the agent's own signal changes, not the chronic
+        malfunction signal, which the caller applies after this check. A task
+        carries no signal change, so any agent signal change makes the call a
+        different experiment.
         """
         if not gene_interventions:
             return None
+        if signal_overrides:
+            # A prediction task carries no signal change. The same genes under a
+            # changed signal is a different experiment with a different outcome,
+            # so it is not the held-out one. Finding 3 of the PR #9 review.
+            return None
         answered = {r.task_id for r in self._prediction_results}
         signature = self._intervention_signature(gene_interventions)
-        for task_id in self._revealed_task_ids:
+        # sorted(): _revealed_task_ids is a set, and _generate_tasks does not
+        # de-duplicate — seed 10 medium produces two tasks with the identical
+        # gene-and-type pair. CLAUDE.md forbids bare set iteration.
+        for task_id in sorted(self._revealed_task_ids):
             if task_id in answered:
                 continue
             task = self._tasks.get(task_id)
@@ -382,12 +417,14 @@ class ExperimentSession:
             return resolved  # error
         gene_interventions, signal_overrides = resolved
 
-        sealed = self._sealed_task_for(gene_interventions)
+        if active_signals:
+            signal_overrides.update(active_signals)
+
+        # The seal is checked against the full experiment, signals included.
+        sealed = self._sealed_task_for(gene_interventions, signal_overrides)
         if sealed is not None:
             return {"error": _sealed_message(sealed)}
 
-        if active_signals:
-            signal_overrides.update(active_signals)
         # The chronic malfunction signal wins over any agent-supplied override
         # of the same signal: agents cannot switch the disease off.
         signal_overrides.update(self._malfunction_signal_overrides)
@@ -442,6 +479,22 @@ class ExperimentSession:
         task = self._tasks[task_id]
         gt = task.ground_truth
         phenotype_labels = list(gt.keys())
+
+        # Finding 2 of the PR #9 review. prediction.get(label, 0.5) fills every
+        # missing label with 0.5, so an answer that names no phenotype at all
+        # used to be scored from the defaults alone. Issue 4's one-answer rule
+        # then refused the correction, which made a formatting slip permanent.
+        # One recognised label is enough; a wholly unreadable answer is refused,
+        # costs nothing and leaves the task open.
+        if not isinstance(prediction, dict) or not any(
+            label in gt for label in prediction
+        ):
+            return {"error": (
+                f"No recognised phenotype in the prediction for {task_id}. "
+                f"Give a value for one or more of: "
+                f"{', '.join(phenotype_labels)}. Nothing was scored, and the "
+                f"task is still open."
+            )}
 
         mse_sum = 0.0
         correct = 0
@@ -573,7 +626,7 @@ class ExperimentSession:
 
         # test_rescue also returns simulated phenotypes, so it is a second route
         # to the same held-out answer and is sealed on the same terms.
-        sealed = self._sealed_task_for(gene_interventions)
+        sealed = self._sealed_task_for(gene_interventions, signal_overrides)
         if sealed is not None:
             return {"error": _sealed_message(sealed)}
 
