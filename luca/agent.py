@@ -587,17 +587,91 @@ def _normalise_interventions(raw: Any) -> dict[str, Any] | str:
     if isinstance(raw, list):
         # gpt-5.1 compat: list of per-gene dicts with varying key names
         normalised: dict[str, Any] = {}
+        unreadable: list[Any] = []
         for item in raw:
-            target = item.get("target") or item.get("gene") or item.get("name")
-            action = (
-                item.get("action") or item.get("mode")
-                or item.get("intervention") or item.get("type")
-            )
-            if target and action and action.upper() in ("BLOCK", "BOOST", "DAMPEN"):
+            if isinstance(item, dict):
+                target = (
+                    item.get("target") or item.get("gene") or item.get("name")
+                )
+                action = (
+                    item.get("action") or item.get("mode")
+                    or item.get("intervention") or item.get("type")
+                )
+            else:
+                target = action = None
+            if (
+                target and isinstance(action, str)
+                and action.upper() in ("BLOCK", "BOOST", "DAMPEN")
+            ):
                 normalised[target] = {"type": action.upper()}
+            else:
+                unreadable.append(item)
+        if unreadable:
+            # Issue 13: entries that did not parse used to be dropped in
+            # silence. The experiment then ran on fewer genes than the model
+            # believed, cost a unit of budget, and returned a normal readout.
+            return (
+                f"could not read {len(unreadable)} of {len(raw)} intervention "
+                f"entries: {unreadable!r}. Each entry needs a gene name and one "
+                f"of BLOCK, BOOST, DAMPEN, for example "
+                f'{{"gene": "G001", "type": "BLOCK"}}.'
+            )
         return normalised
 
-    return {}
+    return (
+        f"interventions must be an object mapping gene names to BLOCK, BOOST "
+        f"or DAMPEN, got {type(raw).__name__}: {raw!r}"
+    )
+
+
+# run_experiment and test_rescue take the same payload. A model may send the
+# intervention map under either key, or — issue 13 — unwrapped at the top level.
+_INTERVENTION_WRAPPER_KEYS = ("interventions", "gene_interventions")
+
+
+MISSING_INTERVENTIONS_ERROR = (
+    "Missing required parameter 'interventions'. Send "
+    '{"interventions": {"G001": {"type": "BLOCK"}}}. For a deliberate '
+    'null experiment send {"interventions": {}} explicitly.'
+)
+
+
+def _intervention_payload(tool_input: dict) -> Any | None:
+    """Find the interventions in a tool call, whatever shape the model used.
+
+    **Issue 13.** The tool layer used to read two key names and nothing else,
+    so a model that sent its targets at the top level of ``tool_input`` — with
+    no wrapper key at all — had its whole experiment replaced by ``{}``. The
+    engine then simulated an untouched organism, charged a unit of budget and
+    returned a normal-looking success. The model never learned, so it repeated
+    the format for the rest of the session.
+
+    Measured over the 1,220 stored session logs, of 18,356 run_experiment and
+    test_rescue calls: 1,450 used the flat form and 85 carried no payload at
+    all. gpt-4.1 alone sent 872 flat calls in 2,001.
+
+    A wrapper key wins whenever one is present, including when it is empty:
+    ``{"interventions": {}}`` means a deliberate null experiment, not an
+    invitation to read the rest of the call as genes.
+
+    Returns None when the call carries no payload at all. That is refused by
+    the caller rather than silently run as an empty experiment: every one of
+    the 85 empty calls came from a model that also sent the flat form, and the
+    agent text beside them announces an intervention that was then not sent.
+
+    A payload may legitimately be a JSON string, so the return type carries no
+    error channel — None is the only non-payload value.
+    """
+    for key in _INTERVENTION_WRAPPER_KEYS:
+        if key in tool_input:
+            return tool_input[key]
+
+    if not tool_input:
+        return None
+
+    # Flat form: the payload is the intervention map. An unknown target is
+    # rejected by the session, which costs no budget.
+    return tool_input
 
 
 def _normalise_prediction(tool_input: dict) -> dict[str, float] | None:
@@ -678,7 +752,9 @@ def dispatch_tool(session: ExperimentSession, tool_name: str, tool_input: dict) 
     elif tool_name == "get_next_prediction_task":
         return session.get_next_prediction_task()
     elif tool_name == "run_experiment":
-        raw = tool_input.get("interventions") or tool_input.get("gene_interventions", {})
+        raw = _intervention_payload(tool_input)
+        if raw is None:
+            return {"error": MISSING_INTERVENTIONS_ERROR}
         interventions = _normalise_interventions(raw)
         if isinstance(interventions, str):
             return {"error": interventions}
@@ -703,7 +779,9 @@ def dispatch_tool(session: ExperimentSession, tool_name: str, tool_input: dict) 
             return {"error": edges}
         return session.submit_network(edges)
     elif tool_name == "test_rescue":
-        raw = tool_input.get("interventions", {})
+        raw = _intervention_payload(tool_input)
+        if raw is None:
+            return {"error": MISSING_INTERVENTIONS_ERROR}
         interventions = _normalise_interventions(raw)
         if isinstance(interventions, str):
             return {"error": interventions}
