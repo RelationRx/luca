@@ -149,8 +149,15 @@ finalised readout weights.
 **Why steps 11–13 matter**: without them, organisms can have silent observable
 genes (no readout entry), trivially additive tasks (genes from different
 readouts are independent), irrelevant latent genes (no phenotype path), and
-saturated baselines (sigmoid flat, individual knockouts invisible). All four
-were artefacts in earlier generation code and are now guaranteed to be absent.
+saturated baselines (sigmoid flat, individual knockouts invisible). Three of
+those four are guaranteed absent.
+
+The fourth is not. Drawing a task's genes from the same readout removes the
+*independent* case, where the two genes never meet. It does not make the task
+non-additive: the two effects still pass through the sigmoid in a range where
+adding them happens to land within the ±0.10 scoring threshold. Measured over
+seeds 0–19, every easy and every medium task is additively solvable, and 18 of
+40 hard tasks are. See §6 and [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) issue 2.
 
 ---
 
@@ -188,22 +195,32 @@ diagnosis ambiguity.
 `verify_organisms.py` checks three properties per seed:
 
 1. **Structural**: correct n_genes, n_latent, n_phenotypes per tier preset
-2. **Additivity**: prediction tasks not solvable by summing single-gene BLOCK
-   effects (max additive prediction error > 0.15 for ≥1 task). This threshold
-   is more generous than the scoring threshold (±0.10) — it screens out only
-   the most trivially additive organisms; only medium/hard are guaranteed
-   non-trivial (see verification results below). See §8 for the full prediction
-   task definition.
+2. **Additivity**: whether a prediction task is solvable by measuring each of
+   its genes separately, under the intervention type the task asks for, and
+   adding the deltas. A task counts as additively solvable when that prediction
+   is within the scoring threshold (±0.10) on every phenotype. See §8 for the
+   full prediction task definition.
+
+   > **Corrected 2026-11-19.** This check was broken in two ways. It looked up
+   > gene ids in a dictionary keyed by gene names, so every measured effect
+   > fell back to zero, and it inverted the sign of the effects it did measure
+   > while measuring only `BLOCK`. It therefore reported every task at every
+   > tier as non-additive. The rates below are the repaired measurement. See
+   > [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) issue 3.
 3. **Latent relevance** (hard only): every latent gene shifts ≥1 phenotype by
    > 0.05 when blocked
 
 Verification results for n=20, seeds 0–19:
 
-| Tier | Pass rate | Notes |
-|------|-----------|-------|
-| Easy | 17/20 | 3 additive — inherent to near-linear dynamics; reported transparently |
-| Medium | 20/20 | |
-| Hard | 20/20 | All latent genes relevant, 0 additive tasks |
+| Tier | Additively solvable tasks | Notes |
+|------|---------------------------|-------|
+| Easy | **40 of 40** | every task is solvable by adding single-gene effects |
+| Medium | **40 of 40** | the default tier does not test non-additivity |
+| Hard | **18 of 40** | 22 tasks resist the additive strategy; all latent genes relevant |
+
+Reproduce with `pytest tests/test_verify_organisms.py`, which measures these
+rates twice — once through `verify_organisms.py` and once through an
+independent implementation that shares none of its code.
 
 ---
 
@@ -276,10 +293,14 @@ values. Key properties:
   directly before predicting it.
 - **Non-trivial shift**: each task produces a ≥0.10 phenotype shift from
   baseline — tasks cannot be answered by predicting the baseline value.
-- **Non-additive by design**: each task targets genes within the same phenotype
-  readout. Their combined effect is non-linear (sigmoid interaction), so summing
-  individual BLOCK/BOOST effects gives the wrong answer. Correct prediction
-  requires reasoning about interaction effects.
+- **Non-additive by intent, and only at hard in practice**: each task targets
+  genes within the same phenotype readout, so their combined effect passes
+  through the sigmoid together. The intent is that summing the individual
+  effects gives the wrong answer. Measured over seeds 0–19 that holds for 22 of
+  40 hard tasks and for none at easy or medium, where every task is additively
+  solvable. The guarantee is a property of the generator, so it is addressed in
+  LUCA v2 rather than patched; see [KNOWN_ISSUES.md](../KNOWN_ISSUES.md)
+  issue 2.
 - **Default n=2** per session (configurable; fixed at 2 for all paper v1 runs).
 
 ### Scoring
@@ -458,8 +479,9 @@ The easy tier produces near-linear organisms where the random baseline scores
 ~0.80 composite. This makes easy a weak discriminator between models. It is
 useful as a sanity check (any model should score above random) and as a floor
 for interpretation, but paper results and comparisons focus on medium and hard.
-3/20 easy organisms have near-additive prediction tasks — an inherent property
-of low-feedback networks, reported transparently (see §6).
+Every easy prediction task over seeds 0–19 is additively solvable, so the tier
+does not test non-additive causal reasoning at all. The earlier figure of 3/20
+came from the broken verifier described in §6.
 
 ### Prior knowledge integration
 

@@ -8,10 +8,17 @@ the analysis scripts that produce the numbers in our write-ups. We are
 working through them in the open. This page records what is confirmed, what
 is fixed, and what is still open.
 
-An audit of the analysis layer has since added two further issues, and
-corrected two earlier entries (10 and 11) that were described inaccurately
-here. In both of those cases the correction makes the defect **smaller** than
-we first reported.
+An audit of the analysis layer has since added two further issues. Two earlier
+entries, 10 and 11, have been **withdrawn**: they described defects in analysis
+scripts that are not part of this repository, so a reader here could neither
+see them nor reproduce them. The numbering is unchanged, because merged pull
+requests cite it.
+
+Each issue below now carries a **bucket**. **v1** means it must be fixed before
+other people can use this environment, and we are fixing those now. **v2**
+means it is known and recorded, and it is resolved in the LUCA v2 redesign.
+Several v1 fixes change the numbers. We say so rather than preserve a number we
+know to be wrong.
 
 **2026-11-19: issues 1, 4 and 12 are fixed in this repository.** A revealed
 prediction task's answer can no longer be measured instead of predicted, each
@@ -21,6 +28,20 @@ silent no-op, so an agent could add a third gene with a fake type, change the
 sealed combination and measure the held-out answer anyway. Results you
 generated before this change are not comparable with results generated after
 it. Record the commit you ran.
+
+**2026-11-19: issue 3 is fixed in this repository.** The additivity verifier
+reported every prediction task at every tier as non-additive. It does not. The
+corrected measurement over seeds 0-19 is **easy 40 of 40, medium 40 of 40,
+hard 18 of 40** additively solvable against the ground truth the engine stores,
+and **easy 40 of 40, medium 40 of 40, hard 34 of 40** against a noise-free
+ground truth. Both are reported below, with the question each one answers.
+Either way the easy and medium tiers are fully additive, which is the evidence
+for issue 2.
+
+**2026-11-20: issue 20 is fixed in this repository.** A bare `pytest` from the
+repository root was importing a different checkout's engine, so the tests that
+prove issues 1, 4 and 12 are fixed were failing under the documented command.
+If you have run this suite before, run it again.
 
 **2026-11-19: issue 13 is fixed in this repository.** An experiment the tool
 layer cannot read is refused instead of quietly emptied. This is the change
@@ -34,12 +55,27 @@ most likely to affect what you measure.
   fixed, but every published table predates the fix. Re-run before comparing.
 - **Do not treat the easy or medium tiers as a test of non-additive causal
   reasoning.** Every prediction task at those tiers is solvable by measuring
-  each gene separately and adding the effects (issue 2). The hard tier is
-  not: about 55% of its tasks resist that strategy.
+  each gene separately and adding the effects (issue 2). The hard tier is the
+  only one that resists, and it resists less than it looks: 22 of its 40 tasks
+  defeat an additive strategy against the stored ground truth, but only about 6
+  of those do so because of the dynamics. The rest is readout noise. See
+  issue 3 below for both numbers.
 - **Do not rely on the published baseline numbers.** The heuristic baseline
   computed its own predictions with an inverted sign (issue 6).
-- **Treat disease-mode results with particular care.** Signal-level
-  malfunctions behave differently from the documentation (issue 5).
+- **Do not use disease mode with a `PERSIST` malfunction yet.** Two defects
+  compound there. The chronic override is negated twice, so a persistent
+  inhibitor simulates as a strong activator (issue 5a). And `test_rescue`
+  re-applies the override after reading the agent's request, so the rescue the
+  generator certifies cannot be performed at all: 9 of the 60 canonical disease
+  organisms are certified rescuable and all 9 return `restored_fraction = 0.0`
+  (issue 19). Gene malfunctions, `LOCK_HI` and `LOCK_LO`, are not affected.
+- **Do not trust a signal verb.** `activate` does nothing and the documented
+  `{"type": ...}` form never parses (issue 5b). This is a v2 item, because
+  deciding what the verbs should mean is a design question.
+- **Check which `luca` your tests import.** Until 2026-11-20 a bare `pytest`
+  here could import a different checkout (issue 20). Run
+  `python -c "import luca; print(luca.__file__)"` and confirm the path is
+  inside your own checkout.
 - **Re-run before you compare models.** The tool layer used to discard
   experiments it could not read (issue 13). It now applies the flat form and
   refuses everything else with an error, and an unreadable intervention *type*
@@ -57,34 +93,50 @@ you discover it later.
 
 ✅ fixed in this repository · ⚠️ fixed elsewhere, not yet here · ⬜ open
 
-Four of eighteen are fixed here: issues 1, 4, 12 and 13.
+Every issue carries a **bucket**:
 
-| # | Issue | Affects | Status |
-|---|---|---|---|
-| 1 | `run_experiment` and `test_rescue` would execute a revealed prediction task's exact combination, so an agent could measure the answer instead of predicting it | held-out protocol | ✅ **fixed 2026-11-19** |
-| 2 | Every easy and medium prediction task is solvable by a four-experiment additive strategy, contradicting the stated non-additivity guarantee | difficulty claims | ⬜ open — needs a generator change |
-| 3 | `verify_organisms.py` looks up gene IDs in a dictionary keyed by gene names, silently reads every measured effect as zero, and so reports every task as non-additive | organism verification, seed screening | ⬜ open |
-| 4 | `submit_prediction` disclosed ground truth and scored every retry, so a resubmitted answer raised the session average | scoring integrity | ✅ **fixed 2026-11-19** |
-| 5 | Signal semantics disagree with the documentation in three ways: a bare `"activate"` resolves to the strength the simulator already uses and does nothing; the documented `{"type": "activate"}` form deactivates instead; an inhibitory `PERSIST` malfunction is negated twice and acts as strong activation | disease mode, signal diagnosis | ⬜ open |
-| 6 | The heuristic baseline subtracted its own measured `BLOCK` delta instead of adding it, and treated `DAMPEN` as the opposite of `BLOCK` | baseline comparisons | ⚠️ **fixed**, not yet in this repo |
-| 7 | The `v1-generation-freeze-2` tag named in `DECISIONS.md` predates a package rename and a vocabulary change, and does not reproduce current organisms | reproduction instructions | ⬜ open |
-| 8 | `_composite_score` always divides by three in disease mode, so a run with a task subset is penalised for tasks it was not asked to perform | CLI subset runs only | ⬜ open |
-| 9 | Diagnosis is scored on one irrevocable attempt while rescue takes the best of every attempt | diagnosis-rescue comparisons | ⬜ open — needs disclosure |
-| 10 | **(corrected)** Five analysis scripts model a signal activation as a tenfold override. The live engine applies the signal's ordinary strength, and with the sign taken from the requested action rather than from the signal's mode | discriminating-evidence analysis | ⬜ open — measured effect smaller than first reported, see below |
-| 11 | **(corrected)** The probe item builder uses the same tenfold, mode-signed convention as issue 10 when it constructs items about signal activation | probe studies | ⬜ open — **no item is mis-keyed**, see below |
-| 12 | `run_experiment` never validates an intervention's type. An unrecognised type is silently ignored, costs one unit of budget, and returns no error | agent feedback, held-out protocol | ✅ **fixed 2026-11-19** |
-| 13 | **The tool layer accepted intervention formats that it then ignored.** A request that did not use the documented `interventions` key reached the engine as an empty experiment: charged one unit of budget, returning the unperturbed organism and no error | **cross-model comparisons** | ✅ **fixed 2026-11-19** — see below |
-| 14 | `report.py` renders a refused `test_rescue` as `restored=0%` with no error line, so a reader cannot tell a refused rescue from a failed one | session reports only | ⬜ open |
-| 15 | `_generate_tasks` does not de-duplicate. Seed 10 medium produces `task_00` and `task_01` with the identical gene-and-type pair and different ground truth, so one organism asks the same question twice and scores it twice | prediction scoring | ⬜ open |
-| 16 | The list intervention form accepts only `BLOCK`, `BOOST` and `DAMPEN`, so it cannot express a signal, and its refusal message never mentions signals. The dict form accepts `{"wave-X": "activate"}` | agent feedback | ⬜ open |
-| 17 | `inspect.py` reads an intervention value of `"BLOCK"` as `""` when it colours the heatmap marker, so a string-valued intervention renders as a white `?`. Line 1443 reads the same value correctly | diagnostic figures only | ⬜ open |
-| 18 | Nothing shows an agent that a signal goes in the interventions map. 78 of 18,356 stored calls asked for a signal-only experiment through shapes the engine does not read, such as `{"signal_activations": ["burst-I"]}` and `{"interventions": [], "signals": [...]}` | disease mode, signal diagnosis | ⬜ open |
+- **v1** — it must be fixed before other people can use this environment. We
+  are fixing these now. Some of these fixes change the numbers, and we say so
+  rather than preserve a number we know to be wrong.
+- **v2** — it is known and recorded, and it is resolved in the LUCA v2
+  redesign. These need a generator change or a decision about what the API
+  should mean, not a bug fix.
 
-Issues 1–8 came from the November 2026 review. Issues 9–11 were found while
+Six of seventeen are fixed here: issues 1, 3, 4, 12, 13 and 20.
+
+Issues 10 and 11 have been withdrawn from this list. They described defects in
+analysis scripts that are not part of this repository, so a reader here could
+neither see them nor reproduce them. The numbering is unchanged, because merged
+pull requests cite it, so the table skips from 9 to 12.
+
+| # | Issue | Bucket | Affects | Status |
+|---|---|---|---|---|
+| 1 | `run_experiment` and `test_rescue` would execute a revealed prediction task's exact combination, so an agent could measure the answer instead of predicting it | v1 | held-out protocol | ✅ **fixed 2026-11-19** |
+| 2 | Every easy and medium prediction task is solvable by a four-experiment additive strategy, contradicting the stated non-additivity guarantee. A session asks two tasks of two genes each, so measuring those genes separately and adding the effects answers both. Measured over seeds 0-19: easy 40 of 40, medium 40 of 40, hard 18 of 40 | **v2** | difficulty claims | ⬜ open — needs a generator change |
+| 3 | `verify_organisms.py` looks up gene IDs in a dictionary keyed by gene names, silently reads every measured effect as zero, inverts the sign of the effects it does measure, and measures only `BLOCK`. It reported every task at every tier as non-additive | v1 | organism verification, seed screening | ✅ **fixed 2026-11-19** — see below |
+| 4 | `submit_prediction` disclosed ground truth and scored every retry, so a resubmitted answer raised the session average | v1 | scoring integrity | ✅ **fixed 2026-11-19** |
+| 5a | The chronic malfunction signal override is negated twice. `luca/experiment.py:118`, `luca/generation.py:642` and `luca/generation.py:798` each store the override already signed for an inhibiting signal, and `luca/dynamics.py:50` applies the mode sign again. A persistent **inhibitor** therefore simulates as a strong **activator**. Eight of the nine `PERSIST` organisms in seeds 0-19 sit on an inhibiting signal | **v1** | disease mode | ⬜ open |
+| 5b | The signal verbs do not mean what the documentation says. A bare `"activate"` resolves to the strength the simulator already uses and does nothing; the documented `{"type": ...}` form never parses at all and always deactivates. Deciding what `activate` should mean is a design question, not a bug: every signal is already on at `sig.strength`, so the verb has no referent | **v2** | disease mode, signal diagnosis | ⬜ open |
+| 6 | The heuristic baseline subtracted its own measured `BLOCK` delta instead of adding it, and treated `DAMPEN` as the opposite of `BLOCK` | **v1** | baseline comparisons | ⚠️ **fixed**, not yet in this repo |
+| 7 | The `v1-generation-freeze-2` tag named in `DECISIONS.md` predates a package rename and a vocabulary change, and does not reproduce current organisms | **v1** | reproduction instructions | ⬜ open |
+| 8 | `_composite_score` always divides by three in disease mode, so a run with a task subset is penalised for tasks it was not asked to perform | **v1** | CLI subset runs only | ⬜ open |
+| 9 | Diagnosis is scored on one irrevocable attempt while rescue takes the best of every attempt | v1 disclose · **v2** change | diagnosis-rescue comparisons | ⬜ open — v1 documents the asymmetry; v2 decides whether to change it |
+| 12 | `run_experiment` never validates an intervention's type. An unrecognised type is silently ignored, costs one unit of budget, and returns no error | v1 | agent feedback, held-out protocol | ✅ **fixed 2026-11-19** |
+| 13 | **The tool layer accepted intervention formats that it then ignored.** A request that did not use the documented `interventions` key reached the engine as an empty experiment: charged one unit of budget, returning the unperturbed organism and no error | v1 | **cross-model comparisons** | ✅ **fixed 2026-11-19** — see below |
+| 14 | `report.py` renders a refused `test_rescue` as `restored=0%` with no error line, so a reader cannot tell a refused rescue from a failed one | **v1** | session reports only | ⬜ open |
+| 15 | `_generate_tasks` loops `n` times and never compares a new task against the tasks already built, so one organism can ask the same question twice and score it twice. Measured over seeds 0-19 at all three tiers on 2026-11-20, **no organism of the 60 carries a duplicate**, so the defect is latent here. An earlier note in this file named medium seed 10; that does not reproduce | **v1** | prediction scoring | ⬜ open — latent, a guard rather than a number change |
+| 16 | The list intervention form accepts only `BLOCK`, `BOOST` and `DAMPEN`, so it cannot express a signal, and its refusal message never mentions signals. The dict form accepts `{"wave-X": "activate"}` | **v2** | agent feedback | ⬜ open |
+| 17 | `inspect.py` reads an intervention value of `"BLOCK"` as `""` when it colours the heatmap marker, so a string-valued intervention renders as a white `?`. Line 1443 reads the same value correctly | **v1** | diagnostic figures only | ⬜ open |
+| 18 | Nothing shows an agent that a signal goes in the interventions map. 78 of 18,356 stored calls asked for a signal-only experiment through shapes the engine does not read, such as `{"signal_activations": ["burst-I"]}` and `{"interventions": [], "signals": [...]}` | **v2** | disease mode, signal diagnosis | ⬜ open |
+| 19 | `test_rescue` re-applies the chronic signal override at `luca/experiment.py:662` after it reads the agent's request, so the rescue the generator certifies for a `PERSIST` malfunction cannot be performed. Measured over seeds 0-19: **9 of the 60 canonical disease organisms** carry a `PERSIST` malfunction, all 9 are certified rescuable, and all 9 return `restored_fraction = 0.0`. Three documented statements disagree about what a `PERSIST` rescue is | **v1** | disease mode, rescue scoring | ⬜ open |
+| 20 | `pytest` run from the repository root imported `luca` from a different checkout. There is no `conftest.py` and no pytest path setting, and pytest's `prepend` import mode puts the *test file's* directory on `sys.path`, never the repository root. An editable install of `luca` elsewhere therefore won. The tests that prove issues 1, 4 and 12 are fixed were failing under the documented command | **v1** | every test run | ✅ **fixed 2026-11-20** — see below |
+
+Issues 1–8 came from the November 2026 review. Issue 9 was found while
 investigating it. Issues 12 and 13 were found by a subsequent audit of the
 analysis layer. Issues 14 and 15 were found by the code review of the issue 1
 and 4 fix. Issues 16, 17 and 18 were found by the code review of the issue 13
-fix, and 18 by a scan of the stored calls that followed it.
+fix, and 18 by a scan of the stored calls that followed it. Issues 19 and 20
+were found on 2026-11-20 while planning the remaining v1 work.
 
 ## ✅ Issues 1, 4 and 12, as fixed on 2026-11-19
 
@@ -141,6 +193,95 @@ All rules are stated in the `run_experiment`, `test_rescue` and
 turn discovering them. Regression tests:
 
     pytest tests/test_experiment.py -k "HeldOut or Immutable or Seal or InterventionType or PredictionLabels"
+
+## ✅ Issue 3, as fixed on 2026-11-19
+
+This one changes a published number rather than the engine's behaviour.
+
+`check_additivity` builds an additive prediction for each task and asks whether
+it lands within the scoring threshold. It was wrong in two ways, and either one
+alone was enough to make every answer the same:
+
+- It looked up `gene.id` (`g_019`) in a dictionary keyed by `gene.name`
+  (`G019`). The two never overlap, so every measured effect fell back to `0.0`
+  and the additive prediction was just the unperturbed baseline.
+- It multiplied a measured `BLOCK` delta by `-1.0`, although the measured
+  quantity is already a delta, and it measured only `BLOCK` even when the task
+  asked for `BOOST` or `DAMPEN`.
+
+The verifier therefore reported every task at every tier as non-additive, which
+is where the published rate of 0.00 came from.
+
+The corrected verifier measures each of a task's genes on its own, under the
+intervention type the task asks for, adds those deltas to the baseline, and
+clips once at the end so the order of the genes cannot change the answer. It
+takes its baseline from `_readout_noise_free_phenotypes` so that the baseline
+and the perturbed runs come from the same simulation path and the same rng
+stream.
+
+An earlier version of this page said that baseline was chosen in preference to
+"the noisy `get_info()["baseline_phenotypes"]`". That was wrong, and we are
+correcting it rather than quietly deleting it: `get_info()` is **not** noisy —
+`_compute_baseline_phenotypes` passes `noise=False`. It simply reads
+`organism.baseline_state` instead of re-simulating, so it is not the same
+comparison.
+
+Measured over seeds 0-19. **Two numbers, because there are two questions:**
+
+| Tier | As the engine ships | Against a noise-free ground truth |
+|------|---------------------|-----------------------------------|
+| Easy | **40 of 40** | **40 of 40** |
+| Medium | **40 of 40** | **40 of 40** |
+| Hard | **18 of 40** | **34 of 40** |
+
+The first column answers "how often does an additive strategy score as correct
+against the answer the engine actually stores?" The second answers "how often
+is the task additive in the underlying dynamics?"
+
+They differ at the hard tier because `task.ground_truth` carries readout noise
+of `rng.normal(0, noise_sigma * 2)` (`luca/dynamics.py:120`). At the hard tier
+that noise has mean 0.072 and maximum 0.164, against a threshold of 0.10. So
+most of the 16-task gap is noise, not sigmoid interaction. Roughly 6 of the 22
+hard tasks that the first column calls non-additive resist an additive
+strategy for the reason the design intends.
+
+Neither column changes the easy or the medium result. So neither changes
+issue 2.
+
+`tests/test_verify_organisms.py` measures the first column twice: once through
+`verify_organisms.py` and once through a second path inside the test file. That
+second path is **not** independent, and an earlier version of this page said it
+"shares none of its code". It copies `_readout_noise_free_phenotypes` and its
+`default_rng(0)` stream, so a conceptual error common to both is invisible to
+it — and one was. Neither path noticed the readout noise above. It checks the
+arithmetic, not the concept. Reproduce with
+`pytest tests/test_verify_organisms.py`.
+
+`check_additivity` now refuses a disease organism rather than answering.
+`_readout_noise_free_phenotypes` passes `active_signals={}`, so a chronic
+`PERSIST` override is dropped from the additive model but not from
+`task.ground_truth`, and the comparison would be between two different
+organisms. This is latent today, because `verify_organism` builds only healthy
+organisms. It is a refusal, not a fix.
+
+Every lookup in `check_additivity` that used to carry a default — `.get(gene_id,
+{})`, `.get(ph, 0.0)`, `.get(ph, 0.5)`, `.get("type", "BLOCK")` — now raises.
+Those defaults are the same silent-zero mechanism that caused this issue.
+
+**What this means for the benchmark.** The easy and medium tiers do not test
+non-additive causal reasoning. Every task at both tiers is solvable by
+measuring the genes separately and adding the effects. Only the hard tier
+resists it, and only for 22 of its 40 tasks. That is issue 2, and it is a
+property of the generator rather than a bug in this file, so it waits for
+LUCA v2. `docs/benchmark_design.md` claimed trivially additive tasks were
+"guaranteed to be absent"; it no longer does.
+
+One further repair in the same file: `REPO_ROOT` was
+`Path(__file__).parent.parent.parent`, left over from when this script lived
+under `experiments/paper_v1/`. It pointed two directories above the repository.
+Running the script directly still worked, because Python puts the script's own
+directory first, but any other entry point could import a different copy of
+`luca`.
 
 ## ✅ Issue 13, in detail
 
@@ -314,34 +455,41 @@ is empty is still a deliberate null experiment.
 Three further findings are recorded as issues 16, 17 and 18, and are not fixed
 here.
 
-## Corrections to issues 10 and 11
+## ✅ Issue 20, as fixed on 2026-11-20
 
-We described both more broadly than the evidence supports. Both corrections
-reduce the scope.
+**The test suite was not testing this repository.**
 
-**Issue 10.** The tenfold override appears at six places in five analysis
-scripts, not one. One of those six is **correct**: the generator really does
-use a tenfold severity for a persistent-signal malfunction, so the script that
-reconstructs that malfunction is right to use it. The incorrect uses are those
-that model an agent's own signal activation.
+`luca` is installed in editable mode, and on the machine this was found on the
+install pointed at a different checkout. pytest's default `prepend` import mode
+puts the *test file's* directory on `sys.path`, never the repository root, and
+this repository had no `conftest.py` and no `[tool.pytest.ini_options]`. So a
+bare `pytest` from the repository root imported the other checkout's engine.
 
-Measured effect: no organism's discriminating set depends on it. Removing
-every signal-activation entry leaves the same 92.5% of alternatives
-resolvable, and the same 39 of 60 organisms fully resolvable. What does change
-is that 6.4% of the evidence-seeking actions we credited to agents were signal
-activations that did nothing.
+Under pytest, before the fix:
 
-**Issue 11.** We said items involving signal faults "may mark correct
-reasoning as wrong". **They do not.** All 16 affected items are *filler*
-items — deliberately non-discriminating items used to test whether a model can
-recognise non-evidence. A filler's answer key is fixed by its category, never
-by its numbers, and a no-op experiment is still non-evidence. No item is
-mis-keyed, and none of the 69 discriminating items is affected.
+    sys.path[0]     <repo>/tests
+    luca.__file__   <the other checkout>/luca/__init__.py
 
-The real flaw is narrower and is about reproducibility: 13 of those 16 items
-pair an observation taken from a real session with predictions from a
-simulation the engine cannot produce, so a reader recomputing the item would
-not obtain the stated numbers.
+That other engine has no `_sealed_task_for`; this one has three. So the tests
+that prove issues 1, 4 and 12 are fixed were not passing under the command this
+page and `CLAUDE.md` tell you to run:
+
+    pytest tests/test_experiment.py -k "seal or held"
+      before    7 failed, 6 passed
+      after    13 passed
+
+`conftest.py` now prepends the repository root and then asserts that `luca`
+resolved inside it, so a wrong resolution fails loudly instead of quietly
+measuring different code. `tests/test_verify_organisms.py` carries the same
+assertion as a test, because that file is also run on its own.
+
+Full suite against this repository's engine: **245 passed**. Any suite count
+recorded on this page or in the repository before 2026-11-20 was not produced
+by a bare `pytest -q` and is not reproducible with one.
+
+If you have run this suite before, re-run it. If you build on this repository,
+check that `python -c "import luca; print(luca.__file__)"` prints a path inside
+your own checkout.
 
 ## Reproducing any of these
 
@@ -352,11 +500,15 @@ measurement, not by inspection alone.
 ## What happens next
 
 1. ~~Finish auditing the analysis scripts.~~ A first pass is done; it produced
-   issues 12 and 13 and the corrections to 10 and 11. The scaling-study logs
-   and several analysis scripts are still unexamined.
-2. Land the remaining engine fixes. Issues 1, 4, 12 and 13 are done; issue 3
-   is next.
-3. Recompute every affected number, and re-run the sessions that the
-   held-out protocol change invalidates.
-4. Post corrected versions of the write-ups, with the corrections stated
-   plainly rather than folded into updated tables.
+   issues 12 and 13. The scaling-study logs and several analysis scripts are
+   still unexamined.
+2. **Land every v1 fix.** Issues 1, 3, 4, 12, 13 and 20 are done. The order
+   from here is 19 with 5a, then 6, then 15, 14, 8, 7, 17, and finally the
+   disclosure for 9. Issues 19 and 5a ship together: fixing either alone
+   leaves the rescue broken.
+3. Recompute every affected number once the v1 fixes have landed, and record
+   it here. Several v1 fixes change the numbers, including the canonical
+   disease organisms.
+4. The v2 issues — 2, 5b, 16, 18 and the scoring half of 9 — are not patched
+   here. They need a generator change or a decision about what the API should
+   mean.

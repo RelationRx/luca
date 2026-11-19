@@ -1,17 +1,38 @@
 # LUCA
 
-> ### ⚠️ Known issues — read before using this benchmark
+> ### ⚠️ Status — read before using this benchmark
 >
-> A November 2026 code review found defects in the benchmark engine and in
-> the analysis scripts behind our published numbers. Fixes are in progress
-> and an audit is still running, so the list is not final.
+> A November 2026 code review found defects in this benchmark. **After several
+> bug fixes the environment is operational**, and it is what we are maintaining.
+> An experiment now either applies what the agent asked for or returns an error;
+> it no longer costs budget and returns a normal result while applying nothing.
 >
-> In particular: **our cross-model comparisons are not safe** — the tool layer
-> silently discarded some models' experiments and not others'; the **easy and
-> medium tiers do not test non-additive causal reasoning** as the text below
-> claims; and the **baseline numbers are wrong**. See
-> **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** before relying on anything here, and
-> record the commit you run.
+> **The fixes changed some numbers.** Results you generate now will differ from
+> the numbers in our earlier write-ups. We are fixing the environment so others
+> can build on it; we are not trying to reproduce our earlier tables to the
+> decimal. Record the commit you run, not only the seed.
+>
+> Every known defect in **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** carries a bucket.
+> **v1** means we are fixing it now, before others build on this. **v2** means
+> it is recorded and waits for the LUCA v2 redesign, because it needs a
+> generator change or a decision about what the API should mean.
+>
+> Three things to know before you start:
+>
+> - **The easy and medium tiers do not test non-additive causal reasoning.**
+>   All 40 canonical tasks at each tier are solvable by measuring the genes
+>   separately and adding the effects. That is a property of the generator, so
+>   it is a v2 item rather than something patched here.
+> - **Disease mode with a `PERSIST` malfunction does not work yet.** The rescue
+>   the generator certifies cannot be performed through the API, and the
+>   malfunction itself is simulated with an inverted sign. Both are v1 and are
+>   being fixed. Gene malfunctions are not affected.
+> - **Check which `luca` your tests import.** Until 2026-11-20 a bare `pytest`
+>   from this directory could import a different checkout. Run
+>   `python -c "import luca; print(luca.__file__)"` and confirm the path is
+>   inside your own checkout.
+>
+> The audit continues, so the issue list is not final.
 
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
@@ -39,7 +60,7 @@ The world is **unknowable via retrieval** — gene names, module labels, signals
 
    **`medium` is the default** and defines the canonical benchmark split (seeds 0–19). The canonical configuration uses N=20 genes, 4 modules, 3 phenotypes, 3 signals, and budget B=31. FFL and feedback densities are fractions of `n_genes`, so complexity scales with organism size. Latent genes = hidden confounders never visible or targetable. Steepness β controls sigmoid non-linearity — higher β makes dynamics harder to linearise.
 
-   > **Easy tier note**: 3/20 easy organisms have near-linear dynamics where prediction tasks are solvable by additive approximation. This is an inherent property of low-feedback networks, reported transparently. Medium and hard are fully non-trivial (0/20 additive tasks on medium and hard).
+   > **Additivity, measured** (corrected 2026-11-19 — this note previously reported 0/20 additive tasks on medium and hard, which was an artefact of a broken verifier; see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) issues 2 and 3): over seeds 0–19, **easy 40/40** and **medium 40/40** prediction tasks are solvable by measuring each gene separately and adding the effects. **Hard is 18/40** against the ground truth the engine stores, and **34/40** against a noise-free ground truth — `task.ground_truth` carries readout noise that at this tier averages 0.072 against a 0.10 threshold, so most of that gap is noise rather than sigmoid interaction. Only the hard tier tests non-additive reasoning, and only about 6 of its 40 tasks do so for the reason the design intends. Reproduce with `pytest tests/test_verify_organisms.py`.
 
 3. **Named phenotype readouts** — non-linear summaries of an organism state e.g `"expansion-rate"` depending on gene states. The agent sees readout names and values, not raw gene states.
 4. **JSON/YAML serialization** — organisms are fully serializable for reproducibility and offline evaluation.
