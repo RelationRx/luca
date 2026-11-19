@@ -657,3 +657,60 @@ class TestRescueStateErrorsComeFirst:
         assert "error" in result
         assert "interventions" in result["error"]
         assert session.budget_used == 0
+
+
+class TestMalformedListEntriesAreRefusedNotRaised:
+    """Review finding 1. The guards covered `item` and `action` but not
+    `target`, so an unhashable target reached `normalised[target]` and raised
+    TypeError. dispatch_tool is called bare, so one malformed list ended the
+    whole session. 'Refused, not emptied' must not become 'crashed'."""
+
+    def test_an_unhashable_target_is_refused(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {
+            "interventions": [{"gene": ["G001"], "type": "BLOCK"}]
+        })
+        assert "error" in result
+        assert session.budget_used == 0
+
+    def test_a_numeric_target_is_refused(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {
+            "interventions": [{"gene": 7, "type": "BLOCK"}]
+        })
+        assert "error" in result
+
+    def test_a_readable_entry_beside_an_unhashable_one_is_still_refused(self):
+        """The partial case: a session must not run on fewer genes than the
+        model believes."""
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {
+            "interventions": [
+                {"gene": "G001", "type": "BLOCK"},
+                {"gene": ["G002"], "type": "BOOST"},
+            ]
+        })
+        assert "error" in result
+        assert session.budget_used == 0
+
+
+class TestRefusalsDoNotAdviseANoOp:
+    """Review finding 2. The empty-list refusal told the model to send
+    {"interventions": {"wave-X": "activate"}}. Every signal in seed 0 makes
+    that bit-identical to a null experiment, because `activate` resolves to the
+    strength the simulator already uses (issue 5). The four stored empty-list
+    calls were signal-only requests, so that advice would send exactly the
+    wrong audience into a billed no-op — the failure issue 13 removes."""
+
+    def test_the_empty_list_refusal_does_not_promise_signal_support(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"interventions": []})
+        assert "error" in result
+        assert "activate" not in result["error"], (
+            "a signal activation is a no-op today; see issues 5 and 18"
+        )
+
+    def test_the_empty_list_refusal_names_the_deliberate_null_form(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"interventions": []})
+        assert '{"interventions": {}}' in result["error"]

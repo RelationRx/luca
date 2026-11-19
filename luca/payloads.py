@@ -10,6 +10,7 @@ and from edge inference. Both modules now call `intervention_payload`.
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 # run_experiment and test_rescue take the same payload. A model may send the
@@ -44,6 +45,23 @@ def flat_form_hint(stray_key: str) -> str:
     )
 
 
+def _decoded(value: Any) -> Any:
+    """Unwrap a payload sent as a JSON string.
+
+    Some models send ``{"interventions": "{\"G001\": {\"type\": \"BLOCK\"}}"}``.
+    The tool layer decoded that and the engine applied it, but `report.py` did
+    not, so the trace raised on a shape the engine ran. The decode belongs here,
+    with the rest of the shared reading. A string that is not JSON is returned
+    unchanged, so the caller still produces the error.
+    """
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except (ValueError, TypeError):
+            return value
+    return value
+
+
 def intervention_payload(tool_input: dict) -> tuple[Any | None, bool]:
     """Find the interventions in a tool call, whatever shape the model used.
 
@@ -64,10 +82,12 @@ def intervention_payload(tool_input: dict) -> tuple[Any | None, bool]:
     ``{"interventions": {}}`` means a deliberate null experiment, not an
     invitation to read the rest of the call as genes.
 
-    A wrapper key whose value is ``None`` is skipped rather than honoured. The
-    original code used ``or``, which fell through a null value to the alternate
-    key; the key-presence test stopped that. No stored call sent a null
-    wrapper, but a null is the absence of a payload, not an empty one.
+    A wrapper key whose value is ``None`` is skipped, and the alternate key is
+    read instead. The original code used ``or``, which fell through a null
+    value; a key-presence test briefly replaced it and stopped the fall-through,
+    which was wrong. No stored call sent a null wrapper, but a null is the
+    absence of a payload, not an empty one. When every wrapper key present is
+    null, the call is refused rather than read as a flat form.
 
     Returns ``(None, False)`` when the call carries no payload at all. That is
     refused by the caller rather than silently run as an empty experiment:
@@ -80,7 +100,7 @@ def intervention_payload(tool_input: dict) -> tuple[Any | None, bool]:
     """
     for key in INTERVENTION_WRAPPER_KEYS:
         if tool_input.get(key) is not None:
-            return tool_input[key], False
+            return _decoded(tool_input[key]), False
 
     if any(key in tool_input for key in INTERVENTION_WRAPPER_KEYS):
         # Every wrapper key present held null. A null is an absent payload,

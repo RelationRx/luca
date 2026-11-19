@@ -70,3 +70,26 @@ class TestTraceAgreesWithTheEngine:
     def test_deliberate_null_experiment_renders_as_empty(self):
         _gene, _session, baseline, tc = _traced({"interventions": {}})
         assert "∅" in _render(tc, baseline)
+
+
+class TestJsonStringPayloadAgrees:
+    """Review finding 5. `_normalise_interventions` decodes a JSON-string
+    payload; the shared resolver did not, so the trace raised AttributeError on
+    a shape the engine applies. One shared reading means one shared decode."""
+
+    PAYLOAD = {"interventions": '{"G001": {"type": "BLOCK"}}'}
+
+    def test_the_engine_applies_a_json_string_payload(self):
+        _gene, session = _session()
+        dispatch_tool(session, "run_experiment", dict(self.PAYLOAD))
+        assert "G001" in session._experiment_log[-1]["interventions"]
+
+    def test_the_trace_names_the_gene_rather_than_raising(self):
+        _gene, session, baseline, tc = _traced(dict(self.PAYLOAD))
+        out = _render(tc, baseline)
+        assert "G001" in out, f"the trace says: {out!r}"
+
+    def test_edge_inference_reads_a_json_string_payload(self):
+        _gene, _session, baseline, tc = _traced(dict(self.PAYLOAD))
+        edges = report._build_discovered_network([{"tool_calls": [tc]}], baseline)
+        assert edges and edges[0]["from"] == "G001"

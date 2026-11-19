@@ -106,7 +106,6 @@ def _with_retry(fn, retryable_exc: tuple, *args, **kwargs):
 
 from .experiment import ExperimentSession
 from .payloads import (
-    INTERVENTION_WRAPPER_KEYS as _INTERVENTION_WRAPPER_KEYS,
     MISSING_INTERVENTIONS_ERROR,
     flat_form_hint,
     intervention_payload,
@@ -598,10 +597,11 @@ def _normalise_interventions(raw: Any) -> dict[str, Any] | str:
             # a signal-only experiment, got an untouched organism, and was
             # billed for it. {"interventions": {}} remains the explicit null.
             return (
-                "interventions was an empty list, so no gene was named. For a "
-                'deliberate null experiment send {"interventions": {}}. To '
-                'change a signal, name it in the interventions map, for '
-                'example {"interventions": {"wave-X": "activate"}}.'
+                "interventions was an empty list, so no gene was named. Name "
+                'at least one gene, for example {"interventions": {"G001": '
+                '{"type": "BLOCK"}}}. For a deliberate null experiment send '
+                '{"interventions": {}}. A signal-only experiment is not '
+                "supported yet; see KNOWN_ISSUES.md issues 5 and 18."
             )
         # gpt-5.1 compat: list of per-gene dicts with varying key names
         normalised: dict[str, Any] = {}
@@ -618,7 +618,8 @@ def _normalise_interventions(raw: Any) -> dict[str, Any] | str:
             else:
                 target = action = None
             if (
-                target and isinstance(action, str)
+                isinstance(target, str) and target
+                and isinstance(action, str)
                 and action.upper() in ("BLOCK", "BOOST", "DAMPEN")
             ):
                 normalised[target] = {"type": action.upper()}
@@ -642,7 +643,7 @@ def _normalise_interventions(raw: Any) -> dict[str, Any] | str:
     )
 
 
-def _with_flat_form_hint(result: dict, tool_input: dict, from_flat: bool) -> dict:
+def _with_flat_form_hint(result: dict, from_flat: bool) -> dict:
     """Name the documented wrapper when a flat-form guess hit an unknown target.
 
     472 of the 18,356 stored calls sent an alternative container name, such as
@@ -745,7 +746,7 @@ def dispatch_tool(session: ExperimentSession, tool_name: str, tool_input: dict) 
         if isinstance(interventions, str):
             return {"error": interventions}
         result = session.run_experiment(interventions)
-        return _with_flat_form_hint(result, tool_input, from_flat)
+        return _with_flat_form_hint(result, from_flat)
     elif tool_name == "submit_prediction":
         prediction = _normalise_prediction(tool_input)
         if prediction is None:
@@ -779,7 +780,7 @@ def dispatch_tool(session: ExperimentSession, tool_name: str, tool_input: dict) 
         if isinstance(interventions, str):
             return {"error": interventions}
         result = session.test_rescue(interventions)
-        return _with_flat_form_hint(result, tool_input, from_flat)
+        return _with_flat_form_hint(result, from_flat)
     elif tool_name == "submit_malfunction_hypothesis":
         return session.submit_malfunction_hypothesis(
             tool_input["target_name"],
