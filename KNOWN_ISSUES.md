@@ -216,30 +216,68 @@ This change makes the engine refuse calls it used to accept and bill. A model
 that sent an unreadable payload will now see errors where it previously saw
 normal-looking results. That is the point: the old behaviour failed in silence.
 
-### What the code review of this fix added
+### What three rounds of code review added
 
-- **The trace agreed with the engine again.** `report.py` read the
-  `interventions` key alone, so once the tool layer applied the flat form, a
-  flat experiment ran in the engine and then showed in the trace as an empty
-  one, beside the phenotype values it had moved. Edge inference dropped it too.
-  Both modules now resolve a payload through `luca/payloads.py`, so there is
-  one source of truth rather than two readings that drifted apart.
-- **A refusal names the documented shape.** 472 stored calls used an
-  alternative container, such as `{"BLOCK": ["G001"]}` or
-  `{"perturbations": {...}}`. Every one ran as an empty experiment and was
-  billed; none returned an error. They are refused now, and the message names
-  the `interventions` key so a model can correct itself.
-- **An empty list is refused.** All four stored empty-list calls were
-  `{"interventions": [], "signals": [...]}` — a signal-only experiment that
-  ran as a null one and was billed. `{"interventions": {}}` is still the
-  explicit null experiment.
-- **A null wrapper falls through to the alternate key**, as it did before the
-  key-presence test replaced the original `or`.
-- **`test_rescue` reports its state errors first.** A malformed payload used to
-  mask "submit_malfunction_hypothesis() must be called first" and "not a
-  disease organism", so an agent fixed the payload, resent, and only then
-  learned the real blocker. `ExperimentSession.rescue_state_error()` now serves
-  both the engine and the tool layer.
+The fix was reviewed three times. Each round read the previous round's
+changes, and most of what rounds two and three found had been introduced by
+the fixes themselves, not by the original defect.
+
+**One reading, for the engine and the trace.** `report.py` read the
+`interventions` key alone. Once the tool layer applied the flat form, a flat
+experiment ran in the engine and then showed in the trace as an empty one,
+beside the phenotype values it had moved. On seed 0, `{"G001": "BLOCK"}` moved
+`replication-index` by -0.105 while the trace printed `run_experiment(∅)`, and
+edge inference returned nothing. `luca/payloads.py` now holds that reading, and
+both modules call it.
+
+That reading also has to be canonical, because the engine normalises and the
+trace did not. Three defects shared that one cause: the HTML schematic labelled
+every string value `activate` while the engine applied `BLOCK`; a lowercase
+`{"G001": "block"}` was applied by the engine and dropped by edge inference;
+and a payload of `42` or `"BLOCK G001"` raised while rendering, on shapes the
+engine now refuses and that will therefore appear in new logs. The shared
+reader returns `{target: {"type": T}}` for any shape and `{}` for anything
+unreadable. A gene type is upper-cased. A signal action keeps its case, because
+`report.py` colours `"activate"` by that exact string. A payload sent as a JSON
+string is decoded in that one place, so the engine and the trace cannot
+disagree about it.
+
+**A refusal has to teach, and must not teach the wrong thing.** 472 stored
+calls used an alternative container, such as `{"BLOCK": ["G001"]}` or
+`{"perturbations": {...}}`. Every one ran as an empty experiment and was
+billed; none returned an error. They are refused now, and the message names the
+`interventions` key.
+
+Two drafts of those messages were themselves defects. One told the model to
+send `{"interventions": {"wave-X": "activate"}}`; for every signal on seed 0
+that is bit-identical to a null experiment and still costs budget, because
+`activate` resolves to the strength the simulator already uses (issue 5). The
+four stored empty-list calls were signal-only requests, so that advice would
+have sent exactly that audience into a billed no-op — the failure this fix
+removes. The other fired on a flat call the layer had read correctly, telling a
+model whose only fault was one wrong gene name to re-send under the wrapper,
+which fails in the same way. The hint now fires only when no target in the
+payload was recognised.
+
+**Nothing refused may crash.** `dispatch_tool` is called without a guard, so an
+exception ends the session rather than the call. A list entry whose target was
+unhashable, such as `{"gene": ["G001"], "type": "BLOCK"}`, raised `TypeError`.
+`submit_malfunction_hypothesis` read its keys by index and raised `KeyError` on
+a missing one. "Refused, not emptied" must not become "crashed".
+
+**No error may hide a better one.** A malformed payload masked
+"submit_malfunction_hypothesis() must be called first", "not a disease
+organism" and "Budget exhausted". The agent fixed the payload, resent the call,
+and only then learned the real blocker, at one turn each time.
+`ExperimentSession.rescue_state_error()` and `budget_error()` answer those
+questions once, for the engine and the tool layer alike.
+
+**Two payload shapes were decided on the evidence.** An empty list is refused:
+all four stored empty-list calls were `{"interventions": [], "signals": [...]}`,
+a signal-only experiment that ran as a null one and was billed.
+`{"interventions": {}}` is still the explicit null experiment. A null wrapper
+falls through to the alternate key, as the original `or` did; no stored call
+sent one, but a null is an absent payload, not an empty one.
 
 Three further findings are recorded as issues 16, 17 and 18, and are not fixed
 here.
