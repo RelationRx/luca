@@ -5,7 +5,7 @@ import json
 import os
 from typing import Any
 
-from .payloads import intervention_payload
+from .payloads import canonical_interventions, intervention_payload
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +196,7 @@ def _tool_call_iv(inp: Any) -> dict:
     if not isinstance(inp, dict):
         return {}
     raw, _from_flat = intervention_payload(inp)
-    return _normalise_iv(raw)
+    return canonical_interventions(raw)
 
 
 def _normalise_iv(iv) -> dict:

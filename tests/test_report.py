@@ -93,3 +93,47 @@ class TestJsonStringPayloadAgrees:
         _gene, _session, baseline, tc = _traced(dict(self.PAYLOAD))
         edges = report._build_discovered_network([{"tool_calls": [tc]}], baseline)
         assert edges and edges[0]["from"] == "G001"
+
+
+class TestTheSharedReadingIsCanonical:
+    """Round 3 of the review. `_tool_call_iv` returned whatever shape the model
+    sent, while the engine normalises: `_resolve_interventions` upper-cases the
+    type and wraps it. Three defects shared that one cause — the HTML schematic
+    labelled every string value `activate`, a lowercase type never reached edge
+    inference, and a non-dict payload raised while rendering.
+
+    Gene types are upper case here; a signal action stays lower case, because
+    `IV_C` in report.py keys its colour on "activate".
+    """
+
+    def test_a_flat_string_value_becomes_a_typed_dict(self):
+        assert report._tool_call_iv({"G001": "BLOCK"}) == {"G001": {"type": "BLOCK"}}
+
+    def test_a_lowercase_type_is_upper_cased(self):
+        assert report._tool_call_iv({"G001": "block"}) == {"G001": {"type": "BLOCK"}}
+
+    def test_a_signal_action_keeps_its_lower_case_form(self):
+        assert report._tool_call_iv({"wave-X": "activate"}) == {
+            "wave-X": {"type": "activate"}
+        }
+
+    def test_a_lowercase_type_reaches_edge_inference(self):
+        _gene, _session, baseline, tc = _traced({"G001": "block"})
+        edges = report._build_discovered_network([{"tool_calls": [tc]}], baseline)
+        assert edges and edges[0]["from"] == "G001"
+
+    def test_a_non_dict_payload_reads_as_empty(self):
+        assert report._tool_call_iv({"interventions": 42}) == {}
+        assert report._tool_call_iv({"interventions": "BLOCK G001"}) == {}
+
+    def test_a_non_dict_payload_renders_without_raising(self):
+        base = {"energy-state": 0.5}
+        tc = {"tool": "run_experiment", "input": {"interventions": 42},
+              "result": {"phenotypes": base, "budget_remaining": 1}}
+        assert "∅" in _render(tc, base)
+
+    def test_a_double_encoded_json_payload_renders(self):
+        import json as _json
+        payload = {"interventions": _json.dumps(_json.dumps({"G001": {"type": "BLOCK"}}))}
+        _gene, _session, baseline, tc = _traced(dict(payload))
+        assert "G001" in _render(tc, baseline)

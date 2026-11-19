@@ -17,6 +17,10 @@ from typing import Any
 # intervention map under either key, or — issue 13 — unwrapped at the top level.
 INTERVENTION_WRAPPER_KEYS = ("interventions", "gene_interventions")
 
+# The engine upper-cases a gene's intervention type (issue 12). A signal action
+# stays lower case, because report.py keys its colour on "activate".
+GENE_INTERVENTION_TYPES = ("BLOCK", "BOOST", "DAMPEN")
+
 
 MISSING_INTERVENTIONS_ERROR = (
     "Missing required parameter 'interventions'. Send "
@@ -39,7 +43,7 @@ def flat_form_hint(stray_key: str) -> str:
     invented.
     """
     return (
-        f" '{stray_key}' is not a gene or a signal. If it was meant to hold "
+        f". '{stray_key}' is not a gene or a signal. If it was meant to hold "
         f'the interventions, send them under "interventions": '
         f'{{"interventions": {{"G001": {{"type": "BLOCK"}}}}}}.'
     )
@@ -54,12 +58,53 @@ def _decoded(value: Any) -> Any:
     with the rest of the shared reading. A string that is not JSON is returned
     unchanged, so the caller still produces the error.
     """
-    if isinstance(value, str):
+    for _ in range(4):
+        if not isinstance(value, str):
+            return value
         try:
-            return json.loads(value)
+            value = json.loads(value)
         except (ValueError, TypeError):
             return value
     return value
+
+
+def canonical_type(value: Any) -> str:
+    """The intervention type of one target, as the engine would read it.
+
+    `_resolve_interventions` upper-cases a gene type, so ``"block"`` and
+    ``"BLOCK"`` are the same experiment. A signal action is not a gene type and
+    keeps the case it came in, because `report.py` colours ``"activate"`` by
+    that exact string.
+    """
+    text = str(value.get("type", "")) if isinstance(value, dict) else str(value)
+    return text.upper() if text.upper() in GENE_INTERVENTION_TYPES else text
+
+
+def canonical_interventions(raw: Any) -> dict[str, dict]:
+    """``{target: {"type": T}}`` for any payload shape, or ``{}``.
+
+    One reading for the engine and the trace. Anything that is not a mapping or
+    a list of entries reads as empty rather than raising: the engine refuses
+    those shapes now, so they appear in new logs and must still render.
+    """
+    raw = _decoded(raw)
+    if isinstance(raw, list):
+        out: dict[str, dict] = {}
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            target = item.get("gene") or item.get("target") or item.get("name")
+            if not isinstance(target, str) or not target:
+                continue
+            action = item.get("mode") or item.get("type") or item.get("action")
+            out[target] = {"type": canonical_type(action if action else "BLOCK")}
+        return out
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        str(target): {"type": canonical_type(value)}
+        for target, value in raw.items()
+    }
 
 
 def intervention_payload(tool_input: dict) -> tuple[Any | None, bool]:

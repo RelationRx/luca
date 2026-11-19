@@ -409,8 +409,9 @@ class ExperimentSession:
         A revealed prediction task's exact combination is held out until you
         submit your prediction for it. Measure the genes separately instead.
         """
-        if self.budget_used >= self.budget:
-            return {"error": "Budget exhausted"}
+        exhausted = self.budget_error()
+        if exhausted is not None:
+            return exhausted
 
         resolved = self._resolve_interventions(interventions)
         if isinstance(resolved, dict):
@@ -593,6 +594,17 @@ class ExperimentSession:
             "note": "Network stored. Precision/recall/F1 revealed at session end via get_summary().",
         }
 
+    def budget_error(self) -> dict[str, Any] | None:
+        """The budget refusal, or None.
+
+        The tool layer asks this before it reads a payload, so a malformed call
+        cannot mask an exhausted budget. An agent told to fix its payload when
+        the real problem is budget spends a turn learning nothing.
+        """
+        if self.budget_used >= self.budget:
+            return {"error": "Budget exhausted"}
+        return None
+
     def rescue_state_error(self) -> dict[str, Any] | None:
         """Why test_rescue() cannot run yet, or None.
 
@@ -630,8 +642,9 @@ class ExperimentSession:
         blocked = self.rescue_state_error()
         if blocked is not None:
             return blocked
-        if self.budget_used >= self.budget:
-            return {"error": "Budget exhausted"}
+        exhausted = self.budget_error()
+        if exhausted is not None:
+            return exhausted
 
         resolved = self._resolve_interventions(interventions)
         if isinstance(resolved, dict):

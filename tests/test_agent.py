@@ -714,3 +714,66 @@ class TestRefusalsDoNotAdviseANoOp:
         _gene, session = _healthy_dispatch_session()
         result = dispatch_tool(session, "run_experiment", {"interventions": []})
         assert '{"interventions": {}}' in result["error"]
+
+
+class TestStateErrorsOutrankPayloadErrors:
+    """Round 3, finding 7. rescue_state_error() stopped a payload error from
+    masking the two rescue state errors, but the budget check was left behind
+    it. An agent with no budget was told to fix its payload instead."""
+
+    def test_budget_exhausted_wins_over_a_payload_error(self):
+        session = ExperimentSession(generate_organism(seed=0), budget=0, seed=0)
+        result = dispatch_tool(session, "run_experiment", {})
+        assert "error" in result
+        assert "Budget exhausted" in result["error"]
+
+    def test_a_payload_error_still_wins_when_budget_remains(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {})
+        assert "interventions" in result["error"]
+
+
+class TestHypothesisPayloadIsRefusedNotRaised:
+    """Round 3, finding 6. submit_malfunction_hypothesis read tool_input by
+    index, so a missing key raised KeyError. dispatch_tool is called bare, so
+    one malformed hypothesis ended the session — the crash class fixed for the
+    list form in 3ad30c3, still open here."""
+
+    def test_a_missing_target_name_is_refused(self):
+        session = _disease_dispatch_session()
+        result = dispatch_tool(session, "submit_malfunction_hypothesis",
+                               {"target": "G014"})
+        assert "error" in result
+        assert "target_name" in result["error"]
+
+    def test_a_missing_malfunction_type_is_refused(self):
+        session = _disease_dispatch_session()
+        result = dispatch_tool(session, "submit_malfunction_hypothesis",
+                               {"target_name": "G014"})
+        assert "error" in result
+
+    def test_a_complete_hypothesis_still_works(self):
+        session = _disease_dispatch_session()
+        result = dispatch_tool(session, "submit_malfunction_hypothesis",
+                               {"target_name": "G014", "malfunction_type": "LOCK_LO"})
+        assert "error" not in result
+
+
+class TestTheFlatHintOnlyFiresWhenNothingWasRecognised:
+    """Round 3, finding 8. The hint fired on a flat call the layer had read
+    correctly, telling a model whose only fault was one wrong gene name to
+    re-send under the wrapper. The wrapper fails the same way, so the advice
+    cost a turn."""
+
+    def test_no_hint_when_a_real_gene_was_recognised(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment",
+                               {"G001": "BLOCK", "G999": "BOOST"})
+        assert "error" in result
+        assert "G999" in result["error"]
+        assert "send them under" not in result["error"]
+
+    def test_the_hint_still_fires_when_nothing_was_recognised(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"BLOCK": ["G001"]})
+        assert "interventions" in result["error"]
