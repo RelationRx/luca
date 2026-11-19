@@ -7,6 +7,7 @@ the `interventions` key alone, so a flat experiment ran in the engine and then
 vanished from the trace and from edge inference.
 """
 import io
+import pytest
 import contextlib
 
 from luca import generate_organism, ExperimentSession
@@ -137,3 +138,53 @@ class TestTheSharedReadingIsCanonical:
         payload = {"interventions": _json.dumps(_json.dumps({"G001": {"type": "BLOCK"}}))}
         _gene, _session, baseline, tc = _traced(dict(payload))
         assert "G001" in _render(tc, baseline)
+
+
+class TestTheTwoReadersCannotDisagree:
+    """A targeted review of luca/payloads.py. `canonical_interventions` had its
+    own copy of the entry-reading rule, and the copy disagreed with the engine:
+    the target precedence was reversed, the action precedence differed and
+    omitted `intervention`, and a missing action defaulted to BLOCK where the
+    engine refuses the call. A module written to hold one reading held two.
+    """
+
+    CASES = [
+        {"interventions": [{"target": "G001", "gene": "G002", "mode": "BOOST"}]},
+        {"interventions": [{"gene": "G001", "action": "BOOST", "mode": "BLOCK"}]},
+        {"interventions": [{"gene": "G001", "intervention": "BOOST"}]},
+        {"interventions": [{"name": "G001", "type": "DAMPEN"}]},
+        {"interventions": {"G001": "block"}},
+        {"interventions": {"G001": {"type": "BOOST"}}},
+    ]
+
+    @pytest.mark.parametrize("payload", CASES)
+    def test_the_trace_reads_what_the_engine_reads(self, payload):
+        """The agreement that matters: which gene the simulator perturbs, and
+        with which type. `_resolve_interventions` is the last word on that."""
+        from luca.agent import _normalise_interventions
+        _gene, session = _session()
+        normalised = _normalise_interventions(payload["interventions"])
+        assert isinstance(normalised, dict), normalised
+        resolved = session._resolve_interventions(normalised)
+        assert not isinstance(resolved, dict), resolved
+        gene_ids, _signals = resolved
+        id_to_name = {g.id: g.name for g in session.organism.genes}
+        expected = {id_to_name[gid]: iv["type"] for gid, iv in gene_ids.items()}
+        actual = {t: v["type"] for t, v in report._tool_call_iv(payload).items()}
+        assert actual == expected
+
+    def test_an_entry_with_no_action_is_dropped_not_guessed(self):
+        """The engine refuses the whole call, so the trace must not invent a
+        BLOCK experiment that never ran."""
+        assert report._tool_call_iv({"interventions": [{"gene": "G001"}]}) == {}
+
+    def test_an_invented_container_is_not_shown_as_a_target(self):
+        """472 stored calls used a container name the engine refuses. The trace
+        showed `perturbations` and `BLOCK` as if they were genes."""
+        assert report._tool_call_iv({"perturbations": {"G001": "BLOCK"}}) == {}
+        assert report._tool_call_iv({"BLOCK": ["G001"]}) == {}
+
+    def test_a_signal_action_survives(self):
+        assert report._tool_call_iv({"wave-X": "activate"}) == {
+            "wave-X": {"type": "activate"}
+        }

@@ -107,6 +107,8 @@ def _with_retry(fn, retryable_exc: tuple, *args, **kwargs):
 from .experiment import ExperimentSession
 from .payloads import (
     MISSING_INTERVENTIONS_ERROR,
+    entry_action,
+    entry_target,
     flat_form_hint,
     intervention_payload,
 )
@@ -607,22 +609,12 @@ def _normalise_interventions(raw: Any) -> dict[str, Any] | str:
         normalised: dict[str, Any] = {}
         unreadable: list[Any] = []
         for item in raw:
-            if isinstance(item, dict):
-                target = (
-                    item.get("target") or item.get("gene") or item.get("name")
-                )
-                action = (
-                    item.get("action") or item.get("mode")
-                    or item.get("intervention") or item.get("type")
-                )
-            else:
-                target = action = None
-            if (
-                isinstance(target, str) and target
-                and isinstance(action, str)
-                and action.upper() in ("BLOCK", "BOOST", "DAMPEN")
-            ):
-                normalised[target] = {"type": action.upper()}
+            # entry_target and entry_action live in payloads.py so that the
+            # engine and the trace read one entry the same way. They used to be
+            # two copies, and the copies disagreed on key precedence.
+            target, action = entry_target(item), entry_action(item)
+            if target is not None and action is not None:
+                normalised[target] = {"type": action}
             else:
                 unreadable.append(item)
         if unreadable:

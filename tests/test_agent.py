@@ -777,3 +777,57 @@ class TestTheFlatHintOnlyFiresWhenNothingWasRecognised:
         _gene, session = _healthy_dispatch_session()
         result = dispatch_tool(session, "run_experiment", {"BLOCK": ["G001"]})
         assert "interventions" in result["error"]
+
+
+class TestANonDictToolInputIsRefusedNotRaised:
+    """A targeted review of luca/payloads.py. `intervention_payload` called
+    `tool_input.get`, and dispatch_tool does not guard its argument, so a
+    provider that delivers the arguments object as a string ended the session.
+    The same crash class as the list form and the hypothesis keys."""
+
+    def test_a_string_tool_input_is_read_not_raised(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", '{"G001": "BLOCK"}')
+        assert isinstance(result, dict)
+        assert "error" not in result, result
+        assert "G001" in session._experiment_log[-1]["interventions"]
+
+    def test_an_unreadable_string_tool_input_is_refused(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", "not json at all")
+        assert "error" in result
+        assert session.budget_used == 0
+
+    def test_a_list_tool_input_is_refused(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", [1, 2, 3])
+        assert "error" in result
+
+
+class TestAnEmptyWrapperDoesNotBeatAPopulatedOne:
+    """The review asked whether this was intended. It was not.
+
+    The original `or` chain fell through an empty `interventions` to a
+    populated `gene_interventions`. The key-presence rule stopped that, so a
+    model that sent both ran an empty experiment and was billed for it — the
+    issue 13 failure under a new name. A deliberate null experiment is a call
+    where every wrapper present is empty.
+    """
+
+    def test_a_populated_alternate_key_wins_over_an_empty_one(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {
+            "interventions": {},
+            "gene_interventions": {"G001": {"type": "BLOCK"}},
+        })
+        assert "error" not in result, result
+        assert "G001" in session._experiment_log[-1]["interventions"]
+
+    def test_every_wrapper_empty_is_still_a_deliberate_null(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {
+            "interventions": {},
+            "gene_interventions": {},
+        })
+        assert "error" not in result
+        assert session._experiment_log[-1]["interventions"] == {}

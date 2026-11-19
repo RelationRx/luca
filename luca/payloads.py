@@ -21,6 +21,41 @@ INTERVENTION_WRAPPER_KEYS = ("interventions", "gene_interventions")
 # stays lower case, because report.py keys its colour on "activate".
 GENE_INTERVENTION_TYPES = ("BLOCK", "BOOST", "DAMPEN")
 
+# The key names a model may use inside one list entry, in the order the engine
+# reads them. The order is part of the contract: a model that sends both
+# "target" and "gene" must perturb the same gene in the engine and in the
+# trace. Reversing it here once made the trace name a gene that was never
+# perturbed.
+ENTRY_TARGET_KEYS = ("target", "gene", "name")
+ENTRY_ACTION_KEYS = ("action", "mode", "intervention", "type")
+
+
+def entry_target(item: Any) -> str | None:
+    """The target of one list entry, or None."""
+    if not isinstance(item, dict):
+        return None
+    for key in ENTRY_TARGET_KEYS:
+        value = item.get(key)
+        if isinstance(value, str) and value:
+            return value
+        if value:
+            return None  # present but unusable: do not fall through to a worse key
+    return None
+
+
+def entry_action(item: Any) -> str | None:
+    """The intervention type of one list entry, or None if unreadable."""
+    if not isinstance(item, dict):
+        return None
+    for key in ENTRY_ACTION_KEYS:
+        value = item.get(key)
+        if not value:
+            continue
+        if isinstance(value, str) and value.upper() in GENE_INTERVENTION_TYPES:
+            return value.upper()
+        return None
+    return None
+
 
 MISSING_INTERVENTIONS_ERROR = (
     "Missing required parameter 'interventions'. Send "
@@ -91,20 +126,27 @@ def canonical_interventions(raw: Any) -> dict[str, dict]:
     if isinstance(raw, list):
         out: dict[str, dict] = {}
         for item in raw:
-            if not isinstance(item, dict):
-                continue
-            target = item.get("gene") or item.get("target") or item.get("name")
-            if not isinstance(target, str) or not target:
-                continue
-            action = item.get("mode") or item.get("type") or item.get("action")
-            out[target] = {"type": canonical_type(action if action else "BLOCK")}
+            target, action = entry_target(item), entry_action(item)
+            if target is None or action is None:
+                # The engine refuses the whole call when one entry is
+                # unreadable, so the trace must not show a partial experiment.
+                return {}
+            out[target] = {"type": action}
         return out
     if not isinstance(raw, dict):
         return {}
-    return {
-        str(target): {"type": canonical_type(value)}
-        for target, value in raw.items()
-    }
+    out = {}
+    for target, value in raw.items():
+        if isinstance(value, dict):
+            inner = value.get("type")
+            if not isinstance(inner, str) or not inner:
+                continue
+            out[str(target)] = {"type": canonical_type(inner)}
+        elif isinstance(value, str) and value:
+            out[str(target)] = {"type": canonical_type(value)}
+        # Anything else is a container the model invented, not a target. 472
+        # stored calls sent one; the trace used to draw it as a gene.
+    return out
 
 
 def intervention_payload(tool_input: dict) -> tuple[Any | None, bool]:
@@ -125,7 +167,9 @@ def intervention_payload(tool_input: dict) -> tuple[Any | None, bool]:
 
     A wrapper key wins whenever one is present, including when it is empty:
     ``{"interventions": {}}`` means a deliberate null experiment, not an
-    invitation to read the rest of the call as genes.
+    invitation to read the rest of the call as genes. When two wrapper keys are
+    present and one is empty, the populated one wins: a model that sent both
+    meant the one with genes in it.
 
     A wrapper key whose value is ``None`` is skipped, and the alternate key is
     read instead. The original code used ``or``, which fell through a null
@@ -143,9 +187,26 @@ def intervention_payload(tool_input: dict) -> tuple[Any | None, bool]:
     A payload may legitimately be a JSON string, so the return type carries no
     error channel — ``None`` is the only non-payload value.
     """
-    for key in INTERVENTION_WRAPPER_KEYS:
-        if tool_input.get(key) is not None:
-            return _decoded(tool_input[key]), False
+    tool_input = _decoded(tool_input)
+    if not isinstance(tool_input, dict):
+        # Some providers hand the whole arguments object over as a string.
+        # dispatch_tool does not guard its argument, so raising here ends the
+        # session rather than the call.
+        return None, False
+
+    present = [k for k in INTERVENTION_WRAPPER_KEYS if tool_input.get(k) is not None]
+
+    # A populated wrapper beats an empty one. The original `or` chain fell
+    # through an empty `interventions` to a populated `gene_interventions`; a
+    # key-presence rule briefly stopped that, so a model that sent both ran an
+    # empty experiment and was billed for it — issue 13 under a new name.
+    for key in present:
+        value = _decoded(tool_input[key])
+        if value:
+            return value, False
+    if present:
+        # Every wrapper present is empty: a deliberate null experiment.
+        return _decoded(tool_input[present[0]]), False
 
     if any(key in tool_input for key in INTERVENTION_WRAPPER_KEYS):
         # Every wrapper key present held null. A null is an absent payload,
