@@ -1,6 +1,6 @@
 # Known issues
 
-**Last updated: 2026-11-12. This list is not final — an audit is in
+**Last updated: 2026-11-19. This list is not final — an audit is in
 progress.**
 
 A code review in November 2026 found defects in the benchmark engine and in
@@ -12,6 +12,11 @@ An audit of the analysis layer has since added two further issues, and
 corrected two earlier entries (10 and 11) that were described inaccurately
 here. In both of those cases the correction makes the defect **smaller** than
 we first reported.
+
+**2026-11-19: issues 1 and 4 are fixed in this repository.** A revealed
+prediction task's answer can no longer be measured instead of predicted, and
+each task is scored once. Results you generated before this change are not
+comparable with results generated after it. Record the commit you ran.
 
 ## If you are using this repository
 
@@ -41,10 +46,10 @@ you discover it later.
 
 | # | Issue | Affects | Status |
 |---|---|---|---|
-| 1 | `run_experiment` and `test_rescue` would execute a revealed prediction task's exact combination, so an agent could measure the answer instead of predicting it | held-out protocol | **fixed**, not yet in this repo |
+| 1 | `run_experiment` and `test_rescue` would execute a revealed prediction task's exact combination, so an agent could measure the answer instead of predicting it | held-out protocol | **fixed 2026-11-19** |
 | 2 | Every easy and medium prediction task is solvable by a four-experiment additive strategy, contradicting the stated non-additivity guarantee | difficulty claims | open — needs a generator change |
 | 3 | `verify_organisms.py` looks up gene IDs in a dictionary keyed by gene names, silently reads every measured effect as zero, and so reports every task as non-additive | organism verification, seed screening | open |
-| 4 | `submit_prediction` disclosed ground truth and scored every retry, so a resubmitted answer raised the session average | scoring integrity | **fixed**, not yet in this repo |
+| 4 | `submit_prediction` disclosed ground truth and scored every retry, so a resubmitted answer raised the session average | scoring integrity | **fixed 2026-11-19** |
 | 5 | Signal semantics disagree with the documentation in three ways: a bare `"activate"` resolves to the strength the simulator already uses and does nothing; the documented `{"type": "activate"}` form deactivates instead; an inhibitory `PERSIST` malfunction is negated twice and acts as strong activation | disease mode, signal diagnosis | open |
 | 6 | The heuristic baseline subtracted its own measured `BLOCK` delta instead of adding it, and treated `DAMPEN` as the opposite of `BLOCK` | baseline comparisons | **fixed**, not yet in this repo |
 | 7 | The `v1-generation-freeze-2` tag named in `DECISIONS.md` predates a package rename and a vocabulary change, and does not reproduce current organisms | reproduction instructions | open |
@@ -58,6 +63,30 @@ you discover it later.
 Issues 1–8 came from the November 2026 review. Issues 9–11 were found while
 investigating it. Issues 12 and 13 were found by a subsequent audit of the
 analysis layer.
+
+## Issues 1 and 4, as fixed on 2026-11-19
+
+Both changes make the engine refuse something it used to accept, so an agent
+written against the old behaviour will now see errors where it previously saw
+results. That is the point: the old behaviour failed in silence.
+
+**Issue 1 — a revealed prediction task is held out.** `get_next_prediction_task`
+now seals that task's exact gene-and-type combination. `run_experiment` and
+`test_rescue` refuse it, and the refusal costs no budget. The seal lifts once
+the task is answered. Running either of the task's genes on its own is still
+allowed, and so is any other combination: measuring single genes and adding
+the effects is a legitimate strategy, and the held-out quantity is the joint
+outcome.
+
+**Issue 4 — one scored answer per task.** `submit_prediction` still discloses
+ground truth, so an agent can learn from it. A second submission for the same
+task is now refused instead of scored.
+
+Both rules are stated in the `run_experiment`, `test_rescue` and
+`submit_prediction` tool descriptions, so an agent is told before it spends a
+turn discovering them. Regression tests:
+
+    pytest tests/test_experiment.py -k "HeldOut or Immutable"
 
 ## Issue 13, in detail
 
@@ -134,7 +163,8 @@ measurement, not by inspection alone.
 1. ~~Finish auditing the analysis scripts.~~ A first pass is done; it produced
    issues 12 and 13 and the corrections to 10 and 11. The scaling-study logs
    and several analysis scripts are still unexamined.
-2. Land the remaining engine fixes.
+2. Land the remaining engine fixes. Issues 1 and 4 are done; issues 3, 12 and
+   13 are next.
 3. Recompute every affected number, and re-run the sessions that the
    held-out protocol change invalidates.
 4. Post corrected versions of the write-ups, with the corrections stated

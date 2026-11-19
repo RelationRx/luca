@@ -260,7 +260,11 @@ directly run, and asks the agent to predict the resulting steady-state phenotype
 values. Key properties:
 
 - **Held-out**: the exact intervention cannot be run before predicting — the
-  agent must infer outcomes from its causal model of the network.
+  agent must infer outcomes from its causal model of the network. This is
+  enforced from 2026-11-19: revealing a task seals its exact gene-and-type
+  combination, and `run_experiment` and `test_rescue` refuse it at no budget
+  cost until the task is answered. Before that date the claim was stated but
+  not enforced; see [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) issue 1.
 - **Sequential reveal**: tasks are released one at a time. Task 2 is not visible
   until task 1 is submitted, so the agent cannot observe task 2's intervention
   directly before predicting it.
