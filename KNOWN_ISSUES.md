@@ -216,11 +216,13 @@ This change makes the engine refuse calls it used to accept and bill. A model
 that sent an unreadable payload will now see errors where it previously saw
 normal-looking results. That is the point: the old behaviour failed in silence.
 
-### What three rounds of code review added
+### What four rounds of code review added
 
-The fix was reviewed three times. Each round read the previous round's
-changes, and most of what rounds two and three found had been introduced by
-the fixes themselves, not by the original defect.
+The fix was reviewed four times. Each round read the previous round's
+changes, and most of what rounds two, three and four found had been introduced
+by the fixes themselves, not by the original defect. That is the main lesson
+of this page: a fix that widens what a component must understand widens what
+can disagree.
 
 **One reading, for the engine and the trace.** `report.py` read the
 `interventions` key alone. Once the tool layer applied the flat form, a flat
@@ -278,6 +280,36 @@ a signal-only experiment that ran as a null one and was billed.
 `{"interventions": {}}` is still the explicit null experiment. A null wrapper
 falls through to the alternate key, as the original `or` did; no stored call
 sent one, but a null is an absent payload, not an empty one.
+
+**One reading means one reading.** The fourth round reviewed
+`luca/payloads.py` alone and found that the module written to hold a single
+reading held two. `canonical_interventions` carried its own copy of the rule
+for reading one list entry, and the copy disagreed with the engine on key
+precedence:
+
+    [{"target": "G001", "gene": "G002", "mode": "BOOST"}]
+        engine G001   trace G002
+    [{"gene": "G001", "action": "BOOST", "mode": "BLOCK"}]
+        engine BOOST  trace BLOCK
+
+The first names a gene the engine never perturbed. The second inverts an
+inferred edge, because the discovered network maps a positive change to
+opposite directions for `BLOCK` and `BOOST`. `entry_target` and `entry_action`
+now live in one place and both readers call them. A test compares the trace
+against `_resolve_interventions`, which is the last word on what the simulator
+perturbs.
+
+The same round found three more: a list entry with no readable action rendered
+as a real `BLOCK` while the engine refuses the call; an invented container was
+drawn as a target, so 472 stored calls showed a gene called `perturbations` or
+`BLOCK`; and a payload delivered as a bare string raised rather than being
+read, which ended the session.
+
+It also asked whether one rule was intended, and it was not. With
+`{"interventions": {}, "gene_interventions": {...}}` the key-presence rule ran
+an empty experiment and billed for it, where the original `or` chain ran the
+populated map. A populated wrapper now wins. A call where every wrapper present
+is empty is still a deliberate null experiment.
 
 Three further findings are recorded as issues 16, 17 and 18, and are not fixed
 here.
