@@ -105,6 +105,12 @@ def _with_retry(fn, retryable_exc: tuple, *args, **kwargs):
             time.sleep(wait)
 
 from .experiment import ExperimentSession
+from .payloads import (
+    INTERVENTION_WRAPPER_KEYS as _INTERVENTION_WRAPPER_KEYS,
+    MISSING_INTERVENTIONS_ERROR,
+    flat_form_hint,
+    intervention_payload,
+)
 
 # ---------------------------------------------------------------------------
 # Tool schemas
@@ -585,6 +591,18 @@ def _normalise_interventions(raw: Any) -> dict[str, Any] | str:
         return raw  # canonical format — no-op
 
     if isinstance(raw, list):
+        if not raw:
+            # An empty list carries no genes, so it is an absent payload, not
+            # a deliberate null experiment. All four stored empty-list calls
+            # were {"interventions": [], "signals": [...]}: the model asked for
+            # a signal-only experiment, got an untouched organism, and was
+            # billed for it. {"interventions": {}} remains the explicit null.
+            return (
+                "interventions was an empty list, so no gene was named. For a "
+                'deliberate null experiment send {"interventions": {}}. To '
+                'change a signal, name it in the interventions map, for '
+                'example {"interventions": {"wave-X": "activate"}}.'
+            )
         # gpt-5.1 compat: list of per-gene dicts with varying key names
         normalised: dict[str, Any] = {}
         unreadable: list[Any] = []
@@ -624,54 +642,22 @@ def _normalise_interventions(raw: Any) -> dict[str, Any] | str:
     )
 
 
-# run_experiment and test_rescue take the same payload. A model may send the
-# intervention map under either key, or — issue 13 — unwrapped at the top level.
-_INTERVENTION_WRAPPER_KEYS = ("interventions", "gene_interventions")
+def _with_flat_form_hint(result: dict, tool_input: dict, from_flat: bool) -> dict:
+    """Name the documented wrapper when a flat-form guess hit an unknown target.
 
-
-MISSING_INTERVENTIONS_ERROR = (
-    "Missing required parameter 'interventions'. Send "
-    '{"interventions": {"G001": {"type": "BLOCK"}}}. For a deliberate '
-    'null experiment send {"interventions": {}} explicitly.'
-)
-
-
-def _intervention_payload(tool_input: dict) -> Any | None:
-    """Find the interventions in a tool call, whatever shape the model used.
-
-    **Issue 13.** The tool layer used to read two key names and nothing else,
-    so a model that sent its targets at the top level of ``tool_input`` — with
-    no wrapper key at all — had its whole experiment replaced by ``{}``. The
-    engine then simulated an untouched organism, charged a unit of budget and
-    returned a normal-looking success. The model never learned, so it repeated
-    the format for the rest of the session.
-
-    Measured over the 1,220 stored session logs, of 18,356 run_experiment and
-    test_rescue calls: 1,450 used the flat form and 85 carried no payload at
-    all. gpt-4.1 alone sent 872 flat calls in 2,001.
-
-    A wrapper key wins whenever one is present, including when it is empty:
-    ``{"interventions": {}}`` means a deliberate null experiment, not an
-    invitation to read the rest of the call as genes.
-
-    Returns None when the call carries no payload at all. That is refused by
-    the caller rather than silently run as an empty experiment: every one of
-    the 85 empty calls came from a model that also sent the flat form, and the
-    agent text beside them announces an intervention that was then not sent.
-
-    A payload may legitimately be a JSON string, so the return type carries no
-    error channel — None is the only non-payload value.
+    472 of the 18,356 stored calls sent an alternative container name, such as
+    {"BLOCK": ["G001"]} or {"perturbations": {...}}. Before issue 13 each one
+    ran as an empty experiment and was billed. They are refused now, which is
+    correct, but "Unknown target: BLOCK" alone does not tell a model what to
+    send instead.
     """
-    for key in _INTERVENTION_WRAPPER_KEYS:
-        if key in tool_input:
-            return tool_input[key]
-
-    if not tool_input:
-        return None
-
-    # Flat form: the payload is the intervention map. An unknown target is
-    # rejected by the session, which costs no budget.
-    return tool_input
+    if not from_flat or "error" not in result:
+        return result
+    message = result["error"]
+    if not message.startswith("Unknown target: "):
+        return result
+    stray = message[len("Unknown target: "):].strip()
+    return {**result, "error": message + flat_form_hint(stray)}
 
 
 def _normalise_prediction(tool_input: dict) -> dict[str, float] | None:
@@ -752,13 +738,14 @@ def dispatch_tool(session: ExperimentSession, tool_name: str, tool_input: dict) 
     elif tool_name == "get_next_prediction_task":
         return session.get_next_prediction_task()
     elif tool_name == "run_experiment":
-        raw = _intervention_payload(tool_input)
+        raw, from_flat = intervention_payload(tool_input)
         if raw is None:
             return {"error": MISSING_INTERVENTIONS_ERROR}
         interventions = _normalise_interventions(raw)
         if isinstance(interventions, str):
             return {"error": interventions}
-        return session.run_experiment(interventions)
+        result = session.run_experiment(interventions)
+        return _with_flat_form_hint(result, tool_input, from_flat)
     elif tool_name == "submit_prediction":
         prediction = _normalise_prediction(tool_input)
         if prediction is None:
@@ -779,13 +766,20 @@ def dispatch_tool(session: ExperimentSession, tool_name: str, tool_input: dict) 
             return {"error": edges}
         return session.submit_network(edges)
     elif tool_name == "test_rescue":
-        raw = _intervention_payload(tool_input)
+        # The session's own state errors come first. A malformed payload used
+        # to mask them, so the agent fixed the payload, resent, and only then
+        # learned that it had not submitted a hypothesis. That cost a turn.
+        blocked = session.rescue_state_error()
+        if blocked is not None:
+            return blocked
+        raw, from_flat = intervention_payload(tool_input)
         if raw is None:
             return {"error": MISSING_INTERVENTIONS_ERROR}
         interventions = _normalise_interventions(raw)
         if isinstance(interventions, str):
             return {"error": interventions}
-        return session.test_rescue(interventions)
+        result = session.test_rescue(interventions)
+        return _with_flat_form_hint(result, tool_input, from_flat)
     elif tool_name == "submit_malfunction_hypothesis":
         return session.submit_malfunction_hypothesis(
             tool_input["target_name"],

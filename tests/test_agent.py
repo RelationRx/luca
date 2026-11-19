@@ -565,3 +565,95 @@ class TestUnreadablePayloadsAreRefused:
         result = dispatch_tool(session, "test_rescue", {"foo": "bar"})
         assert "error" in result
         assert session.budget_used == before
+
+
+# ---------------------------------------------------------------------------
+# Review of the issue 13 fix. Measured over the 1,220 stored session logs, of
+# 18,356 run_experiment and test_rescue calls.
+# ---------------------------------------------------------------------------
+
+def _disease_dispatch_session(budget=5):
+    org = generate_disease_organism(seed=0, difficulty="medium")
+    return ExperimentSession(org, budget=budget, seed=0)
+
+
+class TestRefusalNamesTheDocumentedShape:
+    """Finding 2. 472 stored calls sent an alternative container name, such as
+    {"BLOCK": ["G001"]} or {"perturbations": {...}}. Every one of them ran as
+    an empty experiment and was billed; none returned an error. They are now
+    refused, which is correct, but the message named only the stray key. A
+    model cannot correct itself from that."""
+
+    def test_unknown_target_error_names_the_wrapper_key(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"BLOCK": ["G001"]})
+        assert "error" in result
+        assert "BLOCK" in result["error"]
+        assert "interventions" in result["error"], (
+            "the message must name the key the model should have used"
+        )
+
+    def test_the_refusal_still_costs_no_budget(self):
+        _gene, session = _healthy_dispatch_session()
+        dispatch_tool(session, "run_experiment", {"perturbations": {"G001": "BLOCK"}})
+        assert session.budget_used == 0
+
+
+class TestWrapperKeyEdgeCases:
+
+    def test_a_null_wrapper_falls_through_to_the_alternate_key(self):
+        """Finding 3. The old code used `or`, so a null primary key fell
+        through. The key-presence loop stopped that. No stored call sent a
+        null wrapper, but the old behaviour was correct and is restored."""
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {
+            "interventions": None,
+            "gene_interventions": {"G001": {"type": "BLOCK"}},
+        })
+        assert "error" not in result, result
+        assert "G001" in session._experiment_log[-1]["interventions"]
+
+    def test_an_empty_list_payload_is_refused(self):
+        """Finding 4. All four stored empty-list calls were
+        {"interventions": [], "signals": [...]} — a signal-only experiment.
+        Each one ran as a null experiment and was billed. An empty list
+        carries no genes, so it is refused like a missing key."""
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"interventions": []})
+        assert "error" in result
+        assert session.budget_used == 0
+
+    def test_an_explicit_empty_map_is_still_a_null_experiment(self):
+        """The guard. {"interventions": {}} stays deliberate."""
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "run_experiment", {"interventions": {}})
+        assert "error" not in result
+        assert session.budget_used == 1
+
+
+class TestRescueStateErrorsComeFirst:
+    """Finding 5. The payload check ran before the session saw the call, so a
+    malformed payload masked the two state errors. The agent fixed the
+    payload, resent, and only then learned the real blocker. That costs a turn
+    each time."""
+
+    def test_the_missing_hypothesis_error_wins(self):
+        session = _disease_dispatch_session()
+        result = dispatch_tool(session, "test_rescue", {})
+        assert "error" in result
+        assert "submit_malfunction_hypothesis" in result["error"]
+
+    def test_the_healthy_organism_error_wins(self):
+        _gene, session = _healthy_dispatch_session()
+        result = dispatch_tool(session, "test_rescue", {})
+        assert "error" in result
+        assert "not a disease organism" in result["error"]
+
+    def test_a_malformed_payload_is_still_refused_once_the_state_is_right(self):
+        session = _disease_dispatch_session()
+        dispatch_tool(session, "submit_malfunction_hypothesis",
+                      {"target_name": "G014", "malfunction_type": "LOCK_LO"})
+        result = dispatch_tool(session, "test_rescue", {})
+        assert "error" in result
+        assert "interventions" in result["error"]
+        assert session.budget_used == 0

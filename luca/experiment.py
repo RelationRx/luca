@@ -593,6 +593,21 @@ class ExperimentSession:
             "note": "Network stored. Precision/recall/F1 revealed at session end via get_summary().",
         }
 
+    def rescue_state_error(self) -> dict[str, Any] | None:
+        """Why test_rescue() cannot run yet, or None.
+
+        The tool layer asks this before it reads the payload. A malformed
+        payload used to mask these two errors, so the agent fixed the payload,
+        resent the call, and only then learned the real blocker. Keeping the
+        check here rather than copying it into the tool layer keeps one source
+        of truth.
+        """
+        if not self._is_disease:
+            return {"error": "not a disease organism"}
+        if not self._hypothesis_locked:
+            return {"error": "submit_malfunction_hypothesis() must be called before test_rescue()"}
+        return None
+
     def test_rescue(
         self,
         interventions: dict[str, Any],
@@ -612,10 +627,9 @@ class ExperimentSession:
         interventions: {gene_name → {"type": "BLOCK"|"BOOST"|"DAMPEN"}} or
                        {signal_label → "activate"}
         """
-        if not self._is_disease:
-            return {"error": "not a disease organism"}
-        if not self._hypothesis_locked:
-            return {"error": "submit_malfunction_hypothesis() must be called before test_rescue()"}
+        blocked = self.rescue_state_error()
+        if blocked is not None:
+            return blocked
         if self.budget_used >= self.budget:
             return {"error": "Budget exhausted"}
 
