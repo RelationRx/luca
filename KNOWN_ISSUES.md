@@ -82,12 +82,13 @@ most likely to affect what you measure.
   *should* mean is still open (issue 5b, v2): every signal is already on at its
   own strength, so the verb has no referent.
 - **A held-out prediction task's answer is still reachable (issue 21).** Resend
-  a revealed task's exact gene pair together with one unrelated signal
-  `deactivate`, and the call runs and returns the answer. This is not new on
-  2026-11-20: the same route existed through `activate`, which resolved to the
-  signal's own strength and so was bit-identical to the task itself. Fixing
-  issue 5a closed that spelling and left this one. Until issue 21 is fixed, a
-  prediction score is an upper bound.
+  a revealed task's exact gene pair together with one unrelated signal change,
+  and the call runs and returns the answer. Issue 1 closed the bare
+  combination, and that stays closed. This is the escape that finding 3 of the
+  PR #9 review then opened on purpose. Measured on the code before the issue 5a
+  fix, both signal verbs leaked at all three tiers, so nothing about this is new
+  on 2026-11-20. Until issue 21 is fixed, a prediction score is an upper
+  bound.
 - **Check which `luca` your tests import.** Until 2026-11-20 a bare `pytest`
   here could import a different checkout (issue 20). Run
   `python -c "import luca; print(luca.__file__)"` and confirm the path is
@@ -147,7 +148,7 @@ pull requests cite it, so the table skips from 9 to 12.
 | 15 | `_generate_tasks` loops `n` times and never compares a new task against the tasks already built, so one organism can ask the same question twice and score it twice. Measured over seeds 0-19 at all three tiers on 2026-11-20, **no organism of the 60 carries a duplicate**, so the defect is latent here. An earlier note in this file named medium seed 10; that does not reproduce | v1 | prediction scoring | ⬜ open — latent, a guard rather than a number change |
 | 17 | `inspect.py` reads an intervention value of `"BLOCK"` as `""` when it colours the heatmap marker, so a string-valued intervention renders as a white `?`. Line 1443 reads the same value correctly | v1 | diagnostic figures only | ⬜ open |
 | 19 | `test_rescue` re-applied the chronic signal override after it read the agent's request, so the rescue the generator certifies for a `PERSIST` malfunction could not be performed. Measured before the fix: 9 of the 60 canonical disease organisms carried a `PERSIST` malfunction, all 9 were certified rescuable, and all 9 returned `restored_fraction = 0.0` | v1 | disease mode, rescue scoring | ✅ **fixed 2026-11-20** — see below |
-| 21 | **A held-out prediction task's answer can still be measured.** `_sealed_task_for` returns `None` whenever the agent changes any signal, so a revealed task's exact gene pair plus one unrelated `deactivate` runs and returns the held-out answer. Deactivating an unrelated signal moves the phenotypes far less than the scoring threshold. Measured 2026-11-20, worst gap against the stored ground truth: easy seed 19 **0.0253**, medium seed 16 **0.0522**, hard seed 12 **0.0913**, against a threshold of 0.10 | v1 | **held-out protocol** | ⬜ open |
+| 21 | **The issue 1 seal has a deliberate escape, and the escape leaks.** Finding 3 of the PR #9 review made `_sealed_task_for` return `None` whenever the agent changes any signal, on the reasoning that the same genes under a changed signal is "a different experiment with a different outcome". The outcome is not different enough. A revealed task's exact gene pair plus one unrelated signal change runs and returns the held-out answer. Worst gap against the stored ground truth, against a scoring threshold of 0.10 — before the issue 5a fix: easy 19 **0.0150**, medium 16 **0.0199**, hard 12 **0.0913**; after it: **0.0253**, **0.0522**, **0.0913**. `tests/test_experiment.py::TestSealCoversSignals` asserts the escape is intended, and is the test that must change when this is fixed | v1 | **held-out protocol** | ⬜ open |
 | 20 | `pytest` run from the repository root imported `luca` from a different checkout. There is no `conftest.py` and no pytest path setting, and pytest's `prepend` import mode puts the *test file's* directory on `sys.path`, never the repository root. An editable install of `luca` elsewhere therefore won. The tests that prove issues 1, 4 and 12 are fixed were failing under the documented command | v1 | every test run | ✅ **fixed 2026-11-20** — see below |
 | 2 | Every easy and medium prediction task is solvable by a four-experiment additive strategy, contradicting the stated non-additivity guarantee. A session asks two tasks of two genes each, so measuring those genes separately and adding the effects answers both. Measured over seeds 0-19: easy 40 of 40, medium 40 of 40, hard 18 of 40 against the stored ground truth, and 34 of 40 noise-free — see issue 3 for which number answers which question | v2 | difficulty claims | ⬜ open — needs a generator change |
 | 5b | What `activate` should mean is undecided. Every signal is already on at `sig.strength`, so the verb has no referent. Since 2026-11-20 the engine refuses it rather than ignoring it, and `deactivate` works in both forms (issue 5a). Deciding what an agent should be able to *do* to a signal beyond switching it off is a design question, not a bug | v2 | disease mode, signal diagnosis | ⬜ open |
