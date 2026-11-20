@@ -19,6 +19,16 @@ if str(REPO_ROOT) not in sys.path:
 
 import luca  # noqa: E402
 
-assert Path(luca.__file__).resolve().is_relative_to(REPO_ROOT), (
-    f"pytest imported luca from {luca.__file__}, not from {REPO_ROOT}"
-)
+# A bare `assert` would be stripped by `python -O` / PYTHONOPTIMIZE, which is
+# exactly when a silent wrong import does the most damage. Raise instead.
+#
+# The sys.path insert above cannot win against every editable install: a PEP
+# 660 install registers a finder on sys.meta_path, which runs first. Where that
+# happens this raises rather than corrects, which is the point — it refuses to
+# measure code from somewhere else.
+if not Path(luca.__file__).resolve().is_relative_to(REPO_ROOT):
+    raise RuntimeError(
+        f"pytest imported luca from {luca.__file__}, not from {REPO_ROOT}. "
+        f"An editable install of `luca` elsewhere is shadowing this checkout. "
+        f"Uninstall it, or run `pip install -e .` from here."
+    )

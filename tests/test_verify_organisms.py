@@ -297,5 +297,7 @@ def test_the_module_under_test_is_this_repository():
     here and produces a plausible wrong number rather than a crash. Two
     measurements were lost to this on 2026-11-20."""
     import luca
-    assert "luca-public" in luca.__file__, luca.__file__
+    assert Path(luca.__file__).resolve().is_relative_to(REPO_ROOT), (
+        f"pytest imported luca from {luca.__file__}, not from {REPO_ROOT}"
+    )
     assert vo.__file__ == str(REPO_ROOT / "verify_organisms.py"), vo.__file__

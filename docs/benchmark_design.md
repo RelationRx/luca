@@ -216,11 +216,23 @@ Verification results for n=20, seeds 0–19:
 |------|---------------------------|-------|
 | Easy | **40 of 40** | every task is solvable by adding single-gene effects |
 | Medium | **40 of 40** | the default tier does not test non-additivity |
-| Hard | **18 of 40** | 22 tasks resist the additive strategy; all latent genes relevant |
+| Hard | **18 of 40** | 22 tasks resist the additive strategy against the stored ground truth; all latent genes relevant |
 
-Reproduce with `pytest tests/test_verify_organisms.py`, which measures these
-rates twice — once through `verify_organisms.py` and once through an
-independent implementation that shares none of its code.
+**The hard figure overstates the design's contribution.** `task.ground_truth`
+carries readout noise of `rng.normal(0, noise_sigma * 2)`
+(`luca/dynamics.py:120`). At the hard tier that noise has mean 0.072 and
+maximum 0.164 against a +-0.10 threshold. Against a noise-free ground truth the
+hard tier is **34 of 40**, so only about 6 of the 22 "resisting" tasks resist
+because of the sigmoid interaction the design intends. Easy and medium are
+40 of 40 under either measure. See `KNOWN_ISSUES.md`, issues 2 and 3.
+
+Reproduce the first column with `pytest tests/test_verify_organisms.py`. It
+measures the medium and hard rates twice — once through `verify_organisms.py`
+and once through a second path inside the test file. That second path is **not**
+independent: it copies `_readout_noise_free_phenotypes` and its
+`default_rng(0)` stream, so an error common to both is invisible to it, and the
+readout noise above is exactly such an error. The easy rate is measured once,
+and the 34 of 40 figure is not pinned by a test at all.
 
 ---
 
@@ -297,10 +309,13 @@ values. Key properties:
   genes within the same phenotype readout, so their combined effect passes
   through the sigmoid together. The intent is that summing the individual
   effects gives the wrong answer. Measured over seeds 0–19 that holds for 22 of
-  40 hard tasks and for none at easy or medium, where every task is additively
-  solvable. The guarantee is a property of the generator, so it is addressed in
-  LUCA v2 rather than patched; see [KNOWN_ISSUES.md](../KNOWN_ISSUES.md)
-  issue 2.
+  40 hard tasks against the stored ground truth, and for none at easy or
+  medium, where every task is additively solvable. Against a noise-free ground
+  truth the hard count is 6 of 40, not 22: the rest of the gap is readout noise
+  in `task.ground_truth`, not the sigmoid. So the intent is met for about one
+  task in seven at the hardest tier, and nowhere else. The guarantee is a
+  property of the generator, so it is addressed in LUCA v2 rather than patched;
+  see [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) issue 2.
 - **Default n=2** per session (configurable; fixed at 2 for all paper v1 runs).
 
 ### Scoring

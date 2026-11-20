@@ -102,7 +102,9 @@ Every issue carries a **bucket**:
   redesign. These need a generator change or a decision about what the API
   should mean, not a bug fix.
 
-Six of seventeen are fixed here: issues 1, 3, 4, 12, 13 and 20.
+Six of the nineteen rows below are fixed here: issues 1, 3, 4, 12, 13
+and 20. The count is of rows, not of original issue numbers: issue 5 is
+split into 5a and 5b, and 10 and 11 are withdrawn.
 
 Issues 10 and 11 have been withdrawn from this list. They described defects in
 analysis scripts that are not part of this repository, so a reader here could
@@ -266,7 +268,15 @@ organisms. It is a refusal, not a fix.
 
 Every lookup in `check_additivity` that used to carry a default — `.get(gene_id,
 {})`, `.get(ph, 0.0)`, `.get(ph, 0.5)`, `.get("type", "BLOCK")` — now raises.
-Those defaults are the same silent-zero mechanism that caused this issue.
+Those defaults are the same silent-zero mechanism that caused this issue. Two
+more in `_noiseless_single_gene_effects` and the latent check are gone for the
+same reason, although neither was reachable.
+
+**One output change.** The per-task `interventions` key in the screening
+`.jsonl` now carries the gene *name* (`G019`) rather than the gene *id*
+(`g_019`). That is the identifier the rest of the page and the agent-facing API
+use. If you compare a screening run from before 2026-11-19 with one from after,
+the keys differ.
 
 **What this means for the benchmark.** The easy and medium tiers do not test
 non-additive causal reasoning. Every task at both tiers is solvable by

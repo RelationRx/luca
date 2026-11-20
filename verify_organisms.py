@@ -108,7 +108,9 @@ def _noiseless_single_gene_effects(
         for itype in INTERVENTION_TYPES:
             phenotypes = _readout_noise_free_phenotypes(org, {gene.id: {"type": itype}})
             per_type[itype] = {
-                ph: phenotypes.get(ph, baseline[ph]) - baseline[ph]
+                # Direct index: both sides come from compute_phenotypes on
+                # the same organism, so a missing label is a bug, not a zero.
+                ph: phenotypes[ph] - baseline[ph]
                 for ph in ph_labels
             }
         effects[gene.id] = per_type
@@ -139,10 +141,13 @@ def check_additivity(
         raise ValueError(
             f"check_additivity models healthy dynamics only, but organism "
             f"{session.organism.id} carries {len(malfunctions)} malfunction(s): "
-            f"{sorted(m.type for m in malfunctions)}. _readout_noise_free_phenotypes "
-            f"passes active_signals={{}}, so a chronic signal override is "
-            f"dropped from the additive model but not from task.ground_truth, "
-            f"and the comparison would be between two different organisms."
+            f"{sorted(m.type for m in malfunctions)}. For PERSIST this is "
+            f"unsound: _readout_noise_free_phenotypes passes "
+            f"active_signals={{}}, so the chronic signal override is dropped "
+            f"from the additive model but not from task.ground_truth. LOCK_HI "
+            f"and LOCK_LO live in organism.dynamics.rule, which both sides "
+            f"read, so those are in principle comparable. They are refused too "
+            f"because none of this has been measured against a disease organism."
         )
 
     ph_labels = list(baseline.keys())
@@ -211,7 +216,7 @@ def check_additivity(
         task_results.append({
             "task_id": task_id,
             "interventions": {
-                gene_id_to_name.get(g, g): (
+                gene_id_to_name[g]: (
                     iv.get("type") if isinstance(iv, dict) else iv
                 )
                 for g, iv in task.interventions.items()
@@ -254,7 +259,7 @@ def check_latent_relevance(
             continue
         phenotypes = _readout_noise_free_phenotypes(org, {gene.id: {"type": "BLOCK"}})
         shifts = {
-            ph: abs(phenotypes.get(ph, baseline[ph]) - baseline[ph])
+            ph: abs(phenotypes[ph] - baseline[ph])
             for ph in ph_labels
         }
         relevant = any(s > threshold for s in shifts.values())
@@ -288,10 +293,12 @@ def verify_organism(seed: int, difficulty: str) -> dict:
         return {"seed": seed, "difficulty": difficulty, "error": f"session: {e}"}
 
     ph_labels = list(session.get_info()["baseline_phenotypes"].keys())
-    # The additivity and latent checks compare noiseless simulations against
-    # each other, so the reference must be the noiseless baseline too. The
-    # session's reported baseline carries readout noise, which at the hard tier
-    # is sigma 0.06 against a +-0.10 threshold.
+    # The additivity and latent checks compare simulations against each other,
+    # so the reference must come from the same simulation path. It is NOT that
+    # session.get_info()["baseline_phenotypes"] is noisy — it is not;
+    # _compute_baseline_phenotypes passes noise=False. It reads
+    # organism.baseline_state instead of re-simulating, so comparing a
+    # re-simulated perturbation against it would mix two procedures.
     baseline = _readout_noise_free_phenotypes(org, {})
 
     # 1. Structural check
