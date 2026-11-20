@@ -38,6 +38,11 @@ ground truth. Both are reported below, with the question each one answers.
 Either way the easy and medium tiers are fully additive, which is the evidence
 for issue 2.
 
+**2026-11-20: issue 6 is fixed in this repository.** The heuristic baseline
+subtracted its own measured delta instead of adding it. Over seeds 0-9 its mean
+accuracy goes from 0.7167 to 0.9333 on easy, 0.5500 to 0.8167 on medium, and
+0.3500 to 0.6667 on hard. Every published baseline number predates this.
+
 **2026-11-20: issues 19 and 5a are fixed in this repository.** A persistent
 inhibitor now inhibits, and the rescue the generator certifies for a `PERSIST`
 malfunction can now be performed. Both change what disease mode does. The
@@ -68,7 +73,9 @@ most likely to affect what you measure.
   of those do so because of the dynamics. The rest is readout noise. See
   issue 3 below for both numbers.
 - **Do not rely on the published baseline numbers.** The heuristic baseline
-  computed its own predictions with an inverted sign (issue 6).
+  computed its own predictions with an inverted sign (issue 6, fixed
+  2026-11-20). On medium and hard it spent 20 experiments to score **below** a
+  baseline that runs none. Every published heuristic number predates the fix.
 - **Do not compare disease results across 2026-11-20.** Issues 19 and 5a are
   fixed, and the fix changes which organisms the generator produces. 11 of the
   60 canonical disease organisms now carry a different malfunction, and the
@@ -124,9 +131,8 @@ Every issue carries a **bucket**:
 **The table is sorted by bucket: every v1 issue first, then v2.** Within each
 bucket it is in issue-number order, so the numbers are not consecutive.
 
-Eight of the twenty rows below are fixed here: issues 1, 3, 4, 5a, 12, 13,
-19 and 20. Issue 6 is fixed elsewhere and not yet ported here. Eleven are
-open: six in v1 and five in v2.
+Nine of the twenty rows below are fixed here: issues 1, 3, 4, 5a, 6, 12, 13,
+19 and 20. Eleven are open: six in v1 and five in v2.
 The count is of rows, not of original issue numbers: issue 5 is split into 5a
 and 5b, and 10 and 11 are withdrawn.
 
@@ -141,7 +147,7 @@ pull requests cite it, so the table skips from 9 to 12.
 | 3 | `verify_organisms.py` looks up gene IDs in a dictionary keyed by gene names, silently reads every measured effect as zero, inverts the sign of the effects it does measure, and measures only `BLOCK`. It reported every task at every tier as non-additive | v1 | organism verification, seed screening | ✅ **fixed 2026-11-19** — see below |
 | 4 | `submit_prediction` disclosed ground truth and scored every retry, so a resubmitted answer raised the session average | v1 | scoring integrity | ✅ **fixed 2026-11-19** |
 | 5a | The chronic malfunction signal override was negated twice. Five sites stored a value already signed for an inhibiting signal, and `luca/dynamics.py:50` applied the mode sign again. A persistent **inhibitor** therefore simulated as a strong **activator** | v1 | disease mode | ✅ **fixed 2026-11-20** — see below |
-| 6 | The heuristic baseline subtracted its own measured `BLOCK` delta instead of adding it, and treated `DAMPEN` as the opposite of `BLOCK` | v1 | baseline comparisons | ⚠️ **fixed**, not yet in this repo |
+| 6 | The heuristic baseline subtracted its own measured `BLOCK` delta instead of adding it, and treated `DAMPEN` as the opposite of `BLOCK`. Over seeds 0-9 it therefore scored **below** a baseline that runs no experiments at all, on medium and on hard | v1 | baseline comparisons | ✅ **fixed 2026-11-20** — see below |
 | 7 | The `v1-generation-freeze-2` tag named in `DECISIONS.md` predates a package rename and a vocabulary change, and does not reproduce current organisms | v1 | reproduction instructions | ⬜ open |
 | 8 | `_composite_score` always divides by three in disease mode, so a run with a task subset is penalised for tasks it was not asked to perform | v1 | CLI subset runs only | ⬜ open |
 | 9 | Diagnosis is scored on one irrevocable attempt while rescue takes the best of every attempt | v1 + v2 | diagnosis-rescue comparisons | ⬜ open — v1 documents the asymmetry; v2 decides whether to change it |
@@ -626,6 +632,44 @@ was silently dropped; `deactivate` now joins the `BLOCK` family, because
 switching a signal off takes its input away exactly as blocking a gene does.
 `activate` is still read, because logs recorded before this fix contain it.
 
+## ✅ Issue 6, as fixed on 2026-11-20
+
+**The baseline that spends budget scored worse than the one that does not.**
+
+The heuristic measures each gene's effect by `BLOCK`ing it and recording
+`result - baseline`. It then **subtracted** that delta when predicting a
+`BLOCK`, so every measured decrease became a predicted increase. `DAMPEN` was
+treated as the opposite of `BLOCK`, although `DAMPEN` clamps the gene to at
+most 0.15, which is nearly the `BLOCK` state.
+
+Mean prediction accuracy over seeds 0-9, measured in this repository:
+
+| tier | before | after | random, 0 experiments |
+|---|---|---|---|
+| easy | 0.7167 | **0.9333** | 0.6667 |
+| medium | 0.5500 | **0.8167** | 0.6500 |
+| hard | 0.3500 | **0.6667** | 0.4667 |
+
+On medium and hard the heuristic spent 20 experiments to land below a baseline
+that runs none. Nothing asserted that it should not. That assertion is now a
+test, at both tiers.
+
+The arithmetic lives in `_additive_prediction`, so it can be tested without
+running a session. `BLOCK` and `DAMPEN` reuse the measured delta; `BOOST`
+opposes it. **The `BOOST` magnitude is an estimate, not a calibration.** Agents
+never see gene states, so the baseline activity a `BOOST` moves away from is
+unknown. Reusing the `BLOCK` magnitude is the best available guess. This
+baseline exists to show what a non-adaptive additive rule achieves, not to be
+the strongest possible one.
+
+None of the five existing heuristic tests caught this. They check shapes and
+relative orderings rather than numbers, and the one comparative test used the
+easy tier, where the defect does least harm. Six tests now pin the arithmetic
+against hand-computed values.
+
+`docs/custom_agents.md` taught the same inverted rule in its worked example and
+is corrected.
+
 ## Reproducing any of these
 
 The reproduction scripts live in the development repository and will be
@@ -637,10 +681,10 @@ measurement, not by inspection alone.
 1. ~~Finish auditing the analysis scripts.~~ A first pass is done; it produced
    issues 12 and 13. The scaling-study logs and several analysis scripts are
    still unexamined.
-2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 12, 13, 19 and 20 are done. 19
-   and 5a shipped together, because fixing either alone leaves the rescue
-   broken. The order from here is 6, then 15, 14, 8, 7, 17, and finally the
-   disclosure for 9. Issue 21 was found by the review of 19 and 5a and moved to
+2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 6, 12, 13, 19 and 20 are done.
+   19 and 5a shipped together, because fixing either alone leaves the rescue
+   broken. The order from here is 15, 14, 8, 7, 17, and finally the disclosure
+   for 9. Issue 21 was found by the review of 19 and 5a and moved to
    v2 on 2026-11-20: it is a real hole, but signal prediction is being
    redesigned, and the seal's rule for signals belongs to that design.
 3. Recompute every affected number once the v1 fixes have landed, and record
