@@ -106,17 +106,16 @@ class ExperimentSession:
         # live in dynamics.rule, but signal malfunctions do not. Every
         # simulation in this session must therefore include these overrides.
         # Without them, only the displayed baseline is diseased, and any
-        # experiment appears to cure the organism. The value convention
-        # (strength * severity, negated for inhibiting signals) matches
+        # experiment appears to cure the organism. The value convention is an
+        # UNSIGNED magnitude (strength * severity): dynamics.simulate_sigmoid
+        # applies the mode sign itself, so a value signed here would sign it
+        # twice and make a jammed inhibitor activate. This matches
         # chronic_signal_overrides in generation.py.
         self._malfunction_signal_overrides: dict[str, float] = {}
         for m in organism.malfunctions or []:
             if m.type == "PERSIST":
                 sig = next(s for s in organism.signals if s.id == m.target)
-                amp = sig.strength * m.severity
-                self._malfunction_signal_overrides[m.target] = (
-                    amp if sig.mode == "activates" else -amp
-                )
+                self._malfunction_signal_overrides[m.target] = sig.strength * m.severity
 
         # Network reconstruction state
         self._submitted_network: list[dict] | None = None
@@ -258,8 +257,36 @@ class ExperimentSession:
                 gene_interventions[gid] = {"type": itype.upper()}
             elif key in label_to_signal:
                 sig = label_to_signal[key]
-                mult = 1.0 if val in ("activate", "activates") else -1.0
-                signal_overrides[sig.id] = mult * sig.strength
+                # Issue 5a. This branch read the verb as
+                # `1.0 if val in ("activate", "activates") else -1.0`, so the
+                # dict form {"type": "deactivate"} never matched and fell to
+                # -1.0 along with everything else. And -1.0 * strength does not
+                # switch a signal off: dynamics applies the mode sign on top of
+                # it, so an activator became an inhibitor of the same size.
+                # Off is 0.0, and an active_signals entry is unsigned.
+                verb = val.get("type") if isinstance(val, dict) else val
+                if not isinstance(verb, str):
+                    return {"error": (
+                        f"Unreadable signal action for {key}: {verb!r}. "
+                        f"Use 'deactivate'."
+                    )}
+                if verb.lower() in ("deactivate", "deactivates"):
+                    signal_overrides[sig.id] = 0.0
+                elif verb.lower() in ("activate", "activates"):
+                    # Issue 5b, still open: every signal is already on at its
+                    # own strength, so 'activate' has no agreed meaning. It was
+                    # a silent no-op before. Refusing is honest; guessing is not.
+                    return {"error": (
+                        f"'{verb}' is not supported for signal {key}. Every "
+                        f"signal is already active at its own strength, so "
+                        f"what 'activate' should mean is undecided (issue 5b). "
+                        f"Use 'deactivate' to switch a signal off."
+                    )}
+                else:
+                    return {"error": (
+                        f"Unknown signal action for {key}: {verb!r}. "
+                        f"Use 'deactivate'."
+                    )}
             else:
                 return {"error": f"Unknown target: {key}"}
 
@@ -403,7 +430,9 @@ class ExperimentSession:
         """
         Cost 1. Run a perturbation experiment.
         interventions: {gene_name → {"type": "BLOCK"|"BOOST"|"DAMPEN"}} or
-                       {signal_label → "activate"}
+                       {signal_label → "deactivate"}
+        A chronic PERSIST malfunction signal is re-applied after the agent's
+        request, so this call cannot switch the disease off.
         Returns phenotype readout + dynamics status.
 
         A revealed prediction task's exact combination is held out until you
@@ -637,7 +666,9 @@ class ExperimentSession:
         Requires: submit_malfunction_hypothesis() must be called first.
 
         interventions: {gene_name → {"type": "BLOCK"|"BOOST"|"DAMPEN"}} or
-                       {signal_label → "activate"}
+                       {signal_label → "deactivate"}
+        Unlike run_experiment, deactivating the malfunctioning signal here does
+        switch it off: that is the certified rescue for a PERSIST malfunction.
         """
         blocked = self.rescue_state_error()
         if blocked is not None:
@@ -657,9 +688,32 @@ class ExperimentSession:
         if sealed is not None:
             return {"error": _sealed_message(sealed)}
 
-        # Rescue must be achieved *despite* the chronic malfunction signal —
-        # it cannot be switched off, only compensated for.
-        signal_overrides.update(self._malfunction_signal_overrides)
+        # Issue 19. The chronic override is re-applied here as it is in
+        # run_experiment, with one difference, and the difference is the whole
+        # point of this method.
+        #
+        # run_experiment keeps the strict rule: an agent exploring the organism
+        # cannot switch the disease off, only work around it.
+        #
+        # test_rescue is the call that proposes the cure, and for a PERSIST
+        # malfunction the cure the generator certifies IS switching the signal
+        # off. Re-applying the override here made that one rescue impossible:
+        # every PERSIST organism scored restored_fraction 0.0, whatever the
+        # agent proposed.
+        #
+        # So a signal the agent names here, if it is the malfunctioning one, is
+        # dropped from both maps. Dropping from both returns the signal to its
+        # normal strength, which is the state _verify_rescue_combo certifies.
+        # That is not the same as holding it at 0.0. The session's own record
+        # of the disease is not edited, so the next call is diseased again.
+        cancelled = set(signal_overrides) & set(self._malfunction_signal_overrides)
+        for sig_id in sorted(cancelled):
+            del signal_overrides[sig_id]
+        signal_overrides.update({
+            sig_id: value
+            for sig_id, value in self._malfunction_signal_overrides.items()
+            if sig_id not in cancelled
+        })
 
         result = simulate_sigmoid(
             self.organism,

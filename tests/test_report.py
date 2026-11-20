@@ -103,8 +103,8 @@ class TestTheSharedReadingIsCanonical:
     labelled every string value `activate`, a lowercase type never reached edge
     inference, and a non-dict payload raised while rendering.
 
-    Gene types are upper case here; a signal action stays lower case, because
-    `IV_C` in report.py keys its colour on "activate".
+    Gene types are upper case here; a signal action stays lower case, so the
+    rendered trace shows the verb the agent sent.
     """
 
     def test_a_flat_string_value_becomes_a_typed_dict(self):
@@ -188,3 +188,103 @@ class TestTheTwoReadersCannotDisagree:
         assert report._tool_call_iv({"wave-X": "activate"}) == {
             "wave-X": {"type": "activate"}
         }
+
+
+# ---------------------------------------------------------------------------
+# Issue 5a changed the signal verb an agent sends. `deactivate` replaces
+# `activate`, which is now refused. The renderer reads stored session logs, so
+# it must handle both: the old verb still appears in logs recorded before the
+# fix, and the new one appears in every log recorded after it.
+# ---------------------------------------------------------------------------
+
+class TestTheRendererReadsTheNewSignalVerb:
+
+    def test_the_schematic_does_not_label_a_deactivation_as_act(self):
+        """The signal diamond printed a hardcoded `act` beside any signal the
+        agent touched. `activate` is now refused, so every signal an agent can
+        touch is one it switched off, and `act` says the opposite."""
+        svg = report._render_network_svg(
+            gene_names=["G001"],
+            signal_labels=["wave-X"],
+            phenotype_labels=["energy-state"],
+            baseline_phenos={"energy-state": 0.5},
+            discovered_edges=[],
+            current_phenos=None,
+            current_interventions={"wave-X": "deactivate"},
+        )
+        assert "wave-X" in svg
+        assert ">act<" not in svg
+
+    def test_deactivating_a_signal_reads_as_removing_its_input(self):
+        """Direction inference: switching a signal off removes its input, like
+        BLOCK on a gene. A phenotype that drops means the signal was activating
+        it. The verb matched no branch, so the edge was silently dropped."""
+        base = {"energy-state": 0.5}
+        tc = {
+            "tool": "run_experiment",
+            "input": {"interventions": {"wave-X": "deactivate"}},
+            "result": {"phenotypes": {"energy-state": 0.1}, "budget_remaining": 1},
+        }
+        edges = report._build_discovered_network([{"tool_calls": [tc]}], base)
+        assert edges == [{
+            "from": "wave-X", "to": "energy-state",
+            "direction": "activates", "delta": pytest.approx(-0.4),
+        }]
+
+    def test_the_old_verb_in_a_stored_log_still_reads(self):
+        """Logs recorded before this fix contain `activate`. The renderer reads
+        history and must keep reading it."""
+        base = {"energy-state": 0.5}
+        tc = {
+            "tool": "run_experiment",
+            "input": {"interventions": {"wave-X": "activate"}},
+            "result": {"phenotypes": {"energy-state": 0.9}, "budget_remaining": 1},
+        }
+        edges = report._build_discovered_network([{"tool_calls": [tc]}], base)
+        assert edges and edges[0]["direction"] == "activates"
+
+
+class TestTheRendererSurvivesTheNewVerb:
+    """Round 2 of the review of the issue 5a branch."""
+
+    def _svg(self, current):
+        return report._render_network_svg(
+            gene_names=["G001"],
+            signal_labels=["wave-X"],
+            phenotype_labels=["energy-state"],
+            baseline_phenos={"energy-state": 0.5},
+            discovered_edges=[],
+            current_phenos=None,
+            current_interventions=current,
+        )
+
+    def test_a_gene_targeted_deactivate_does_not_crash_the_schematic(self):
+        """`IV_C` is indexed directly for a gene node. The engine refuses
+        `deactivate` on a gene, but `_build_html` reads the call input, not the
+        result, so a refused call still reaches the renderer. Now that
+        `deactivate` is the only verb the documentation teaches, a model will
+        aim it at a gene."""
+        assert "G001" in self._svg({"G001": "deactivate"})
+
+    def test_an_unknown_action_does_not_crash_the_schematic(self):
+        assert "G001" in self._svg({"G001": "amplify"})
+
+    def test_the_signal_label_reads(self):
+        """`str(iv)[:6]` rendered `deactivate` as `deacti`."""
+        svg = self._svg({"wave-X": "deactivate"})
+        assert ">off<" in svg
+        assert "deacti" not in svg
+
+    def test_a_capitalised_verb_reaches_edge_inference(self):
+        """The engine lower-cases the verb, so `Deactivate` runs. The trace
+        matched the exact lower-case string, so the edge vanished from the
+        report. `luca/payloads.py` exists to stop the engine and the trace
+        disagreeing like this."""
+        base = {"energy-state": 0.5}
+        tc = {
+            "tool": "run_experiment",
+            "input": {"interventions": {"wave-X": "Deactivate"}},
+            "result": {"phenotypes": {"energy-state": 0.1}, "budget_remaining": 1},
+        }
+        edges = report._build_discovered_network([{"tool_calls": [tc]}], base)
+        assert edges and edges[0]["direction"] == "activates"

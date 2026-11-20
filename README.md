@@ -61,14 +61,14 @@ LUCA is a benchmark for causal reasoning under a fixed experimental budget. Each
 - A budget of perturbation experiments
 
 **The agent must:**
-1. **Explore** — run experiments: BLOCK, BOOST, or DAMPEN genes, or activate signals. Each costs 1 budget unit.
+1. **Explore** — run experiments: BLOCK, BOOST, or DAMPEN genes, or deactivate signals. Each costs 1 budget unit.
 
    | Intervention | Effect |
    |---|---|
    | `BLOCK` | Suppress gene to 0.0 |
    | `BOOST` | Saturate gene to 1.0 |
    | `DAMPEN` | Clamp gene to ≤ 0.15 (partial suppression, distinct from full BLOCK) |
-   | signal `"activate"` | Amplify signal input to targets |
+   | signal `"deactivate"` | Switch the signal off (its input to its targets becomes 0) |
 
 2. **Predict** — answer **2 held-out prediction tasks** (configurable via `n_prediction_tasks`). Each task involves a multi-gene intervention the agent has not run directly; the agent must predict the resulting phenotype values from its causal model.
 3. **Diagnose** *(disease mode)* — identify the malfunctioning gene or signal and its malfunction type (LOCK_HI / LOCK_LO / PERSIST).

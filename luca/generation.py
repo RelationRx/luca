@@ -639,7 +639,8 @@ def generate_disease_organism(
         """
         orig_sig = next(s for s in org.signals if s.id == sig_id)
         new_strength = orig_sig.strength * severity
-        overrides = {sig_id: new_strength if orig_sig.mode == "activates" else -new_strength}
+        # Unsigned magnitude: simulate_sigmoid applies the mode sign itself.
+        overrides = {sig_id: new_strength}
 
         # Simulate disease state
         disease_result = simulate_sigmoid(org, interventions={}, active_signals=overrides,
@@ -794,9 +795,8 @@ def generate_disease_organism(
                     orig_sig = next(s for s in org.signals if s.id == sig_id)
                     severity = 10.0
                     new_strength = orig_sig.strength * severity
-                    chronic_signal_overrides[sig_id] = (
-                        new_strength if orig_sig.mode == "activates" else -new_strength
-                    )
+                    # Unsigned magnitude: simulate_sigmoid applies the mode sign.
+                    chronic_signal_overrides[sig_id] = new_strength
                     malfunctions.append(Malfunction(
                         type="PERSIST",
                         target=sig_id,
@@ -960,8 +960,8 @@ def _count_diagnosis_alternatives(
         if any(m.target == sig_id and m.type == "PERSIST" for m in true_malfunctions):
             continue
         orig_sig = next(s for s in org.signals if s.id == sig_id)
-        override = {sig_id: orig_sig.strength * 10.0 if orig_sig.mode == "activates"
-                    else -orig_sig.strength * 10.0}
+        # Unsigned magnitude: simulate_sigmoid applies the mode sign itself.
+        override = {sig_id: orig_sig.strength * 10.0}
         # Use healthy baseline organism (no rule modifications)
         org_tmp = type(org)(
             id=org.id, genes=org.genes, modules=org.modules, signals=org.signals,

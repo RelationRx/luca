@@ -122,7 +122,7 @@ task = session.get_next_prediction_task()
 result = session.run_experiment({
     "G005": {"type": "BLOCK"},
     "G012": {"type": "BOOST"},
-    "substrate-X": "activate",   # signal label
+    "substrate-X": "deactivate",  # signal label: switches the signal off
 })
 # Returns: phenotypes dict, status, steps, budget_remaining
 ```

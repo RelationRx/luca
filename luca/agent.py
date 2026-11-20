@@ -135,7 +135,8 @@ DISEASE_TOOLS: list[dict] = [
                     "description": (
                         "Map of target → intervention. Gene names (e.g. 'G007') with values "
                         "like {\"type\": \"BLOCK\"}, {\"type\": \"BOOST\"}, {\"type\": \"DAMPEN\"}, "
-                        "or signal labels with value 'activate'."
+                        "or signal labels with value 'deactivate', which switches that "
+                        "signal off for this call."
                     ),
                     "additionalProperties": True,
                 },
@@ -208,7 +209,7 @@ TOOLS: list[dict] = [
         "description": (
             "Run a perturbation experiment on the organism. Costs 1 unit of budget. "
             "Specify gene interventions (BLOCK=suppress to zero, BOOST=saturate to max, DAMPEN=reduce to low) "
-            "and/or signal activations. Returns phenotype readouts. "
+            "and/or signals to switch off. Returns phenotype readouts. "
             "Once a prediction task has been revealed, that task's exact "
             "combination of genes and intervention types is held out until you "
             "answer it: this tool refuses it and no budget is charged. Running "
@@ -222,7 +223,10 @@ TOOLS: list[dict] = [
                     "description": (
                         "Map of target → intervention. Targets can be gene names (e.g. 'G001') "
                         "with values like {\"type\": \"BLOCK\"}, {\"type\": \"BOOST\"}, {\"type\": \"DAMPEN\"}, "
-                        "or signal labels (e.g. 'nutrient-X') with value 'activate'."
+                        "or signal labels (e.g. 'nutrient-X') with value 'deactivate', which "
+                        "switches the signal off. In this call a persistent malfunction "
+                        "signal stays on whatever you ask: you can work around it, not "
+                        "switch it off."
                     ),
                     "additionalProperties": True,
                 },
@@ -462,7 +466,7 @@ def _build_system_prompt(
         )
     else:
         lines.append(
-            f"{step}. Run perturbation experiments (BLOCK, BOOST, DAMPEN, signal activations) "
+            f"{step}. Run perturbation experiments (BLOCK, BOOST, DAMPEN, or switching a signal off) "
             "to map gene→phenotype causal relationships. Focus on genes that move phenotypes; "
             "note direction and magnitude."
         )

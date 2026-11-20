@@ -255,13 +255,23 @@ def _build_discovered_network(
                 if abs(delta) < threshold:
                     continue
                 # Causal direction:
-                #   BLOCK/DAMPEN → node removed → phenotype drops  ⟹ node was activating it
-                #   BLOCK/DAMPEN → node removed → phenotype rises  ⟹ node was inhibiting it
+                #   BLOCK/DAMPEN/deactivate → input removed → phenotype drops  ⟹ it was activating
+                #   BLOCK/DAMPEN/deactivate → input removed → phenotype rises  ⟹ it was inhibiting
                 #   BOOST/activate → node added → phenotype rises  ⟹ node activates
                 #   BOOST/activate → node added → phenotype drops  ⟹ node inhibits
-                if iv_type in ("BLOCK", "DAMPEN"):
+                #
+                # `deactivate` belongs with BLOCK: switching a signal off takes
+                # its input away, exactly as blocking a gene does. `activate`
+                # is read for logs recorded before issue 5a was fixed, when the
+                # verb was accepted; it is refused now.
+                # _resolve_interventions lower-cases a signal verb before it
+                # acts on it, so "Deactivate" runs in the engine. Matching the
+                # exact lower-case string here made that experiment vanish from
+                # the report. Read it the way the engine does.
+                verb = iv_type.lower() if isinstance(iv_type, str) else iv_type
+                if iv_type in ("BLOCK", "DAMPEN") or verb in ("deactivate", "deactivates"):
                     direction = "inhibits" if delta > 0 else "activates"
-                elif iv_type in ("BOOST", "activate"):
+                elif iv_type == "BOOST" or verb in ("activate", "activates"):
                     direction = "activates" if delta > 0 else "inhibits"
                 else:
                     continue
@@ -274,6 +284,11 @@ def _build_discovered_network(
                     }
 
     return list(edges.values())
+
+
+# Short words for the signal diamond in the schematic. A verb is a sentence
+# fragment; the diamond has room for about four characters.
+SIG_LABELS = {"deactivate": "off", "deactivates": "off", "activate": "on"}
 
 
 def _render_network_svg(
@@ -328,7 +343,14 @@ def _render_network_svg(
     right_idx = {n: i for i, n in enumerate(phenotype_labels)}
 
     EDGE_C = {"activates": "#22c55e", "inhibits": "#ef4444"}
-    IV_C   = {"BLOCK": "#ef4444", "BOOST": "#22c55e", "DAMPEN": "#f97316", "activate": "#a78bfa"}
+    # Never indexed directly. `_build_html` fills current_interventions from
+    # the call INPUT, not the result, so an action the engine refused still
+    # reaches this renderer — a model aiming "deactivate" at a gene, say. An
+    # unknown action gets the neutral stroke rather than a KeyError that loses
+    # the whole report.
+    IV_C   = {"BLOCK": "#ef4444", "BOOST": "#22c55e", "DAMPEN": "#f97316",
+              "activate": "#a78bfa", "deactivate": "#a78bfa"}
+    IV_NEUTRAL = "#475569"
 
     p: list[str] = []
     p.append(
@@ -367,8 +389,8 @@ def _render_network_svg(
     for i, name in enumerate(gene_names):
         y = left_y(i)
         iv = current_interventions.get(name)
-        fill   = IV_C[iv] + "22" if iv else "#1e293b"
-        stroke = IV_C.get(iv, "#475569")
+        fill   = IV_C.get(iv, IV_NEUTRAL) + "22" if iv else "#1e293b"
+        stroke = IV_C.get(iv, IV_NEUTRAL)
         sw     = 2.5 if iv else 1.0
         p.append(
             f'<circle cx="{GENE_X}" cy="{y}" r="{NODE_R}" '
@@ -402,9 +424,14 @@ def _render_network_svg(
             f'font-size="9" fill="#7c3aed" font-family="monospace">{_he(sname[:8])}</text>'
         )
         if iv:
+            # The label used to be a hardcoded "act". `activate` is refused
+            # since issue 5a, so a signal the agent touched is one it switched
+            # off, and "act" said the opposite. Truncating the verb instead
+            # read as "deacti", which says nothing. Map it to a short word.
+            label = SIG_LABELS.get(str(iv).lower(), str(iv)[:6])
             p.append(
                 f'<text x="{GENE_X + SIG_H + 3}" y="{y + 4}" text-anchor="start" '
-                f'font-size="9" fill="{stroke}" font-family="monospace">act</text>'
+                f'font-size="9" fill="{stroke}" font-family="monospace">{_he(label)}</text>'
             )
 
     # Phenotype nodes (rectangles)
@@ -599,10 +626,14 @@ def _build_html(log: dict) -> str:
             if tc["tool"] in ("run_experiment", "test_rescue"):
                 ivs = _tool_call_iv(tc["input"])
                 for name, val in ivs.items():
-                    if isinstance(val, dict):
-                        current_ivs[name] = val.get("type", "BLOCK")
-                    else:
-                        current_ivs[name] = "activate"
+                    # _tool_call_iv always returns {target: {"type": ...}},
+                    # so the dict branch is the only live one. These values go
+                    # to _render_network_svg, which must not index a colour map
+                    # with them: this map is built from the call INPUT and so
+                    # carries actions the engine refused.
+                    current_ivs[name] = (
+                        val.get("type", "BLOCK") if isinstance(val, dict) else str(val)
+                    )
                 res = tc.get("result", {})
                 if isinstance(res, str):
                     try:

@@ -831,3 +831,76 @@ class TestAnEmptyWrapperDoesNotBeatAPopulatedOne:
         })
         assert "error" not in result
         assert session._experiment_log[-1]["interventions"] == {}
+
+
+# ---------------------------------------------------------------------------
+# Issue 5a, Review Focus 1 — `activate` used to be a silent no-op and is now
+# refused. The tool layer must hand that refusal back as an ordinary tool
+# error: no exception, and no budget charged for a call that did nothing.
+# ---------------------------------------------------------------------------
+
+class TestTheToolLayerSurfacesTheSignalRefusal:
+
+    def _session(self):
+        org = generate_organism(seed=0, difficulty="medium")
+        return ExperimentSession(org, seed=0)
+
+    def test_activate_comes_back_as_an_error(self):
+        session = self._session()
+        label = session.organism.signals[0].label
+        result = dispatch_tool(
+            session, "run_experiment", {"interventions": {label: "activate"}}
+        )
+        assert isinstance(result, dict) and "error" in result
+        assert "deactivate" in result["error"]
+
+    def test_the_refusal_costs_no_budget(self):
+        session = self._session()
+        label = session.organism.signals[0].label
+        before = session.budget_used
+        dispatch_tool(
+            session, "run_experiment", {"interventions": {label: "activate"}}
+        )
+        assert session.budget_used == before
+
+    def test_deactivate_still_runs_through_the_tool_layer(self):
+        session = self._session()
+        label = session.organism.signals[0].label
+        before = session.budget_used
+        result = dispatch_tool(
+            session, "run_experiment", {"interventions": {label: "deactivate"}}
+        )
+        assert "error" not in result, result
+        assert session.budget_used == before + 1
+
+
+class TestTheToolTextAgreesWithTheEngine:
+    """Agreement tests: the text a model is shown is a component too.
+
+    `activate` is refused since issue 5a. Any text that still offers it spends
+    a model's turn on an error.
+    """
+
+    def _tools(self):
+        from luca.agent import TOOLS, DISEASE_TOOLS
+        return TOOLS + DISEASE_TOOLS
+
+    def test_no_tool_text_offers_an_activation(self):
+        for tool in self._tools():
+            blob = json.dumps(tool)
+            assert "activation" not in blob.lower(), tool["name"]
+
+    @pytest.mark.parametrize("disease_mode", [False, True])
+    def test_the_system_prompt_does_not_offer_an_activation(self, disease_mode):
+        from luca.agent import _build_system_prompt
+        prompt = _build_system_prompt(
+            disease_mode, frozenset({"explore", "predict", "diagnose", "rescue"})
+        )
+        assert "activation" not in prompt.lower()
+
+    def test_the_rescue_schema_does_not_name_the_rescue(self):
+        """The schema described the cure for a PERSIST malfunction. An agent
+        that diagnoses PERSIST could copy it and score 1.0 with no causal
+        model. The schema states the mechanic, not the answer."""
+        rescue = next(t for t in self._tools() if t["name"] == "test_rescue")
+        assert "PERSIST" not in json.dumps(rescue)

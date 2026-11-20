@@ -165,3 +165,98 @@ def test_disease_detectability_guarantee():
                 restored = True
                 break
         assert restored, f"seed={seed}: no corrective intervention restores any aberrant phenotype"
+
+
+# ----------------------------------------------------------------------
+# The active_signals convention (issue 5a)
+#
+# luca/dynamics.py:33 documents that an active_signals entry "overrides
+# signal.strength". Line 50 then applies the mode sign. So an entry must be an
+# unsigned magnitude. A producer that writes an already-signed value makes the
+# sign land twice, and a jammed inhibitor then activates its targets.
+# ----------------------------------------------------------------------
+
+def test_dynamics_reads_an_active_signal_entry_as_an_unsigned_magnitude():
+    """The reference the producers must match. dynamics.py applies the sign.
+
+    seed 0, medium: signal `potential-theta` inhibits g_007 and g_018 with
+    strength 0.5960. A PERSIST malfunction amplifies it 10x to 5.9595.
+    """
+    import numpy as np
+    from luca.dynamics import simulate_sigmoid
+
+    org = generate_organism(seed=0, difficulty="medium")
+    sig = next(s for s in org.signals if s.label == "potential-theta")
+    assert sig.mode == "inhibits"
+    assert round(sig.strength, 4) == 0.5960
+    assert sorted(sig.targets) == ["g_007", "g_018"]
+
+    healthy = simulate_sigmoid(
+        org, interventions={}, active_signals={},
+        rng=np.random.default_rng(1234),
+    )["final_state"]
+    assert round(healthy["g_007"], 4) == 0.0968
+    assert round(healthy["g_018"], 4) == 0.9322
+
+    amp = sig.strength * 10.0
+    jammed = simulate_sigmoid(
+        org, interventions={}, active_signals={sig.id: amp},
+        rng=np.random.default_rng(1234),
+    )["final_state"]
+
+    assert round(jammed["g_007"], 4) == 0.0102
+    assert round(jammed["g_018"], 4) == 0.0601
+    assert jammed["g_018"] < healthy["g_018"]
+    assert jammed["g_007"] < healthy["g_007"]
+
+
+def test_the_session_stores_an_unsigned_override():
+    """medium:0 carries a PERSIST malfunction on `wave-X`, which inhibits.
+
+    The stored value is positive although the signal inhibits, because
+    dynamics.py applies the mode sign itself.
+    """
+    from luca.experiment import ExperimentSession
+
+    org = generate_disease_organism(seed=0, difficulty="medium")
+    m = next(m for m in org.malfunctions if m.type == "PERSIST")
+    sig = next(s for s in org.signals if s.id == m.target)
+    assert sig.mode == "inhibits"
+
+    session = ExperimentSession(org, budget=31, seed=0)
+    assert session._malfunction_signal_overrides == {"s_01": 4.701619286903332}
+
+
+def test_the_shipped_chronic_override_makes_an_inhibitor_inhibit():
+    """The same contract, through the producer that ships the malfunction.
+
+    A PERSIST malfunction on an inhibiting signal jams that inhibitor on. Every
+    gene it targets must therefore end lower than it does at normal strength.
+    This is the test the unsigned-magnitude convention exists to satisfy.
+    """
+    import numpy as np
+    from luca.dynamics import simulate_sigmoid
+    from luca.experiment import ExperimentSession
+
+    org = generate_disease_organism(seed=0, difficulty="medium")
+    m = next(m for m in org.malfunctions if m.type == "PERSIST")
+    sig = next(s for s in org.signals if s.id == m.target)
+    assert sig.mode == "inhibits"
+
+    overrides = ExperimentSession(org, budget=31, seed=0)._malfunction_signal_overrides
+    assert set(overrides) == {sig.id}
+
+    normal = simulate_sigmoid(
+        org, interventions={}, active_signals={},
+        rng=np.random.default_rng(1234),
+    )["final_state"]
+    jammed = simulate_sigmoid(
+        org, interventions={}, active_signals=overrides,
+        rng=np.random.default_rng(1234),
+    )["final_state"]
+
+    for target in sorted(sig.targets):
+        assert jammed[target] < normal[target], (
+            f"{sig.label} inhibits {target}, but jamming it on raised "
+            f"{target} from {normal[target]:.4f} to {jammed[target]:.4f}"
+        )

@@ -36,9 +36,18 @@ The function receives an `ExperimentSession` and must interact with it before re
 session.run_experiment({"G001": {"type": "BLOCK"}})
 session.run_experiment({"G001": {"type": "BOOST"}, "G005": {"type": "DAMPEN"}})
 
-# Signal activation
-session.run_experiment({"flux-Z": {"type": "activate"}})
+# Switching a signal off (both forms work)
+session.run_experiment({"flux-Z": "deactivate"})
+session.run_experiment({"flux-Z": {"type": "deactivate"}})
 ```
+
+`deactivate` is the only signal verb. `activate` is refused with an error:
+every signal is already on at its own strength, so the verb has no referent.
+What it should mean is an open question (issue 5b).
+
+In disease mode, deactivating the malfunctioning signal is the rescue for a
+`PERSIST` malfunction. `test_rescue()` performs it; `run_experiment()` does
+not, because exploring the organism must not cure it.
 
 **Intervention types:** `BLOCK` (suppress to 0.0) · `BOOST` (saturate to 1.0) · `DAMPEN` (clamp to ≤0.15)
 

@@ -18,7 +18,8 @@ from typing import Any
 INTERVENTION_WRAPPER_KEYS = ("interventions", "gene_interventions")
 
 # The engine upper-cases a gene's intervention type (issue 12). A signal action
-# stays lower case, because report.py keys its colour on "activate".
+# is not a gene type and keeps the case it came in, so the trace shows the verb
+# the agent sent. The only accepted verb is "deactivate" (issue 5a).
 GENE_INTERVENTION_TYPES = ("BLOCK", "BOOST", "DAMPEN")
 
 # The key names a model may use inside one list entry, in the order the engine
@@ -108,8 +109,8 @@ def canonical_type(value: Any) -> str:
 
     `_resolve_interventions` upper-cases a gene type, so ``"block"`` and
     ``"BLOCK"`` are the same experiment. A signal action is not a gene type and
-    keeps the case it came in, because `report.py` colours ``"activate"`` by
-    that exact string.
+    keeps the case it came in, so the rendered trace shows the verb the agent
+    sent. Since issue 5a the only accepted verb is ``"deactivate"``.
     """
     text = str(value.get("type", "")) if isinstance(value, dict) else str(value)
     return text.upper() if text.upper() in GENE_INTERVENTION_TYPES else text

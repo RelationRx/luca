@@ -815,3 +815,182 @@ class TestPredictionLabelsAreChecked:
         result = session.submit_prediction(task["task_id"], {one: 0.5})
         assert "error" not in result
         assert result["accuracy"] is not None
+
+
+# ---------------------------------------------------------------------------
+# Issue 5a, the resolver — the fifth site that signed an active_signals entry.
+#
+# _resolve_interventions read the verb as `1.0 if val in ("activate",
+# "activates") else -1.0`. A dict never equals either string, so every dict
+# form fell to -1.0. And -1.0 * strength does not switch a signal off: it
+# inverts it, turning an activator into an inhibitor of the same size. The
+# only verb an agent could usefully send was therefore broken in both forms.
+#
+# What `activate` should mean is issue 5b and stays open: every signal is
+# already on at sig.strength, so the verb has no referent. It is refused here
+# rather than left as a silent no-op.
+# ---------------------------------------------------------------------------
+
+def _signal_label(session):
+    return session.organism.signals[0].label
+
+
+def _signal_id(session):
+    return session.organism.signals[0].id
+
+
+class TestSignalVerbs:
+
+    @pytest.mark.parametrize("form", ["deactivate", {"type": "deactivate"}])
+    def test_deactivate_switches_the_signal_off(self, form):
+        """Off means zero, not inverted. Both forms resolve the same way."""
+        session = _healthy_session()
+        resolved = session._resolve_interventions({_signal_label(session): form})
+        assert not isinstance(resolved, dict), resolved
+        _genes, overrides = resolved
+        assert overrides == {_signal_id(session): 0.0}
+
+    @pytest.mark.parametrize("form", ["activate", {"type": "activate"}])
+    def test_activate_is_refused_and_names_deactivate(self, form):
+        session = _healthy_session()
+        result = session._resolve_interventions({_signal_label(session): form})
+        assert isinstance(result, dict) and "error" in result
+        assert "deactivate" in result["error"]
+        assert "5b" in result["error"]
+
+    def test_an_unknown_signal_verb_is_refused(self):
+        session = _healthy_session()
+        result = session._resolve_interventions({_signal_label(session): "amplify"})
+        assert isinstance(result, dict) and "error" in result
+        assert "amplify" in result["error"]
+
+    def test_a_refused_verb_costs_no_budget(self):
+        session = _healthy_session()
+        before = session.budget_used
+        result = session.run_experiment({_signal_label(session): "activate"})
+        assert "error" in result
+        assert session.budget_used == before
+
+    def test_a_sealed_task_stays_sealed_under_the_new_convention(self):
+        """Review Focus 5. _sealed_task_for is called before the chronic merge
+        and now receives different values. A revealed task's exact gene
+        combination must still be refused."""
+        session = _healthy_session()
+        task = session.get_next_prediction_task()
+        result = session.run_experiment(
+            {g: dict(iv) for g, iv in task["interventions"].items()}
+        )
+        assert "error" in result
+        assert "held out" in result["error"].lower()
+        assert task["task_id"] in result["error"]
+
+    # There was a test here asserting that the same genes plus a signal change
+    # stays allowed, which is what _sealed_task_for does today. It is removed,
+    # because the behaviour is a hold-out leak, not a feature: deactivating an
+    # unrelated signal moves the phenotypes far less than the scoring
+    # threshold, so the "different experiment" returns the held-out answer.
+    # Measured on this branch, worst gap against the stored ground truth:
+    # easy:19 0.0253, medium:16 0.0522, hard:12 0.0913, against a threshold of
+    # 0.10. That is issue 21. A test will pin the fix, not the defect.
+
+
+# ---------------------------------------------------------------------------
+# Issue 19 — the PERSIST rescue the generator certifies was unreachable.
+#
+# generate_disease_organism only ships a PERSIST malfunction once it has
+# verified that deactivating the signal restores an aberrant phenotype. But
+# test_rescue re-applied the chronic override after reading the agent's
+# request, so the one certified rescue scored 0.0 every time. Measured over
+# the canonical set before this fix: all 9 PERSIST organisms returned
+# restored_fraction 0.0.
+#
+# The rule is not wrong, it was only applied in one place too many.
+# run_experiment must keep it: an agent exploring cannot switch the disease
+# off. test_rescue is the call whose whole purpose is to switch it off.
+# ---------------------------------------------------------------------------
+
+PERSIST_ORGANISMS = [
+    ("easy", 8), ("easy", 10), ("easy", 12), ("easy", 17),
+    ("medium", 0), ("medium", 2), ("medium", 9), ("medium", 17),
+    ("hard", 0), ("hard", 3), ("hard", 12), ("hard", 15),
+]
+
+
+def _persist_session(seed=0, difficulty="medium", n_malfunctions=1):
+    org = generate_disease_organism(
+        seed=seed, difficulty=difficulty, n_malfunctions=n_malfunctions
+    )
+    m = next(m for m in org.malfunctions if m.type == "PERSIST")
+    session = ExperimentSession(org, seed=seed)
+    session.submit_malfunction_hypothesis(m.target_name, "PERSIST")
+    return session, m
+
+
+class TestThePersistRescueIsReachable:
+
+    def test_deactivating_the_malfunctioning_signal_rescues_the_organism(self):
+        """medium:0 carries PERSIST on wave-X, which inhibits. The generator
+        certified that deactivating it restores signal-output."""
+        session, m = _persist_session()
+        assert m.target_name == "wave-X"
+        result = session.test_rescue({m.target_name: "deactivate"})
+        assert "error" not in result, result
+        assert result["restored_fraction"] == 1.0
+        lo, hi = session.organism.healthy_phenotype_ranges["signal-output"]
+        assert lo <= result["phenotypes"]["signal-output"] <= hi
+
+    @pytest.mark.parametrize("difficulty,seed", PERSIST_ORGANISMS)
+    def test_every_persist_organism_can_be_rescued(self, difficulty, seed):
+        """All 12 of the canonical set. hard:0 is the one whose signal
+        activates rather than inhibits."""
+        session, m = _persist_session(seed=seed, difficulty=difficulty)
+        result = session.test_rescue({m.target_name: "deactivate"})
+        assert "error" not in result, result
+        assert result["restored_fraction"] == 1.0
+
+    def test_run_experiment_still_cannot_switch_the_disease_off(self):
+        """Review Focus 3. Exploring must not cure. The chronic override wins
+        over whatever the agent asks for, in run_experiment only."""
+        session, m = _persist_session()
+        result = session.run_experiment({m.target_name: "deactivate"})
+        assert "error" not in result, result
+        lo, hi = session.organism.healthy_phenotype_ranges["signal-output"]
+        assert result["phenotypes"]["signal-output"] > hi
+
+    def test_rescuing_a_healthy_signal_leaves_the_chronic_override_in_place(self):
+        """Review Focus 2. Assert the mechanism, not the score: deactivating an
+        unrelated signal is still a perturbation and could move a phenotype by
+        luck. What must hold is that the malfunctioning signal is still jammed."""
+        session, m = _persist_session()
+        other = next(s for s in session.organism.signals if s.id != m.target)
+        session.test_rescue({other.label: "deactivate"})
+        assert session._malfunction_signal_overrides == {"s_01": 4.701619286903332}
+
+    def test_the_chronic_override_survives_a_rescue_that_cancels_it(self):
+        """Cancelling is per call. The session's record of the disease is not
+        edited, so a later call is still diseased."""
+        session, m = _persist_session()
+        before = dict(session._malfunction_signal_overrides)
+        session.test_rescue({m.target_name: "deactivate"})
+        assert session._malfunction_signal_overrides == before
+        again = session.run_experiment({})
+        lo, hi = session.organism.healthy_phenotype_ranges["signal-output"]
+        assert again["phenotypes"]["signal-output"] > hi
+
+    def test_a_persist_and_a_gene_malfunction_cancel_independently(self):
+        """Review Focus 4. medium:9 with two malfunctions carries PERSIST on
+        chemical-Y and LOCK_LO on G016. Deactivating the signal must drop that
+        signal's override only, and leave the gene locked."""
+        session, m = _persist_session(seed=9, difficulty="medium", n_malfunctions=2)
+        org = session.organism
+        gene_m = next(x for x in org.malfunctions if x.type != "PERSIST")
+        assert (gene_m.type, gene_m.target) == ("LOCK_LO", "g_016")
+
+        result = session.test_rescue({m.target_name: "deactivate"})
+        assert "error" not in result, result
+        # The gene malfunction lives in organism.dynamics.rule, not in the
+        # override map, so cancelling the signal cannot touch it.
+        assert session._malfunction_signal_overrides == {m.target: pytest.approx(
+            next(s for s in org.signals if s.id == m.target).strength * m.severity
+        )}
+        assert gene_m.target in org.dynamics.rule
