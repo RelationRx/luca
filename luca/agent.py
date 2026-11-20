@@ -135,7 +135,9 @@ DISEASE_TOOLS: list[dict] = [
                     "description": (
                         "Map of target → intervention. Gene names (e.g. 'G007') with values "
                         "like {\"type\": \"BLOCK\"}, {\"type\": \"BOOST\"}, {\"type\": \"DAMPEN\"}, "
-                        "or signal labels with value 'activate'."
+                        "or signal labels with value 'deactivate', which switches the "
+                        "signal off. Deactivating the malfunctioning signal is the rescue "
+                        "for a PERSIST malfunction."
                     ),
                     "additionalProperties": True,
                 },
@@ -222,7 +224,10 @@ TOOLS: list[dict] = [
                     "description": (
                         "Map of target → intervention. Targets can be gene names (e.g. 'G001') "
                         "with values like {\"type\": \"BLOCK\"}, {\"type\": \"BOOST\"}, {\"type\": \"DAMPEN\"}, "
-                        "or signal labels (e.g. 'nutrient-X') with value 'activate'."
+                        "or signal labels (e.g. 'nutrient-X') with value 'deactivate', which "
+                        "switches the signal off. In this call a persistent malfunction "
+                        "signal stays on whatever you ask: you can work around it, not "
+                        "switch it off."
                     ),
                     "additionalProperties": True,
                 },

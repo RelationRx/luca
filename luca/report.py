@@ -255,13 +255,18 @@ def _build_discovered_network(
                 if abs(delta) < threshold:
                     continue
                 # Causal direction:
-                #   BLOCK/DAMPEN → node removed → phenotype drops  ⟹ node was activating it
-                #   BLOCK/DAMPEN → node removed → phenotype rises  ⟹ node was inhibiting it
+                #   BLOCK/DAMPEN/deactivate → input removed → phenotype drops  ⟹ it was activating
+                #   BLOCK/DAMPEN/deactivate → input removed → phenotype rises  ⟹ it was inhibiting
                 #   BOOST/activate → node added → phenotype rises  ⟹ node activates
                 #   BOOST/activate → node added → phenotype drops  ⟹ node inhibits
-                if iv_type in ("BLOCK", "DAMPEN"):
+                #
+                # `deactivate` belongs with BLOCK: switching a signal off takes
+                # its input away, exactly as blocking a gene does. `activate`
+                # is read for logs recorded before issue 5a was fixed, when the
+                # verb was accepted; it is refused now.
+                if iv_type in ("BLOCK", "DAMPEN", "deactivate", "deactivates"):
                     direction = "inhibits" if delta > 0 else "activates"
-                elif iv_type in ("BOOST", "activate"):
+                elif iv_type in ("BOOST", "activate", "activates"):
                     direction = "activates" if delta > 0 else "inhibits"
                 else:
                     continue
@@ -402,9 +407,12 @@ def _render_network_svg(
             f'font-size="9" fill="#7c3aed" font-family="monospace">{_he(sname[:8])}</text>'
         )
         if iv:
+            # The label used to be a hardcoded "act". `activate` is refused
+            # since issue 5a, so a signal the agent touched is one it switched
+            # off, and "act" said the opposite. Show what was actually sent.
             p.append(
                 f'<text x="{GENE_X + SIG_H + 3}" y="{y + 4}" text-anchor="start" '
-                f'font-size="9" fill="{stroke}" font-family="monospace">act</text>'
+                f'font-size="9" fill="{stroke}" font-family="monospace">{_he(str(iv)[:6])}</text>'
             )
 
     # Phenotype nodes (rectangles)
@@ -599,10 +607,12 @@ def _build_html(log: dict) -> str:
             if tc["tool"] in ("run_experiment", "test_rescue"):
                 ivs = _tool_call_iv(tc["input"])
                 for name, val in ivs.items():
-                    if isinstance(val, dict):
-                        current_ivs[name] = val.get("type", "BLOCK")
-                    else:
-                        current_ivs[name] = "activate"
+                    # _tool_call_iv always returns {target: {"type": ...}},
+                    # so the dict branch is the only live one. The str() keeps
+                    # a malformed stored log readable rather than raising.
+                    current_ivs[name] = (
+                        val.get("type", "BLOCK") if isinstance(val, dict) else str(val)
+                    )
                 res = tc.get("result", {})
                 if isinstance(res, str):
                     try:

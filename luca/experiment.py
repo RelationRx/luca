@@ -430,7 +430,9 @@ class ExperimentSession:
         """
         Cost 1. Run a perturbation experiment.
         interventions: {gene_name → {"type": "BLOCK"|"BOOST"|"DAMPEN"}} or
-                       {signal_label → "activate"}
+                       {signal_label → "deactivate"}
+        A chronic PERSIST malfunction signal is re-applied after the agent's
+        request, so this call cannot switch the disease off.
         Returns phenotype readout + dynamics status.
 
         A revealed prediction task's exact combination is held out until you
@@ -664,7 +666,9 @@ class ExperimentSession:
         Requires: submit_malfunction_hypothesis() must be called first.
 
         interventions: {gene_name → {"type": "BLOCK"|"BOOST"|"DAMPEN"}} or
-                       {signal_label → "activate"}
+                       {signal_label → "deactivate"}
+        Unlike run_experiment, deactivating the malfunctioning signal here does
+        switch it off: that is the certified rescue for a PERSIST malfunction.
         """
         blocked = self.rescue_state_error()
         if blocked is not None:
