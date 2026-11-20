@@ -831,3 +831,44 @@ class TestAnEmptyWrapperDoesNotBeatAPopulatedOne:
         })
         assert "error" not in result
         assert session._experiment_log[-1]["interventions"] == {}
+
+
+# ---------------------------------------------------------------------------
+# Issue 5a, Review Focus 1 — `activate` used to be a silent no-op and is now
+# refused. The tool layer must hand that refusal back as an ordinary tool
+# error: no exception, and no budget charged for a call that did nothing.
+# ---------------------------------------------------------------------------
+
+class TestTheToolLayerSurfacesTheSignalRefusal:
+
+    def _session(self):
+        org = generate_organism(seed=0, difficulty="medium")
+        return ExperimentSession(org, seed=0)
+
+    def test_activate_comes_back_as_an_error(self):
+        session = self._session()
+        label = session.organism.signals[0].label
+        result = dispatch_tool(
+            session, "run_experiment", {"interventions": {label: "activate"}}
+        )
+        assert isinstance(result, dict) and "error" in result
+        assert "deactivate" in result["error"]
+
+    def test_the_refusal_costs_no_budget(self):
+        session = self._session()
+        label = session.organism.signals[0].label
+        before = session.budget_used
+        dispatch_tool(
+            session, "run_experiment", {"interventions": {label: "activate"}}
+        )
+        assert session.budget_used == before
+
+    def test_deactivate_still_runs_through_the_tool_layer(self):
+        session = self._session()
+        label = session.organism.signals[0].label
+        before = session.budget_used
+        result = dispatch_tool(
+            session, "run_experiment", {"interventions": {label: "deactivate"}}
+        )
+        assert "error" not in result, result
+        assert session.budget_used == before + 1

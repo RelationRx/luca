@@ -257,8 +257,36 @@ class ExperimentSession:
                 gene_interventions[gid] = {"type": itype.upper()}
             elif key in label_to_signal:
                 sig = label_to_signal[key]
-                mult = 1.0 if val in ("activate", "activates") else -1.0
-                signal_overrides[sig.id] = mult * sig.strength
+                # Issue 5a. This branch read the verb as
+                # `1.0 if val in ("activate", "activates") else -1.0`, so the
+                # dict form {"type": "deactivate"} never matched and fell to
+                # -1.0 along with everything else. And -1.0 * strength does not
+                # switch a signal off: dynamics applies the mode sign on top of
+                # it, so an activator became an inhibitor of the same size.
+                # Off is 0.0, and an active_signals entry is unsigned.
+                verb = val.get("type") if isinstance(val, dict) else val
+                if not isinstance(verb, str):
+                    return {"error": (
+                        f"Unreadable signal action for {key}: {verb!r}. "
+                        f"Use 'deactivate'."
+                    )}
+                if verb.lower() in ("deactivate", "deactivates"):
+                    signal_overrides[sig.id] = 0.0
+                elif verb.lower() in ("activate", "activates"):
+                    # Issue 5b, still open: every signal is already on at its
+                    # own strength, so 'activate' has no agreed meaning. It was
+                    # a silent no-op before. Refusing is honest; guessing is not.
+                    return {"error": (
+                        f"'{verb}' is not supported for signal {key}. Every "
+                        f"signal is already active at its own strength, so "
+                        f"what 'activate' should mean is undecided (issue 5b). "
+                        f"Use 'deactivate' to switch a signal off."
+                    )}
+                else:
+                    return {"error": (
+                        f"Unknown signal action for {key}: {verb!r}. "
+                        f"Use 'deactivate'."
+                    )}
             else:
                 return {"error": f"Unknown target: {key}"}
 

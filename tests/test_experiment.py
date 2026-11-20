@@ -815,3 +815,81 @@ class TestPredictionLabelsAreChecked:
         result = session.submit_prediction(task["task_id"], {one: 0.5})
         assert "error" not in result
         assert result["accuracy"] is not None
+
+
+# ---------------------------------------------------------------------------
+# Issue 5a, the resolver — the fifth site that signed an active_signals entry.
+#
+# _resolve_interventions read the verb as `1.0 if val in ("activate",
+# "activates") else -1.0`. A dict never equals either string, so every dict
+# form fell to -1.0. And -1.0 * strength does not switch a signal off: it
+# inverts it, turning an activator into an inhibitor of the same size. The
+# only verb an agent could usefully send was therefore broken in both forms.
+#
+# What `activate` should mean is issue 5b and stays open: every signal is
+# already on at sig.strength, so the verb has no referent. It is refused here
+# rather than left as a silent no-op.
+# ---------------------------------------------------------------------------
+
+def _signal_label(session):
+    return session.organism.signals[0].label
+
+
+def _signal_id(session):
+    return session.organism.signals[0].id
+
+
+class TestSignalVerbs:
+
+    @pytest.mark.parametrize("form", ["deactivate", {"type": "deactivate"}])
+    def test_deactivate_switches_the_signal_off(self, form):
+        """Off means zero, not inverted. Both forms resolve the same way."""
+        session = _healthy_session()
+        resolved = session._resolve_interventions({_signal_label(session): form})
+        assert not isinstance(resolved, dict), resolved
+        _genes, overrides = resolved
+        assert overrides == {_signal_id(session): 0.0}
+
+    @pytest.mark.parametrize("form", ["activate", {"type": "activate"}])
+    def test_activate_is_refused_and_names_deactivate(self, form):
+        session = _healthy_session()
+        result = session._resolve_interventions({_signal_label(session): form})
+        assert isinstance(result, dict) and "error" in result
+        assert "deactivate" in result["error"]
+        assert "5b" in result["error"]
+
+    def test_an_unknown_signal_verb_is_refused(self):
+        session = _healthy_session()
+        result = session._resolve_interventions({_signal_label(session): "amplify"})
+        assert isinstance(result, dict) and "error" in result
+        assert "amplify" in result["error"]
+
+    def test_a_refused_verb_costs_no_budget(self):
+        session = _healthy_session()
+        before = session.budget_used
+        result = session.run_experiment({_signal_label(session): "activate"})
+        assert "error" in result
+        assert session.budget_used == before
+
+    def test_a_sealed_task_stays_sealed_under_the_new_convention(self):
+        """Review Focus 5. _sealed_task_for is called before the chronic merge
+        and now receives different values. A revealed task's exact gene
+        combination must still be refused."""
+        session = _healthy_session()
+        task = session.get_next_prediction_task()
+        result = session.run_experiment(
+            {g: dict(iv) for g, iv in task["interventions"].items()}
+        )
+        assert "error" in result
+        assert "held out" in result["error"].lower()
+        assert task["task_id"] in result["error"]
+
+    def test_a_signal_change_still_unseals_the_same_genes(self):
+        """The companion to the line above: the same genes plus a signal change
+        is a different experiment, and stays allowed."""
+        session = _healthy_session()
+        task = session.get_next_prediction_task()
+        probe = {g: dict(iv) for g, iv in task["interventions"].items()}
+        probe[_signal_label(session)] = "deactivate"
+        result = session.run_experiment(probe)
+        assert "error" not in result, result
