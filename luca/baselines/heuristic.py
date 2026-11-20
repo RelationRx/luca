@@ -9,7 +9,13 @@ from typing import Any
 #   BLOCK  clamps the gene to 0.0, which is the state that was measured, so
 #          the measured delta is the prediction.
 #   DAMPEN clamps the gene to at most 0.15 — nearly the same state as BLOCK —
-#          so it moves the phenotype the same way.
+#          so it moves the phenotype the same way. The magnitude is an
+#          estimate too: 0.15 is not 0.0, so reusing the whole BLOCK delta
+#          overshoots. `luca/baselines/causal_sweep.py` uses 0.6 of it for the
+#          same case. Measured over seeds 0-9, 0.6 raises this baseline from
+#          0.8167 to 0.8833 on medium. It is left at 1.0 so that this file
+#          stays a direct port of the fix it carries; calibrating it is a
+#          separate decision.
 #   BOOST  clamps the gene to 1.0, the opposite extreme, so the response is
 #          taken as the opposite of the BLOCK delta.
 #
@@ -31,6 +37,10 @@ def _additive_prediction(
     scaled for the intervention type actually requested.
 
     Genes with no measurement contribute nothing. Results are clipped to [0, 1].
+
+    Raises KeyError if an intervention carries no readable type. A
+    `.get(..., default)` here would turn an unreadable request into a
+    confident BLOCK prediction, which is the mechanism behind issue 3.
     """
     prediction: dict[str, float] = {}
     for label in phenotype_labels:
@@ -39,7 +49,13 @@ def _additive_prediction(
             if gene not in effects:
                 continue
             itype = intervention.get("type") if isinstance(intervention, dict) else intervention
-            multiplier = _DELTA_MULTIPLIER.get(str(itype).upper(), 1.0)
+            try:
+                multiplier = _DELTA_MULTIPLIER[str(itype).upper()]
+            except KeyError:
+                raise KeyError(
+                    f"{gene}: cannot predict intervention type {itype!r}. "
+                    f"Expected one of {', '.join(sorted(_DELTA_MULTIPLIER))}."
+                ) from None
             value += multiplier * effects[gene].get(label, 0.0)
         prediction[label] = max(0.0, min(1.0, value))
     return prediction

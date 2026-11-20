@@ -74,8 +74,9 @@ most likely to affect what you measure.
   issue 3 below for both numbers.
 - **Do not rely on the published baseline numbers.** The heuristic baseline
   computed its own predictions with an inverted sign (issue 6, fixed
-  2026-11-20). On medium and hard it spent 20 experiments to score **below** a
-  baseline that runs none. Every published heuristic number predates the fix.
+  2026-11-20). On medium it spent 20 experiments, and on hard 15, to score
+  **below** a baseline that runs none. Every published heuristic number
+  predates the fix.
 - **Do not compare disease results across 2026-11-20.** Issues 19 and 5a are
   fixed, and the fix changes which organisms the generator produces. 11 of the
   60 canonical disease organisms now carry a different malfunction, and the
@@ -650,9 +651,10 @@ Mean prediction accuracy over seeds 0-9, measured in this repository:
 | medium | 0.5500 | **0.8167** | 0.6500 |
 | hard | 0.3500 | **0.6667** | 0.4667 |
 
-On medium and hard the heuristic spent 20 experiments to land below a baseline
-that runs none. Nothing asserted that it should not. That assertion is now a
-test, at both tiers.
+On medium and hard the heuristic landed below a baseline that runs none, after
+spending its whole sweep: 20 experiments on medium, and 15 on hard, where only
+15 genes are observable. Nothing asserted that it should not. That assertion is
+now a test, at both tiers.
 
 The arithmetic lives in `_additive_prediction`, so it can be tested without
 running a session. `BLOCK` and `DAMPEN` reuse the measured delta; `BOOST`

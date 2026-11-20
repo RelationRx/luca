@@ -373,24 +373,44 @@ Full prompt text is in `luca/agent.py`.
 
 ## 10. Baselines
 
-Two non-LLM baselines establish performance bounds.
+Three non-LLM baselines establish performance bounds.
 
 **Heuristic baseline**: systematically BLOCKs each gene one at a time and predicts
 intervention outcomes using an additive model (sum of individual BLOCK effects). For
-disease mode, exhaustively enumerates all gene × malfunction-type combinations and
-selects the one whose predicted phenotype signature best matches the observed disease
-state. Uses the same tool interface as LLM agents.
+disease mode, it picks the gene whose measured effect on the aberrant phenotypes is
+largest and submits `LOCK_HI`; it does not enumerate. Uses the same tool interface as
+LLM agents.
+
+**CausalSweep baseline**: the stronger non-LLM bound. It sweeps interventions and, in
+disease mode, enumerates gene × malfunction-type combinations, selecting the one whose
+predicted phenotype signature best matches the observed disease state. The enumeration
+described here used to be attributed to the heuristic baseline, which never did it.
 
 **Random baseline**: predicts 0.5 for all phenotypes (the baseline value), runs no
 experiments, and submits a randomly chosen gene and malfunction type as its hypothesis.
 Scores zero on all strategy and effort metrics. Provides a lower bound: any model that
 cannot beat random has learned nothing from perturbation data.
 
-Notable behaviours:
-- Heuristic scores below random on hard healthy — additive prediction fails on
-  high-feedback organisms where the nonlinear sigmoid dominates.
-- Random scores ~0.667 on all tiers at ±0.10 (structural floor: ~2/3 phenotypes
-  fall near the 0.5 baseline, which random predicts exactly).
+Notable behaviours, measured over seeds 0-9 at ±0.10 on 2026-11-20:
+
+| tier | heuristic | random |
+|---|---|---|
+| easy | 0.9333 | 0.6667 |
+| medium | 0.8167 | 0.6500 |
+| hard | 0.6667 | 0.4667 |
+
+CausalSweep is not in this table. It reports through a different interface and
+has not been measured here; do not assume a number for it.
+
+- The heuristic used to score **below** random on medium and hard. That was
+  issue 6, an inverted sign in its own arithmetic, not a property of the
+  organisms. An earlier version of this file blamed "high-feedback organisms
+  where the nonlinear sigmoid dominates". That explanation was wrong and is
+  removed.
+- Random does not score ~0.667 on all tiers. It scores 0.6667 on easy, 0.6500
+  on medium and 0.4667 on hard. The structural floor is real — many phenotypes
+  sit near the 0.5 baseline, which random predicts exactly — but it weakens as
+  the tier gets harder.
 
 ---
 

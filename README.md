@@ -11,9 +11,10 @@
 > rerun evaluations before comparing results across versions or against earlier
 > published tables.
 >
-> Some limitations remain: PERSIST signal malfunctions are not yet supported
-> reliably, and the canonical easy and medium prediction tasks are solvable
-> using additive strategies. See **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** for
+> Some limitations remain: the canonical easy and medium prediction tasks are
+> solvable using additive strategies, and a revealed prediction task's answer
+> is still reachable by resending its genes together with a signal change
+> (issue 21). See **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** for
 > current limitations, fix status, and the distinction between v1 fixes and v2
 > changes.
 

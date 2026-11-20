@@ -153,12 +153,35 @@ class TestHeuristicArithmetic:
         )
         assert prediction["ph"] == pytest.approx(0.25)
 
+    def test_an_unreadable_type_raises_rather_than_scoring_as_block(self):
+        """CLAUDE.md: a `.get(..., default)` that turns a missing measurement
+        into a confident number is the mechanism behind issue 3. An
+        intervention with no readable type must not quietly predict a BLOCK."""
+        with pytest.raises(KeyError, match="G001"):
+            _additive_prediction(
+                self.BASELINE, self.EFFECTS, {"G001": {}}, self.LABELS
+            )
+
+    def test_an_unknown_type_raises(self):
+        with pytest.raises(KeyError, match="SILENCE"):
+            _additive_prediction(
+                self.BASELINE, self.EFFECTS,
+                {"G001": {"type": "SILENCE"}}, self.LABELS,
+            )
+
+    def test_a_lower_case_type_is_read(self):
+        """The engine upper-cases a gene type, so the baseline must too."""
+        assert _additive_prediction(
+            self.BASELINE, self.EFFECTS, {"G001": "block"}, self.LABELS
+        )["ph"] == pytest.approx(0.30)
+
     @pytest.mark.parametrize("difficulty", ["medium", "hard"])
     def test_spending_budget_beats_spending_none(self, difficulty):
-        """End-to-end guard. With the inverted sign, the heuristic spent 20
-        experiments and scored below a baseline that runs none. Measured in
-        this repository before the fix: medium 0.5500 against 0.6500, hard
-        0.3500 against 0.4667."""
+        """End-to-end guard. With the inverted sign, the heuristic spent its
+        whole BLOCK sweep and still scored below a baseline that runs none.
+        Measured in this repository before the fix: medium 0.5500 against
+        0.6500, hard 0.3500 against 0.4667. The sweep costs 20 experiments on
+        medium and 15 on hard, where only 15 genes are observable."""
         heuristic, random_ = [], []
         for seed in range(10):
             heuristic.append(run_heuristic(
