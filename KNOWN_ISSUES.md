@@ -87,8 +87,10 @@ most likely to affect what you measure.
   combination, and that stays closed. This is the escape that finding 3 of the
   PR #9 review then opened on purpose. Measured on the code before the issue 5a
   fix, both signal verbs leaked at all three tiers, so nothing about this is new
-  on 2026-11-20. Until issue 21 is fixed, a prediction score is an upper
-  bound.
+  on 2026-11-20. **It is a v2 item**, because signal prediction is being
+  redesigned and the seal's rule for signals belongs to that design. Until it is
+  closed, **treat a prediction score as an upper bound**, and say so when you
+  report one.
 - **Check which `luca` your tests import.** Until 2026-11-20 a bare `pytest`
   here could import a different checkout (issue 20). Run
   `python -c "import luca; print(luca.__file__)"` and confirm the path is
@@ -123,7 +125,8 @@ Every issue carries a **bucket**:
 bucket it is in issue-number order, so the numbers are not consecutive.
 
 Eight of the twenty rows below are fixed here: issues 1, 3, 4, 5a, 12, 13,
-19 and 20.
+19 and 20. Issue 6 is fixed elsewhere and not yet ported here. Eleven are
+open: six in v1 and five in v2.
 The count is of rows, not of original issue numbers: issue 5 is split into 5a
 and 5b, and 10 and 11 are withdrawn.
 
@@ -148,12 +151,12 @@ pull requests cite it, so the table skips from 9 to 12.
 | 15 | `_generate_tasks` loops `n` times and never compares a new task against the tasks already built, so one organism can ask the same question twice and score it twice. Measured over seeds 0-19 at all three tiers on 2026-11-20, **no organism of the 60 carries a duplicate**, so the defect is latent here. An earlier note in this file named medium seed 10; that does not reproduce | v1 | prediction scoring | ⬜ open — latent, a guard rather than a number change |
 | 17 | `inspect.py` reads an intervention value of `"BLOCK"` as `""` when it colours the heatmap marker, so a string-valued intervention renders as a white `?`. Line 1443 reads the same value correctly | v1 | diagnostic figures only | ⬜ open |
 | 19 | `test_rescue` re-applied the chronic signal override after it read the agent's request, so the rescue the generator certifies for a `PERSIST` malfunction could not be performed. Measured before the fix: 9 of the 60 canonical disease organisms carried a `PERSIST` malfunction, all 9 were certified rescuable, and all 9 returned `restored_fraction = 0.0` | v1 | disease mode, rescue scoring | ✅ **fixed 2026-11-20** — see below |
-| 21 | **The issue 1 seal has a deliberate escape, and the escape leaks.** Finding 3 of the PR #9 review made `_sealed_task_for` return `None` whenever the agent changes any signal, on the reasoning that the same genes under a changed signal is "a different experiment with a different outcome". The outcome is not different enough. A revealed task's exact gene pair plus one unrelated signal change runs and returns the held-out answer. Worst gap against the stored ground truth, against a scoring threshold of 0.10 — before the issue 5a fix: easy 19 **0.0150**, medium 16 **0.0199**, hard 12 **0.0913**; after it: **0.0253**, **0.0522**, **0.0913**. `tests/test_experiment.py::TestSealCoversSignals` asserts the escape is intended, and is the test that must change when this is fixed | v1 | **held-out protocol** | ⬜ open |
 | 20 | `pytest` run from the repository root imported `luca` from a different checkout. There is no `conftest.py` and no pytest path setting, and pytest's `prepend` import mode puts the *test file's* directory on `sys.path`, never the repository root. An editable install of `luca` elsewhere therefore won. The tests that prove issues 1, 4 and 12 are fixed were failing under the documented command | v1 | every test run | ✅ **fixed 2026-11-20** — see below |
 | 2 | Every easy and medium prediction task is solvable by a four-experiment additive strategy, contradicting the stated non-additivity guarantee. A session asks two tasks of two genes each, so measuring those genes separately and adding the effects answers both. Measured over seeds 0-19: easy 40 of 40, medium 40 of 40, hard 18 of 40 against the stored ground truth, and 34 of 40 noise-free — see issue 3 for which number answers which question | v2 | difficulty claims | ⬜ open — needs a generator change |
 | 5b | What `activate` should mean is undecided. Every signal is already on at `sig.strength`, so the verb has no referent. Since 2026-11-20 the engine refuses it rather than ignoring it, and `deactivate` works in both forms (issue 5a). Deciding what an agent should be able to *do* to a signal beyond switching it off is a design question, not a bug | v2 | disease mode, signal diagnosis | ⬜ open |
 | 16 | The list intervention form accepts only `BLOCK`, `BOOST` and `DAMPEN`, so it cannot express a signal, and its refusal message never mentions signals. The dict form accepts `{"wave-X": "deactivate"}` | v2 | agent feedback | ⬜ open |
 | 18 | Nothing shows an agent that a signal goes in the interventions map. 78 of 18,356 stored calls asked for a signal-only experiment through shapes the engine does not read, such as `{"signal_activations": ["burst-I"]}` and `{"interventions": [], "signals": [...]}` | v2 | disease mode, signal diagnosis | ⬜ open |
+| 21 | **The issue 1 seal has a deliberate escape, and the escape leaks.** Finding 3 of the PR #9 review made `_sealed_task_for` return `None` whenever the agent changes any signal, on the reasoning that the same genes under a changed signal is "a different experiment with a different outcome". The outcome is not different enough. A revealed task's exact gene pair plus one unrelated signal change runs and returns the held-out answer. Worst gap against the stored ground truth, against a scoring threshold of 0.10 — before the issue 5a fix: easy 19 **0.0150**, medium 16 **0.0199**, hard 12 **0.0913**; after it: **0.0253**, **0.0522**, **0.0913**. Closing it in v1 costs five lines, and `tests/test_experiment.py::TestSealCoversSignals` is the test that would change. We are not doing that, because signal prediction is being redesigned in v2 and the seal's rule for signals should follow that design, not precede it | v2 | **held-out protocol** | ⬜ open |
 
 Issues 1–8 came from the November 2026 review. Issue 9 was found while
 investigating it. Issues 12 and 13 were found by a subsequent audit of the
@@ -636,12 +639,13 @@ measurement, not by inspection alone.
    still unexamined.
 2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 12, 13, 19 and 20 are done. 19
    and 5a shipped together, because fixing either alone leaves the rescue
-   broken. **Issue 21 is next and is the most serious open item**, because it
-   is a hole in the held-out protocol itself. After it: 6, then 15, 14, 8, 7,
-   17, and finally the disclosure for 9.
+   broken. The order from here is 6, then 15, 14, 8, 7, 17, and finally the
+   disclosure for 9. Issue 21 was found by the review of 19 and 5a and moved to
+   v2 on 2026-11-20: it is a real hole, but signal prediction is being
+   redesigned, and the seal's rule for signals belongs to that design.
 3. Recompute every affected number once the v1 fixes have landed, and record
    it here. Several v1 fixes change the numbers, including the canonical
    disease organisms.
-4. The v2 issues — 2, 5b, 16, 18 and the scoring half of 9 — are not patched
+4. The v2 issues — 2, 5b, 16, 18, 21 and the scoring half of 9 — are not patched
    here. They need a generator change or a decision about what the API should
    mean.
