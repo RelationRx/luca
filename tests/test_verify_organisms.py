@@ -16,6 +16,8 @@ check_additivity, and fixing either alone leaves the verifier wrong:
 The true rates, measured independently during the review, are
 easy 40/40, medium 40/40, hard 18/40 over seeds 0-19. See KNOWN_ISSUES.md.
 """
+import copy
+import functools
 import importlib.util
 from pathlib import Path
 
@@ -82,10 +84,22 @@ def _second_path_task_errors(org, task):
     )
 
 
+@functools.lru_cache(maxsize=None)
+def _organism(seed, tier):
+    """One organism per (seed, tier) for the whole module.
+
+    Generation dominates this file's runtime, and _run_check and
+    _second_path_rate ask for the same 60 organisms. Only the organism is
+    cached: ExperimentSession carries mutable budget and task state, so every
+    caller still builds its own.
+    """
+    return generate_organism(seed=seed, difficulty=tier)
+
+
 def _second_path_rate(tier, n_seeds=20):
     solved = total = 0
     for seed in range(n_seeds):
-        org = generate_organism(seed=seed, difficulty=tier)
+        org = _organism(seed, tier)
         session = ExperimentSession(org, budget=31, seed=seed)
         for task in session._tasks.values():
             total += 1
@@ -95,7 +109,7 @@ def _second_path_rate(tier, n_seeds=20):
 
 
 def _run_check(seed, tier):
-    org = generate_organism(seed=seed, difficulty=tier)
+    org = _organism(seed, tier)
     session = ExperimentSession(org, budget=31, seed=seed)
     baseline = vo._readout_noise_free_phenotypes(org, {})
     effects = vo._noiseless_single_gene_effects(org, baseline, list(baseline))
@@ -146,6 +160,7 @@ def test_reported_error_matches_a_second_computation():
         assert by_task[task_id] == pytest.approx(expected, abs=5e-4), task_id
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("tier,expected_solved,expected_total", [
     ("easy", 40, 40),
     ("medium", 40, 40),
@@ -162,6 +177,7 @@ def test_additive_rate_reproduces_the_november_2026_measurement(
     assert (solved, total) == (expected_solved, expected_total)
 
 
+@pytest.mark.slow
 def test_the_second_path_agrees_with_the_published_rates():
     """Guards the anchor itself: if this drifts, the rates above are stale."""
     assert _second_path_rate("medium") == (40, 40)
@@ -178,13 +194,26 @@ def test_the_second_path_agrees_with_the_published_rates():
 # ---------------------------------------------------------------------------
 
 
-def _seed0_medium_parts():
-    """The inputs check_additivity takes, without calling it."""
-    org = generate_organism(seed=0, difficulty="medium")
-    session = ExperimentSession(org, budget=31, seed=0)
+@functools.lru_cache(maxsize=None)
+def _seed0_medium_measurements():
+    """The 60-simulation effects table for seed 0 medium, built once."""
+    org = _organism(0, "medium")
     baseline = vo._readout_noise_free_phenotypes(org, {})
     effects = vo._noiseless_single_gene_effects(org, baseline, list(baseline))
-    return org, session, baseline, effects
+    return baseline, effects
+
+
+def _seed0_medium_parts():
+    """The inputs check_additivity takes, without calling it.
+
+    The caller mutates baseline and effects to drive the refusal tests, so each
+    gets a deep copy of the cached table. The session is always fresh: it
+    carries mutable budget and task state.
+    """
+    org = _organism(0, "medium")
+    session = ExperimentSession(org, budget=31, seed=0)
+    baseline, effects = _seed0_medium_measurements()
+    return org, session, copy.deepcopy(baseline), copy.deepcopy(effects)
 
 
 def _first_gene_and_type(task):
@@ -260,3 +289,13 @@ def test_check_additivity_refuses_a_disease_organism():
     effects = vo._noiseless_single_gene_effects(org, baseline, list(baseline))
     with pytest.raises(ValueError, match="malfunction"):
         vo.check_additivity(session, effects, baseline)
+
+
+def test_the_module_under_test_is_this_repository():
+    """`luca` may be pip-installed editable against a different checkout. A
+    script run by path, or `python -I`, resolves the import there instead of
+    here and produces a plausible wrong number rather than a crash. Two
+    measurements were lost to this on 2026-11-20."""
+    import luca
+    assert "luca-public" in luca.__file__, luca.__file__
+    assert vo.__file__ == str(REPO_ROOT / "verify_organisms.py"), vo.__file__
