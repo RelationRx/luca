@@ -884,15 +884,14 @@ class TestSignalVerbs:
         assert "held out" in result["error"].lower()
         assert task["task_id"] in result["error"]
 
-    def test_a_signal_change_still_unseals_the_same_genes(self):
-        """The companion to the line above: the same genes plus a signal change
-        is a different experiment, and stays allowed."""
-        session = _healthy_session()
-        task = session.get_next_prediction_task()
-        probe = {g: dict(iv) for g, iv in task["interventions"].items()}
-        probe[_signal_label(session)] = "deactivate"
-        result = session.run_experiment(probe)
-        assert "error" not in result, result
+    # There was a test here asserting that the same genes plus a signal change
+    # stays allowed, which is what _sealed_task_for does today. It is removed,
+    # because the behaviour is a hold-out leak, not a feature: deactivating an
+    # unrelated signal moves the phenotypes far less than the scoring
+    # threshold, so the "different experiment" returns the held-out answer.
+    # Measured on this branch, worst gap against the stored ground truth:
+    # easy:19 0.0253, medium:16 0.0522, hard:12 0.0913, against a threshold of
+    # 0.10. That is issue 21. A test will pin the fix, not the defect.
 
 
 # ---------------------------------------------------------------------------

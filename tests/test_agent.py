@@ -872,3 +872,35 @@ class TestTheToolLayerSurfacesTheSignalRefusal:
         )
         assert "error" not in result, result
         assert session.budget_used == before + 1
+
+
+class TestTheToolTextAgreesWithTheEngine:
+    """Agreement tests: the text a model is shown is a component too.
+
+    `activate` is refused since issue 5a. Any text that still offers it spends
+    a model's turn on an error.
+    """
+
+    def _tools(self):
+        from luca.agent import TOOLS, DISEASE_TOOLS
+        return TOOLS + DISEASE_TOOLS
+
+    def test_no_tool_text_offers_an_activation(self):
+        for tool in self._tools():
+            blob = json.dumps(tool)
+            assert "activation" not in blob.lower(), tool["name"]
+
+    @pytest.mark.parametrize("disease_mode", [False, True])
+    def test_the_system_prompt_does_not_offer_an_activation(self, disease_mode):
+        from luca.agent import _build_system_prompt
+        prompt = _build_system_prompt(
+            disease_mode, frozenset({"explore", "predict", "diagnose", "rescue"})
+        )
+        assert "activation" not in prompt.lower()
+
+    def test_the_rescue_schema_does_not_name_the_rescue(self):
+        """The schema described the cure for a PERSIST malfunction. An agent
+        that diagnoses PERSIST could copy it and score 1.0 with no causal
+        model. The schema states the mechanic, not the answer."""
+        rescue = next(t for t in self._tools() if t["name"] == "test_rescue")
+        assert "PERSIST" not in json.dumps(rescue)
