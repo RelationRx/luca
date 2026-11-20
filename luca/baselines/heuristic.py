@@ -3,6 +3,47 @@ from __future__ import annotations
 
 from typing import Any
 
+# How each intervention type moves a phenotype, as a multiple of the measured
+# BLOCK delta (phenotype after BLOCK, minus baseline).
+#
+#   BLOCK  clamps the gene to 0.0, which is the state that was measured, so
+#          the measured delta is the prediction.
+#   DAMPEN clamps the gene to at most 0.15 — nearly the same state as BLOCK —
+#          so it moves the phenotype the same way.
+#   BOOST  clamps the gene to 1.0, the opposite extreme, so the response is
+#          taken as the opposite of the BLOCK delta.
+#
+# The BOOST magnitude is an estimate, not a calibration. Agents never see gene
+# states, so the baseline activity a BOOST moves away from is unknown. This
+# baseline exists to show what a non-adaptive additive rule achieves, not to
+# be the strongest possible one.
+_DELTA_MULTIPLIER = {"BLOCK": 1.0, "DAMPEN": 1.0, "BOOST": -1.0}
+
+
+def _additive_prediction(
+    baseline: dict[str, float],
+    effects: dict[str, dict[str, float]],
+    interventions: dict[str, Any],
+    phenotype_labels: list[str],
+) -> dict[str, float]:
+    """
+    Predict a combined intervention by adding each gene's measured BLOCK delta,
+    scaled for the intervention type actually requested.
+
+    Genes with no measurement contribute nothing. Results are clipped to [0, 1].
+    """
+    prediction: dict[str, float] = {}
+    for label in phenotype_labels:
+        value = baseline[label]
+        for gene, intervention in interventions.items():
+            if gene not in effects:
+                continue
+            itype = intervention.get("type") if isinstance(intervention, dict) else intervention
+            multiplier = _DELTA_MULTIPLIER.get(str(itype).upper(), 1.0)
+            value += multiplier * effects[gene].get(label, 0.0)
+        prediction[label] = max(0.0, min(1.0, value))
+    return prediction
+
 
 def run_heuristic(session, active_tasks: frozenset[str] | None = None) -> dict[str, Any]:
     """
@@ -35,14 +76,9 @@ def run_heuristic(session, active_tasks: frozenset[str] | None = None) -> dict[s
             task = session.get_next_prediction_task()
             if task.get("done"):
                 break
-            prediction: dict[str, float] = {}
-            for label in phenotype_labels:
-                pred = baseline[label]
-                for gene, iv in task["interventions"].items():
-                    if gene in effects:
-                        sign = -1.0 if iv.get("type") == "BLOCK" else 1.0
-                        pred += sign * effects[gene].get(label, 0.0)
-                prediction[label] = max(0.0, min(1.0, pred))
+            prediction = _additive_prediction(
+                baseline, effects, task["interventions"], phenotype_labels
+            )
             session.submit_prediction(task["task_id"], prediction)
 
     # Disease mode: naive hypothesis + rescue attempt

@@ -87,11 +87,19 @@ def run(session) -> None:
         for p in phenotypes:
             pred = baseline[p]
             for gene, iv in task["interventions"].items():
-                sign = -1.0 if iv["type"] == "BLOCK" else 1.0
-                pred += sign * effects.get(gene, {}).get(p, 0.0)
+                # BLOCK clamps the gene to 0.0, which is the state measured
+                # above, so the measured delta is the prediction. DAMPEN
+                # clamps to at most 0.15 and moves the same way. BOOST clamps
+                # to 1.0, the opposite extreme.
+                multiplier = -1.0 if iv["type"] == "BOOST" else 1.0
+                pred += multiplier * effects.get(gene, {}).get(p, 0.0)
             prediction[p] = max(0.0, min(1.0, pred))
         session.submit_prediction(task["task_id"], prediction)
 ```
+
+> The BOOST magnitude here is an estimate. Agents never see gene states, so
+> the activity a BOOST moves away from is unknown. Reusing the BLOCK
+> magnitude is the best available guess, not a calibrated one.
 
 Run it:
 ```bash
