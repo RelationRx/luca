@@ -1,6 +1,6 @@
 # Known issues
 
-**Last updated: 2026-11-19. This list is not final — an audit is in
+**Last updated: 2026-11-20. This list is not final — an audit is in
 progress.**
 
 A code review in November 2026 found defects in the benchmark engine and in
@@ -38,6 +38,13 @@ ground truth. Both are reported below, with the question each one answers.
 Either way the easy and medium tiers are fully additive, which is the evidence
 for issue 2.
 
+**2026-11-20: issues 19 and 5a are fixed in this repository.** A persistent
+inhibitor now inhibits, and the rescue the generator certifies for a `PERSIST`
+malfunction can now be performed. Both change what disease mode does. The
+canonical disease organisms are not the same organisms they were: 11 of the 60
+carry a different malfunction. Disease results you generated before this change
+do not compare with results generated after it.
+
 **2026-11-20: issue 20 is fixed in this repository.** A bare `pytest` from the
 repository root was importing a different checkout's engine, so the tests that
 prove issues 1, 4 and 12 are fixed were failing under the documented command.
@@ -62,16 +69,18 @@ most likely to affect what you measure.
   issue 3 below for both numbers.
 - **Do not rely on the published baseline numbers.** The heuristic baseline
   computed its own predictions with an inverted sign (issue 6).
-- **Do not use disease mode with a `PERSIST` malfunction yet.** Two defects
-  compound there. The chronic override is negated twice, so a persistent
-  inhibitor simulates as a strong activator (issue 5a). And `test_rescue`
-  re-applies the override after reading the agent's request, so the rescue the
-  generator certifies cannot be performed at all: 9 of the 60 canonical disease
-  organisms are certified rescuable and all 9 return `restored_fraction = 0.0`
-  (issue 19). Gene malfunctions, `LOCK_HI` and `LOCK_LO`, are not affected.
-- **Do not trust a signal verb.** `activate` does nothing and the documented
-  `{"type": ...}` form never parses (issue 5b). This is a v2 item, because
-  deciding what the verbs should mean is a design question.
+- **Do not compare disease results across 2026-11-20.** Issues 19 and 5a are
+  fixed, and the fix changes which organisms the generator produces. 11 of the
+  60 canonical disease organisms now carry a different malfunction, and the
+  number carrying a `PERSIST` malfunction rises from 9 to 12. Every stored
+  disease result predates this. Gene malfunctions, `LOCK_HI` and `LOCK_LO`,
+  behave as they did.
+- **`activate` is now refused, not ignored.** `deactivate` is the only signal
+  verb the engine accepts, and both the bare string and the `{"type": ...}`
+  form work. An agent that sends `activate` gets an error instead of a
+  normal-looking result from an experiment that did nothing. What `activate`
+  *should* mean is still open (issue 5b, v2): every signal is already on at its
+  own strength, so the verb has no referent.
 - **Check which `luca` your tests import.** Until 2026-11-20 a bare `pytest`
   here could import a different checkout (issue 20). Run
   `python -c "import luca; print(luca.__file__)"` and confirm the path is
@@ -105,7 +114,8 @@ Every issue carries a **bucket**:
 **The table is sorted by bucket: every v1 issue first, then v2.** Within each
 bucket it is in issue-number order, so the numbers are not consecutive.
 
-Six of the nineteen rows below are fixed here: issues 1, 3, 4, 12, 13 and 20.
+Eight of the nineteen rows below are fixed here: issues 1, 3, 4, 5a, 12, 13,
+19 and 20.
 The count is of rows, not of original issue numbers: issue 5 is split into 5a
 and 5b, and 10 and 11 are withdrawn.
 
@@ -119,7 +129,7 @@ pull requests cite it, so the table skips from 9 to 12.
 | 1 | `run_experiment` and `test_rescue` would execute a revealed prediction task's exact combination, so an agent could measure the answer instead of predicting it | v1 | held-out protocol | ✅ **fixed 2026-11-19** |
 | 3 | `verify_organisms.py` looks up gene IDs in a dictionary keyed by gene names, silently reads every measured effect as zero, inverts the sign of the effects it does measure, and measures only `BLOCK`. It reported every task at every tier as non-additive | v1 | organism verification, seed screening | ✅ **fixed 2026-11-19** — see below |
 | 4 | `submit_prediction` disclosed ground truth and scored every retry, so a resubmitted answer raised the session average | v1 | scoring integrity | ✅ **fixed 2026-11-19** |
-| 5a | The chronic malfunction signal override is negated twice. `luca/experiment.py:118`, `luca/generation.py:642` and `luca/generation.py:798` each store the override already signed for an inhibiting signal, and `luca/dynamics.py:50` applies the mode sign again. A persistent **inhibitor** therefore simulates as a strong **activator**. Eight of the nine `PERSIST` organisms in seeds 0-19 sit on an inhibiting signal | v1 | disease mode | ⬜ open |
+| 5a | The chronic malfunction signal override was negated twice. Five sites stored a value already signed for an inhibiting signal, and `luca/dynamics.py:50` applied the mode sign again. A persistent **inhibitor** therefore simulated as a strong **activator** | v1 | disease mode | ✅ **fixed 2026-11-20** — see below |
 | 6 | The heuristic baseline subtracted its own measured `BLOCK` delta instead of adding it, and treated `DAMPEN` as the opposite of `BLOCK` | v1 | baseline comparisons | ⚠️ **fixed**, not yet in this repo |
 | 7 | The `v1-generation-freeze-2` tag named in `DECISIONS.md` predates a package rename and a vocabulary change, and does not reproduce current organisms | v1 | reproduction instructions | ⬜ open |
 | 8 | `_composite_score` always divides by three in disease mode, so a run with a task subset is penalised for tasks it was not asked to perform | v1 | CLI subset runs only | ⬜ open |
@@ -129,11 +139,11 @@ pull requests cite it, so the table skips from 9 to 12.
 | 14 | `report.py` renders a refused `test_rescue` as `restored=0%` with no error line, so a reader cannot tell a refused rescue from a failed one | v1 | session reports only | ⬜ open |
 | 15 | `_generate_tasks` loops `n` times and never compares a new task against the tasks already built, so one organism can ask the same question twice and score it twice. Measured over seeds 0-19 at all three tiers on 2026-11-20, **no organism of the 60 carries a duplicate**, so the defect is latent here. An earlier note in this file named medium seed 10; that does not reproduce | v1 | prediction scoring | ⬜ open — latent, a guard rather than a number change |
 | 17 | `inspect.py` reads an intervention value of `"BLOCK"` as `""` when it colours the heatmap marker, so a string-valued intervention renders as a white `?`. Line 1443 reads the same value correctly | v1 | diagnostic figures only | ⬜ open |
-| 19 | `test_rescue` re-applies the chronic signal override at `luca/experiment.py:662` after it reads the agent's request, so the rescue the generator certifies for a `PERSIST` malfunction cannot be performed. Measured over seeds 0-19: **9 of the 60 canonical disease organisms** carry a `PERSIST` malfunction, all 9 are certified rescuable, and all 9 return `restored_fraction = 0.0`. Three documented statements disagree about what a `PERSIST` rescue is | v1 | disease mode, rescue scoring | ⬜ open |
+| 19 | `test_rescue` re-applied the chronic signal override after it read the agent's request, so the rescue the generator certifies for a `PERSIST` malfunction could not be performed. Measured before the fix: 9 of the 60 canonical disease organisms carried a `PERSIST` malfunction, all 9 were certified rescuable, and all 9 returned `restored_fraction = 0.0` | v1 | disease mode, rescue scoring | ✅ **fixed 2026-11-20** — see below |
 | 20 | `pytest` run from the repository root imported `luca` from a different checkout. There is no `conftest.py` and no pytest path setting, and pytest's `prepend` import mode puts the *test file's* directory on `sys.path`, never the repository root. An editable install of `luca` elsewhere therefore won. The tests that prove issues 1, 4 and 12 are fixed were failing under the documented command | v1 | every test run | ✅ **fixed 2026-11-20** — see below |
 | 2 | Every easy and medium prediction task is solvable by a four-experiment additive strategy, contradicting the stated non-additivity guarantee. A session asks two tasks of two genes each, so measuring those genes separately and adding the effects answers both. Measured over seeds 0-19: easy 40 of 40, medium 40 of 40, hard 18 of 40 against the stored ground truth, and 34 of 40 noise-free — see issue 3 for which number answers which question | v2 | difficulty claims | ⬜ open — needs a generator change |
-| 5b | The signal verbs do not mean what the documentation says. A bare `"activate"` resolves to the strength the simulator already uses and does nothing; the documented `{"type": ...}` form never parses at all and always deactivates. Deciding what `activate` should mean is a design question, not a bug: every signal is already on at `sig.strength`, so the verb has no referent | v2 | disease mode, signal diagnosis | ⬜ open |
-| 16 | The list intervention form accepts only `BLOCK`, `BOOST` and `DAMPEN`, so it cannot express a signal, and its refusal message never mentions signals. The dict form accepts `{"wave-X": "activate"}` | v2 | agent feedback | ⬜ open |
+| 5b | What `activate` should mean is undecided. Every signal is already on at `sig.strength`, so the verb has no referent. Since 2026-11-20 the engine refuses it rather than ignoring it, and `deactivate` works in both forms (issue 5a). Deciding what an agent should be able to *do* to a signal beyond switching it off is a design question, not a bug | v2 | disease mode, signal diagnosis | ⬜ open |
+| 16 | The list intervention form accepts only `BLOCK`, `BOOST` and `DAMPEN`, so it cannot express a signal, and its refusal message never mentions signals. The dict form accepts `{"wave-X": "deactivate"}` | v2 | agent feedback | ⬜ open |
 | 18 | Nothing shows an agent that a signal goes in the interventions map. 78 of 18,356 stored calls asked for a signal-only experiment through shapes the engine does not read, such as `{"signal_activations": ["burst-I"]}` and `{"interventions": [], "signals": [...]}` | v2 | disease mode, signal diagnosis | ⬜ open |
 
 Issues 1–8 came from the November 2026 review. Issue 9 was found while
@@ -393,8 +403,10 @@ every string value `activate` while the engine applied `BLOCK`; a lowercase
 and a payload of `42` or `"BLOCK G001"` raised while rendering, on shapes the
 engine now refuses and that will therefore appear in new logs. The shared
 reader returns `{target: {"type": T}}` for any shape and `{}` for anything
-unreadable. A gene type is upper-cased. A signal action keeps its case, because
-`report.py` colours `"activate"` by that exact string. A payload sent as a JSON
+unreadable. A gene type is upper-cased. A signal action keeps its case, so the rendered
+trace shows the verb the agent sent. (That reason was first written here as
+"`report.py` colours `"activate"` by that exact string". It never did: a signal
+node has never used that colour map. Corrected 2026-11-20.) A payload sent as a JSON
 string is decoded in that one place, so the engine and the trace cannot
 disagree about it.
 
@@ -406,8 +418,10 @@ billed; none returned an error. They are refused now, and the message names the
 
 Two drafts of those messages were themselves defects. One told the model to
 send `{"interventions": {"wave-X": "activate"}}`; for every signal on seed 0
-that is bit-identical to a null experiment and still costs budget, because
-`activate` resolves to the strength the simulator already uses (issue 5). The
+that was bit-identical to a null experiment and still cost budget, because
+`activate` resolved to the strength the simulator already uses (issue 5). Since
+2026-11-20 `activate` is refused outright and `deactivate` is the verb that
+works (issue 5a). The
 four stored empty-list calls were signal-only requests, so that advice would
 have sent exactly that audience into a billed no-op — the failure this fix
 removes. The other fired on a flat call the layer had read correctly, telling a
@@ -504,6 +518,101 @@ If you have run this suite before, re-run it. If you build on this repository,
 check that `python -c "import luca; print(luca.__file__)"` prints a path inside
 your own checkout.
 
+## ✅ Issues 19 and 5a, as fixed on 2026-11-20
+
+One defect, seen twice. Both halves are about a single number: the value stored
+in an `active_signals` entry when a `PERSIST` malfunction jams a signal on.
+
+### The convention
+
+`luca/dynamics.py` documents an `active_signals` entry as a value that
+"overrides `signal.strength`", and then applies the signal's mode sign to it:
+
+    strength = active_signals.get(sig.id, sig.strength)
+    signed   = strength if sig.mode == "activates" else -strength
+
+So an entry is an **unsigned magnitude**. Five places wrote a value that was
+already signed, and the sign landed twice.
+
+- `luca/generation.py` — the screener that decides which signals can carry a
+  `PERSIST` malfunction
+- `luca/generation.py` — the malfunction that ships
+- `luca/generation.py` — the alternative-malfunction ambiguity check
+- `luca/experiment.py` — the session's mirror of the chronic override
+- `luca/experiment.py` — `_resolve_interventions`, where the agent's own verb
+  is read
+
+`luca/dynamics.py` was always right and is unchanged.
+
+### What it looked like
+
+At seed 0, medium, the signal `potential-theta` **inhibits** `g_007` and
+`g_018` with strength 0.5960. A `PERSIST` malfunction amplifies it ten times.
+
+| gene | healthy | jammed, before the fix | jammed, after the fix |
+|---|---|---|---|
+| `g_007` | 0.0968 | 0.9944 | 0.0102 |
+| `g_018` | 0.9322 | 1.0000 | 0.0601 |
+
+A persistent inhibitor drove its targets to the ceiling.
+
+### The rescue
+
+`generate_disease_organism` ships a `PERSIST` malfunction only after it has
+verified that deactivating the signal restores an aberrant phenotype. That
+rescue could not be performed. `test_rescue` re-applied the chronic override
+after reading the agent's request, so the certified cure scored
+`restored_fraction = 0.0`, and so did everything else.
+
+The rule itself is right; it was applied in one place too many.
+`run_experiment` keeps it, because an agent exploring the organism must not be
+able to switch the disease off. `test_rescue` is the call that proposes the
+cure, so there the agent may switch it off. A signal named in `test_rescue`
+that is also the malfunctioning one is dropped from both the agent's map and
+the chronic map, which returns it to its normal strength — the state the
+generator certifies. Cancelling is per call: the session's record of the
+disease is not edited, so the next call is diseased again.
+
+### The signal verb
+
+`_resolve_interventions` read the verb as
+`1.0 if val in ("activate", "activates") else -1.0`. A dict never equals either
+string, so the documented `{"wave-X": {"type": "deactivate"}}` form fell to
+`-1.0` along with everything else. And `-1.0 * strength` does not switch a
+signal off: with the mode sign applied on top, an activator became an inhibitor
+of equal size.
+
+Off is now `0.0`, and both the bare string and the `{"type": ...}` form work.
+
+**`activate` is now refused rather than silently ignored.** Every signal is
+already on at its own strength, so the verb has no referent. What it should
+mean is issue 5b, which is open and belongs to the v2 redesign. The error names
+`deactivate` and points at 5b. A refused call costs no budget.
+
+### What moved
+
+The screener now accepts a different set of signals, so the canonical disease
+organisms are not the same organisms.
+
+- **11 of the 60** disease organisms in seeds 0-19 carry a different
+  malfunction.
+- Organisms carrying a `PERSIST` malfunction rise from **9 to 12** of 60. Eleven
+  sit on an inhibiting signal; one, hard seed 0, sits on an activating signal.
+- All 12 reach `restored_fraction = 1.0` by deactivating the malfunctioning
+  signal. Before the fix, all 9 returned `0.0`.
+
+Nothing in the test suite pinned the old sign or the identity of a disease
+organism. That is why the defect survived. The suite was 245 passed before this
+change and **279 passed** after it, the difference being the new tests.
+
+The renderer reads stored session logs and carries two consequences. The signal
+node in the schematic printed a hardcoded `act` beside any signal the agent
+touched, which now says the opposite of what happened; it shows the verb sent.
+And causal direction inference matched no branch for `deactivate`, so the edge
+was silently dropped; `deactivate` now joins the `BLOCK` family, because
+switching a signal off takes its input away exactly as blocking a gene does.
+`activate` is still read, because logs recorded before this fix contain it.
+
 ## Reproducing any of these
 
 The reproduction scripts live in the development repository and will be
@@ -515,10 +624,10 @@ measurement, not by inspection alone.
 1. ~~Finish auditing the analysis scripts.~~ A first pass is done; it produced
    issues 12 and 13. The scaling-study logs and several analysis scripts are
    still unexamined.
-2. **Land every v1 fix.** Issues 1, 3, 4, 12, 13 and 20 are done. The order
-   from here is 19 with 5a, then 6, then 15, 14, 8, 7, 17, and finally the
-   disclosure for 9. Issues 19 and 5a ship together: fixing either alone
-   leaves the rescue broken.
+2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 12, 13, 19 and 20 are done. 19
+   and 5a shipped together, because fixing either alone leaves the rescue
+   broken. The order from here is 6, then 15, 14, 8, 7, 17, and finally the
+   disclosure for 9.
 3. Recompute every affected number once the v1 fixes have landed, and record
    it here. Several v1 fixes change the numbers, including the canonical
    disease organisms.
