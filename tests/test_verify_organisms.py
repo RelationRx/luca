@@ -22,7 +22,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from luca import ExperimentSession, generate_organism
+from luca import ExperimentSession, generate_disease_organism, generate_organism
 from luca.dynamics import compute_phenotypes, simulate_sigmoid
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -109,11 +109,18 @@ def test_measured_effects_are_keyed_by_the_id_the_tasks_use():
     )
 
 
-def test_removing_the_measured_effects_changes_the_verdict():
-    """The verifier used to give the same answer with an empty effects dict."""
-    session, _org, with_effects, _effects, baseline = _run_check(0, "medium")
-    without = vo.check_additivity(session, {}, baseline)
-    assert with_effects["mean_max_error"] != without["mean_max_error"]
+def test_an_empty_effects_dict_is_refused_not_answered():
+    """The verifier used to give the same answer with an empty effects dict.
+
+    It now refuses. That is the stronger statement of the same property: the
+    measured effects are genuinely consumed, and their absence is an error
+    rather than a confident zero. The numbers themselves are pinned by
+    test_additivity_errors_match_hand_computed_values.
+    """
+    session, _org, _result, _effects, baseline = _run_check(0, "medium")
+    with pytest.raises(KeyError) as exc:
+        vo.check_additivity(session, {}, baseline)
+    assert "no measured effects for gene" in str(exc.value)
 
 
 # ---------------------------------------------------------------------------
@@ -149,3 +156,97 @@ def test_the_independent_path_agrees_with_the_published_rates():
     """Guards the anchor itself: if this drifts, the rates above are stale."""
     assert _independent_rate("medium") == (40, 40)
     assert _independent_rate("hard") == (18, 40)
+
+
+# ---------------------------------------------------------------------------
+# A missing value must raise, not read as zero
+#
+# Issue 3 was a silent-zero lookup: check_additivity looked a gene up under the
+# wrong key, got nothing, substituted 0.0, and reported a confident wrong
+# answer. The same `.get(..., default)` shape remained in three places in the
+# corrected function. These tests pin the refusal.
+# ---------------------------------------------------------------------------
+
+
+def _seed0_medium_parts():
+    """The inputs check_additivity takes, without calling it."""
+    org = generate_organism(seed=0, difficulty="medium")
+    session = ExperimentSession(org, budget=31, seed=0)
+    baseline = vo._noiseless_phenotypes(org, {})
+    effects = vo._noiseless_single_gene_effects(org, baseline, list(baseline))
+    return org, session, baseline, effects
+
+
+def _first_gene_and_type(task):
+    gene_id = sorted(task.interventions)[0]
+    iv = task.interventions[gene_id]
+    itype = iv.get("type") if isinstance(iv, dict) else iv
+    return gene_id, str(itype).upper()
+
+
+def test_additivity_errors_match_hand_computed_values():
+    """The absolute anchor for seed 0 medium. Guards every later refactor.
+
+    Built as _run_check builds it: ExperimentSession(org, budget=31, seed=0).
+    The session seed drives _generate_tasks, so a session built without it
+    asks different questions. task_00 is G019 BOOST with G010 DAMPEN;
+    task_01 is G019 BOOST with G007 BOOST. Both land inside the 0.10
+    threshold.
+    """
+    _, _, result, _, _ = _run_check(0, "medium")
+    by_id = {t["task_id"]: t for t in result["tasks"]}
+    assert by_id["task_00"]["max_additive_error"] == 0.0084
+    assert by_id["task_01"]["max_additive_error"] == 0.034
+    assert result["n_additively_solvable"] == 2
+    assert result["n_tasks"] == 2
+
+
+def test_missing_gene_in_effects_raises_and_names_the_gene():
+    _, session, baseline, effects = _seed0_medium_parts()
+    gene_id, _ = _first_gene_and_type(session._tasks["task_00"])
+    del effects[gene_id]
+    with pytest.raises(KeyError) as exc:
+        vo.check_additivity(session, effects, baseline)
+    assert gene_id in str(exc.value)
+    assert "task_00" in str(exc.value)
+
+
+def test_missing_intervention_type_in_effects_raises():
+    _, session, baseline, effects = _seed0_medium_parts()
+    gene_id, itype = _first_gene_and_type(session._tasks["task_00"])
+    del effects[gene_id][itype]
+    with pytest.raises(KeyError) as exc:
+        vo.check_additivity(session, effects, baseline)
+    assert itype in str(exc.value)
+    assert "task_00" in str(exc.value)
+
+
+def test_missing_phenotype_in_measured_effects_raises():
+    _, session, baseline, effects = _seed0_medium_parts()
+    gene_id, itype = _first_gene_and_type(session._tasks["task_00"])
+    del effects[gene_id][itype]["signal-output"]
+    with pytest.raises(KeyError) as exc:
+        vo.check_additivity(session, effects, baseline)
+    assert "signal-output" in str(exc.value)
+    assert "task_00" in str(exc.value)
+
+
+def test_missing_phenotype_in_ground_truth_raises():
+    _, session, baseline, effects = _seed0_medium_parts()
+    del session._tasks["task_00"].ground_truth["signal-output"]
+    with pytest.raises(KeyError) as exc:
+        vo.check_additivity(session, effects, baseline)
+    assert "signal-output" in str(exc.value)
+    assert "task_00" in str(exc.value)
+
+
+def test_check_additivity_refuses_a_disease_organism():
+    """_noiseless_phenotypes passes active_signals={}, so a chronic PERSIST
+    override is dropped and the additive model would be built against healthy
+    dynamics. Refuse rather than report a confident wrong number."""
+    org = generate_disease_organism(seed=0, difficulty="medium")
+    session = ExperimentSession(org, budget=31, seed=0)
+    baseline = vo._noiseless_phenotypes(org, {})
+    effects = vo._noiseless_single_gene_effects(org, baseline, list(baseline))
+    with pytest.raises(ValueError, match="malfunction"):
+        vo.check_additivity(session, effects, baseline)

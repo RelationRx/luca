@@ -121,8 +121,22 @@ def check_additivity(
     the task asks for. ``effects`` is the output of
     _noiseless_single_gene_effects: {gene_id: {intervention_type: {ph: delta}}}.
 
+    Raises ValueError if the organism carries a malfunction, and KeyError if
+    any measurement the additive model needs is absent. Nothing is defaulted.
+
     Returns dict with per-task results and summary flags.
     """
+    malfunctions = getattr(session.organism, "malfunctions", None) or []
+    if malfunctions:
+        raise ValueError(
+            f"check_additivity models healthy dynamics only, but organism "
+            f"{session.organism.id} carries {len(malfunctions)} malfunction(s): "
+            f"{sorted(m.type for m in malfunctions)}. _noiseless_phenotypes "
+            f"passes active_signals={{}}, so a chronic signal override is "
+            f"dropped from the additive model but not from task.ground_truth, "
+            f"and the comparison would be between two different organisms."
+        )
+
     ph_labels = list(baseline.keys())
     task_results = []
     gene_id_to_name = {g.id: g.name for g in session.organism.genes}
@@ -137,17 +151,52 @@ def check_additivity(
         # measured decrease instead of adding it. The deltas are now added as
         # measured, and the result is clipped once at the end rather than after
         # each gene, so the order of the genes cannot change the answer.
+        #
+        # Issue 3, the third half: every lookup below used to carry a default
+        # (`.get(gene_id, {})`, `.get(ph, 0.0)`, `.get(ph, 0.5)`). That is the
+        # same silent-zero mechanism that caused issue 3 in the first place: a
+        # missing measurement became a confident 0.0 and the verifier reported
+        # a number instead of a problem. Every one of them now raises.
         additive = dict(baseline)
         for gene_id, iv in task.interventions.items():
-            iv_type = iv.get("type", "BLOCK") if isinstance(iv, dict) else iv
+            if isinstance(iv, dict):
+                if "type" not in iv:
+                    raise KeyError(
+                        f"{task_id}: intervention on {gene_id} has no 'type' "
+                        f"key: {iv!r}"
+                    )
+                iv_type = iv["type"]
+            else:
+                iv_type = iv
             iv_type = str(iv_type).upper()
-            gene_effects = effects.get(gene_id, {}).get(iv_type, {})
+            if gene_id not in effects:
+                raise KeyError(
+                    f"{task_id}: no measured effects for gene {gene_id}. "
+                    f"Measured genes: {sorted(effects)}"
+                )
+            if iv_type not in effects[gene_id]:
+                raise KeyError(
+                    f"{task_id}: gene {gene_id} was never measured under "
+                    f"{iv_type}. Measured types: {sorted(effects[gene_id])}"
+                )
+            gene_effects = effects[gene_id][iv_type]
             for ph in ph_labels:
-                additive[ph] = additive[ph] + gene_effects.get(ph, 0.0)
+                if ph not in gene_effects:
+                    raise KeyError(
+                        f"{task_id}: no measured delta for phenotype {ph!r} on "
+                        f"{gene_id} under {iv_type}"
+                    )
+                additive[ph] = additive[ph] + gene_effects[ph]
         additive = {ph: max(0.0, min(1.0, v)) for ph, v in additive.items()}
 
         gt = task.ground_truth
-        errors = {ph: abs(additive[ph] - gt.get(ph, 0.5)) for ph in ph_labels}
+        for ph in ph_labels:
+            if ph not in gt:
+                raise KeyError(
+                    f"{task_id}: ground truth carries no phenotype {ph!r}. "
+                    f"Ground truth labels: {sorted(gt)}"
+                )
+        errors = {ph: abs(additive[ph] - gt[ph]) for ph in ph_labels}
         within_threshold = all(e <= ACCURACY_THRESHOLD for e in errors.values())
         max_error = max(errors.values())
 
