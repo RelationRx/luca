@@ -58,8 +58,16 @@ ACCURACY_THRESHOLD = 0.10   # same threshold used in scoring
 # Core checks
 # ---------------------------------------------------------------------------
 
-def _noiseless_phenotypes(org, interventions: dict) -> dict[str, float]:
-    """Run simulate_sigmoid with a fixed rng seed, then recompute phenotypes noise-free."""
+def _readout_noise_free_phenotypes(org, interventions: dict) -> dict[str, float]:
+    """Simulate with a fixed rng seed, then recompute phenotypes with noise off.
+
+    This suppresses *readout* noise only. State noise is still applied inside
+    simulate_sigmoid at every step, and it survives here. Seed 0 hard, with no
+    interventions, settles at displacement-score 0.4691, energy-state 0.5755
+    and expansion-rate 0.5100 at max_steps_reached, although the generator
+    centres every phenotype on 0.5. The earlier name, _noiseless_phenotypes,
+    claimed more than the function does.
+    """
     result = simulate_sigmoid(
         org,
         interventions=interventions,
@@ -98,7 +106,7 @@ def _noiseless_single_gene_effects(
             continue
         per_type: dict[str, dict[str, float]] = {}
         for itype in INTERVENTION_TYPES:
-            phenotypes = _noiseless_phenotypes(org, {gene.id: {"type": itype}})
+            phenotypes = _readout_noise_free_phenotypes(org, {gene.id: {"type": itype}})
             per_type[itype] = {
                 ph: phenotypes.get(ph, baseline[ph]) - baseline[ph]
                 for ph in ph_labels
@@ -109,7 +117,7 @@ def _noiseless_single_gene_effects(
 
 def check_additivity(
     session: ExperimentSession,
-    effects: dict[str, dict[str, float]],
+    effects: dict[str, dict[str, dict[str, float]]],
     baseline: dict[str, float],
 ) -> dict:
     """
@@ -131,7 +139,7 @@ def check_additivity(
         raise ValueError(
             f"check_additivity models healthy dynamics only, but organism "
             f"{session.organism.id} carries {len(malfunctions)} malfunction(s): "
-            f"{sorted(m.type for m in malfunctions)}. _noiseless_phenotypes "
+            f"{sorted(m.type for m in malfunctions)}. _readout_noise_free_phenotypes "
             f"passes active_signals={{}}, so a chronic signal override is "
             f"dropped from the additive model but not from task.ground_truth, "
             f"and the comparison would be between two different organisms."
@@ -244,7 +252,7 @@ def check_latent_relevance(
     for gene in org.genes:
         if gene.id not in latent:
             continue
-        phenotypes = _noiseless_phenotypes(org, {gene.id: {"type": "BLOCK"}})
+        phenotypes = _readout_noise_free_phenotypes(org, {gene.id: {"type": "BLOCK"}})
         shifts = {
             ph: abs(phenotypes.get(ph, baseline[ph]) - baseline[ph])
             for ph in ph_labels
@@ -284,7 +292,7 @@ def verify_organism(seed: int, difficulty: str) -> dict:
     # each other, so the reference must be the noiseless baseline too. The
     # session's reported baseline carries readout noise, which at the hard tier
     # is sigma 0.06 against a +-0.10 threshold.
-    baseline = _noiseless_phenotypes(org, {})
+    baseline = _readout_noise_free_phenotypes(org, {})
 
     # 1. Structural check
     n_latent_actual = len(org.latent_genes)

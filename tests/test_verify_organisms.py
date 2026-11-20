@@ -41,12 +41,18 @@ vo = _load_verify_organisms()
 
 
 # ---------------------------------------------------------------------------
-# A second, independent path to the same quantity.
+# A second path to the same quantity.
 #
-# This repeats none of verify_organisms.py's code. It is the recipe the
-# November 2026 review used: measure each of the task's own interventions on
-# its own, add the deltas to the unperturbed baseline, clip once, and compare
-# with ground truth.
+# It is NOT independent, and must not be described as one. `_noiseless` below
+# is a copy of verify_organisms._readout_noise_free_phenotypes, down to the
+# default_rng(0) stream, so the two paths share the same conception of what a
+# noise-free phenotype is. A conceptual error common to both is invisible here,
+# and one was: neither path noticed that the readout noise in task.ground_truth
+# is what makes the hard tier read 18/40 rather than 34/40.
+#
+# What this path does check is the arithmetic: measure each of the task's own
+# interventions on its own, add the deltas to the unperturbed baseline, clip
+# once, and compare with ground truth.
 # ---------------------------------------------------------------------------
 
 THRESHOLD = 0.10
@@ -62,7 +68,7 @@ def _noiseless(org, interventions):
     )
 
 
-def _independent_task_errors(org, task):
+def _second_path_task_errors(org, task):
     """Max |additive prediction - ground truth| over the phenotypes of one task."""
     baseline = _noiseless(org, {})
     additive = dict(baseline)
@@ -76,14 +82,14 @@ def _independent_task_errors(org, task):
     )
 
 
-def _independent_rate(tier, n_seeds=20):
+def _second_path_rate(tier, n_seeds=20):
     solved = total = 0
     for seed in range(n_seeds):
         org = generate_organism(seed=seed, difficulty=tier)
         session = ExperimentSession(org, budget=31, seed=seed)
         for task in session._tasks.values():
             total += 1
-            if _independent_task_errors(org, task) <= THRESHOLD:
+            if _second_path_task_errors(org, task) <= THRESHOLD:
                 solved += 1
     return solved, total
 
@@ -91,7 +97,7 @@ def _independent_rate(tier, n_seeds=20):
 def _run_check(seed, tier):
     org = generate_organism(seed=seed, difficulty=tier)
     session = ExperimentSession(org, budget=31, seed=seed)
-    baseline = vo._noiseless_phenotypes(org, {})
+    baseline = vo._readout_noise_free_phenotypes(org, {})
     effects = vo._noiseless_single_gene_effects(org, baseline, list(baseline))
     return session, org, vo.check_additivity(session, effects, baseline), effects, baseline
 
@@ -127,12 +133,16 @@ def test_an_empty_effects_dict_is_refused_not_answered():
 # Issue 3, second half — the sign, and the resulting published rates
 # ---------------------------------------------------------------------------
 
-def test_reported_error_matches_an_independent_computation():
-    """One absolute anchor: the verifier's own number, re-derived another way."""
+def test_reported_error_matches_a_second_computation():
+    """The verifier's own number, re-derived by the second path above.
+
+    This checks the arithmetic, not the concept: the second path shares the
+    helper and the rng stream. See the comment block above.
+    """
     session, org, result, _effects, _baseline = _run_check(0, "medium")
     by_task = {t["task_id"]: t["max_additive_error"] for t in result["tasks"]}
     for task_id, task in session._tasks.items():
-        expected = round(_independent_task_errors(org, task), 4)
+        expected = round(_second_path_task_errors(org, task), 4)
         assert by_task[task_id] == pytest.approx(expected, abs=5e-4), task_id
 
 
@@ -152,10 +162,10 @@ def test_additive_rate_reproduces_the_november_2026_measurement(
     assert (solved, total) == (expected_solved, expected_total)
 
 
-def test_the_independent_path_agrees_with_the_published_rates():
+def test_the_second_path_agrees_with_the_published_rates():
     """Guards the anchor itself: if this drifts, the rates above are stale."""
-    assert _independent_rate("medium") == (40, 40)
-    assert _independent_rate("hard") == (18, 40)
+    assert _second_path_rate("medium") == (40, 40)
+    assert _second_path_rate("hard") == (18, 40)
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +182,7 @@ def _seed0_medium_parts():
     """The inputs check_additivity takes, without calling it."""
     org = generate_organism(seed=0, difficulty="medium")
     session = ExperimentSession(org, budget=31, seed=0)
-    baseline = vo._noiseless_phenotypes(org, {})
+    baseline = vo._readout_noise_free_phenotypes(org, {})
     effects = vo._noiseless_single_gene_effects(org, baseline, list(baseline))
     return org, session, baseline, effects
 
@@ -241,12 +251,12 @@ def test_missing_phenotype_in_ground_truth_raises():
 
 
 def test_check_additivity_refuses_a_disease_organism():
-    """_noiseless_phenotypes passes active_signals={}, so a chronic PERSIST
+    """_readout_noise_free_phenotypes passes active_signals={}, so a chronic PERSIST
     override is dropped and the additive model would be built against healthy
     dynamics. Refuse rather than report a confident wrong number."""
     org = generate_disease_organism(seed=0, difficulty="medium")
     session = ExperimentSession(org, budget=31, seed=0)
-    baseline = vo._noiseless_phenotypes(org, {})
+    baseline = vo._readout_noise_free_phenotypes(org, {})
     effects = vo._noiseless_single_gene_effects(org, baseline, list(baseline))
     with pytest.raises(ValueError, match="malfunction"):
         vo.check_additivity(session, effects, baseline)
