@@ -684,9 +684,32 @@ class ExperimentSession:
         if sealed is not None:
             return {"error": _sealed_message(sealed)}
 
-        # Rescue must be achieved *despite* the chronic malfunction signal —
-        # it cannot be switched off, only compensated for.
-        signal_overrides.update(self._malfunction_signal_overrides)
+        # Issue 19. The chronic override is re-applied here as it is in
+        # run_experiment, with one difference, and the difference is the whole
+        # point of this method.
+        #
+        # run_experiment keeps the strict rule: an agent exploring the organism
+        # cannot switch the disease off, only work around it.
+        #
+        # test_rescue is the call that proposes the cure, and for a PERSIST
+        # malfunction the cure the generator certifies IS switching the signal
+        # off. Re-applying the override here made that one rescue impossible:
+        # every PERSIST organism scored restored_fraction 0.0, whatever the
+        # agent proposed.
+        #
+        # So a signal the agent names here, if it is the malfunctioning one, is
+        # dropped from both maps. Dropping from both returns the signal to its
+        # normal strength, which is the state _verify_rescue_combo certifies.
+        # That is not the same as holding it at 0.0. The session's own record
+        # of the disease is not edited, so the next call is diseased again.
+        cancelled = set(signal_overrides) & set(self._malfunction_signal_overrides)
+        for sig_id in sorted(cancelled):
+            del signal_overrides[sig_id]
+        signal_overrides.update({
+            sig_id: value
+            for sig_id, value in self._malfunction_signal_overrides.items()
+            if sig_id not in cancelled
+        })
 
         result = simulate_sigmoid(
             self.organism,
