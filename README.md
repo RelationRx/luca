@@ -1,38 +1,21 @@
 # LUCA
 
-> ### ⚠️ Status — read before using this benchmark
+> ### Development status — November 2026
 >
-> A November 2026 code review found defects in this benchmark. **After several
-> bug fixes the environment is operational**, and it is what we are maintaining.
-> An experiment now either applies what the agent asked for or returns an error;
-> it no longer costs budget and returns a normal result while applying nothing.
+> Following an internal review, we are fixing and validating LUCA v1 to provide
+> a reliable environment for others to build on. Several fixes are already
+> available, with broader improvements to the generator and API planned for
+> LUCA v2.
 >
-> **The fixes changed some numbers.** Results you generate now will differ from
-> the numbers in our earlier write-ups. We are fixing the environment so others
-> can build on it; we are not trying to reproduce our earlier tables to the
-> decimal. Record the commit you run, not only the seed.
+> Fixes affect benchmark results. Record the commit alongside your seeds, and
+> rerun evaluations before comparing results across versions or against earlier
+> published tables.
 >
-> Every known defect in **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** carries a bucket.
-> **v1** means we are fixing it now, before others build on this. **v2** means
-> it is recorded and waits for the LUCA v2 redesign, because it needs a
-> generator change or a decision about what the API should mean.
->
-> Three things to know before you start:
->
-> - **The easy and medium tiers do not test non-additive causal reasoning.**
->   All 40 canonical tasks at each tier are solvable by measuring the genes
->   separately and adding the effects. That is a property of the generator, so
->   it is a v2 item rather than something patched here.
-> - **Disease mode with a `PERSIST` malfunction does not work yet.** The rescue
->   the generator certifies cannot be performed through the API, and the
->   malfunction itself is simulated with an inverted sign. Both are v1 and are
->   being fixed. Gene malfunctions are not affected.
-> - **Check which `luca` your tests import.** Until 2026-11-20 a bare `pytest`
->   from this directory could import a different checkout. Run
->   `python -c "import luca; print(luca.__file__)"` and confirm the path is
->   inside your own checkout.
->
-> The audit continues, so the issue list is not final.
+> Some limitations remain: PERSIST signal malfunctions are not yet supported
+> reliably, and the canonical easy and medium prediction tasks are solvable
+> using additive strategies. See **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** for
+> current limitations, fix status, and the distinction between v1 fixes and v2
+> changes.
 
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
