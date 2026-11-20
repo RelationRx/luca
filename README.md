@@ -1,17 +1,21 @@
 # LUCA
 
-> ### ⚠️ Known issues — read before using this benchmark
+> ### Development status — November 2026
 >
-> A November 2026 code review found defects in the benchmark engine and in
-> the analysis scripts behind our published numbers. Fixes are in progress
-> and an audit is still running, so the list is not final.
+> Following an internal review, we are fixing and validating LUCA v1 to provide
+> a reliable environment for others to build on. Several fixes are already
+> available, with broader improvements to the generator and API planned for
+> LUCA v2.
 >
-> In particular: **our cross-model comparisons are not safe** — the tool layer
-> silently discarded some models' experiments and not others'; the **easy and
-> medium tiers do not test non-additive causal reasoning** as the text below
-> claims; and the **baseline numbers are wrong**. See
-> **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** before relying on anything here, and
-> record the commit you run.
+> Fixes affect benchmark results. Record the commit alongside your seeds, and
+> rerun evaluations before comparing results across versions or against earlier
+> published tables.
+>
+> Some limitations remain: PERSIST signal malfunctions are not yet supported
+> reliably, and the canonical easy and medium prediction tasks are solvable
+> using additive strategies. See **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** for
+> current limitations, fix status, and the distinction between v1 fixes and v2
+> changes.
 
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
@@ -39,7 +43,7 @@ The world is **unknowable via retrieval** — gene names, module labels, signals
 
    **`medium` is the default** and defines the canonical benchmark split (seeds 0–19). The canonical configuration uses N=20 genes, 4 modules, 3 phenotypes, 3 signals, and budget B=31. FFL and feedback densities are fractions of `n_genes`, so complexity scales with organism size. Latent genes = hidden confounders never visible or targetable. Steepness β controls sigmoid non-linearity — higher β makes dynamics harder to linearise.
 
-   > **Easy tier note**: 3/20 easy organisms have near-linear dynamics where prediction tasks are solvable by additive approximation. This is an inherent property of low-feedback networks, reported transparently. Medium and hard are fully non-trivial (0/20 additive tasks on medium and hard).
+   > **Additivity, measured** (corrected 2026-11-19 — this note previously reported 0/20 additive tasks on medium and hard, which was an artefact of a broken verifier; see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) issues 2 and 3): over seeds 0–19, **easy 40/40** and **medium 40/40** prediction tasks are solvable by measuring each gene separately and adding the effects. **Hard is 18/40** against the ground truth the engine stores, and **34/40** against a noise-free ground truth — `task.ground_truth` carries readout noise that at this tier averages 0.072 against a 0.10 threshold, so most of that gap is noise rather than sigmoid interaction. Only the hard tier tests non-additive reasoning, and only about 6 of its 40 tasks do so for the reason the design intends. `pytest tests/test_verify_organisms.py` pins the first number; the noise-free number is not yet covered by a test.
 
 3. **Named phenotype readouts** — non-linear summaries of an organism state e.g `"expansion-rate"` depending on gene states. The agent sees readout names and values, not raw gene states.
 4. **JSON/YAML serialization** — organisms are fully serializable for reproducibility and offline evaluation.

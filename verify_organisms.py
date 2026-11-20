@@ -8,11 +8,17 @@ For each seed × difficulty, runs three checks:
    (latent gene fraction, n_genes, n_phenotypes) per DIFFICULTY_PRESETS.
 
 2. ADDITIVITY CHECK
-   For each prediction task, computes an additive prediction from noiseless
-   single-gene BLOCK effects and tests whether it falls within ±0.10 of
+   For each prediction task, measures each of the task's genes on its own
+   under the intervention type the task asks for, adds those deltas to the
+   noiseless baseline, and tests whether the result falls within ±0.10 of
    ground truth for all phenotypes. If *all* tasks are additively solvable,
    the organism is functionally too easy for its tier — no causal reasoning
    required.
+
+   Corrected 2026-11-19. This check previously keyed its measured effects by
+   gene name while the tasks key by gene id, so every effect read as zero,
+   and it subtracted the effects it did measure. It reported every task at
+   every tier as non-additive. See KNOWN_ISSUES.md issue 3.
 
 3. LATENT GENE RELEVANCE CHECK (hard tier only)
    Verifies at least one latent gene has a measurable effect on at least one
@@ -23,9 +29,9 @@ Output: a summary table + per-seed JSONL file.
 
 Usage
 -----
-    python experiments/paper_v1/verify_organisms.py
-    python experiments/paper_v1/verify_organisms.py --difficulty hard
-    python experiments/paper_v1/verify_organisms.py --seeds 0:20 --difficulty hard
+    python verify_organisms.py
+    python verify_organisms.py --difficulty hard
+    python verify_organisms.py --seeds 0:20 --difficulty hard
 """
 from __future__ import annotations
 
@@ -36,7 +42,9 @@ from pathlib import Path
 
 import numpy as np
 
-REPO_ROOT = Path(__file__).parent.parent.parent
+# This file used to live under experiments/paper_v1/; it is now at the repo
+# root, so the root is its own directory.
+REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from luca import generate_organism, ExperimentSession           # noqa: E402
@@ -50,8 +58,16 @@ ACCURACY_THRESHOLD = 0.10   # same threshold used in scoring
 # Core checks
 # ---------------------------------------------------------------------------
 
-def _noiseless_phenotypes(org, interventions: dict) -> dict[str, float]:
-    """Run simulate_sigmoid with a fixed rng seed, then recompute phenotypes noise-free."""
+def _readout_noise_free_phenotypes(org, interventions: dict) -> dict[str, float]:
+    """Simulate with a fixed rng seed, then recompute phenotypes with noise off.
+
+    This suppresses *readout* noise only. State noise is still applied inside
+    simulate_sigmoid at every step, and it survives here. Seed 0 hard, with no
+    interventions, settles at displacement-score 0.4691, energy-state 0.5755
+    and expansion-rate 0.5100 at max_steps_reached, although the generator
+    centres every phenotype on 0.5. The earlier name, _noiseless_phenotypes,
+    claimed more than the function does.
+    """
     result = simulate_sigmoid(
         org,
         interventions=interventions,
@@ -61,63 +77,148 @@ def _noiseless_phenotypes(org, interventions: dict) -> dict[str, float]:
     return compute_phenotypes(org, result["final_state"], rng=np.random.default_rng(0), noise=False)
 
 
+INTERVENTION_TYPES = ("BLOCK", "BOOST", "DAMPEN")
+
+
 def _noiseless_single_gene_effects(
     org,
     baseline: dict[str, float],
     ph_labels: list[str],
-) -> dict[str, dict[str, float]]:
+) -> dict[str, dict[str, dict[str, float]]]:
     """
-    Compute noiseless phenotype delta for BLOCKing each observable gene.
-    Returns {gene_name: {ph_label: delta}}.
+    Compute the noiseless phenotype delta of each intervention type on each
+    observable gene. Returns ``{gene_id: {intervention_type: {ph_label: delta}}}``.
+
+    Issue 3 of the November 2026 review: this used to key the result by
+    ``gene.name`` (``G019``) while ``PredictionTask.interventions`` keys by
+    ``gene.id`` (``g_019``). check_additivity looked up the id in the
+    name-keyed dict, found nothing, and fell back to 0.0 for every effect.
+    The key here is now the one the tasks use.
+
+    The same issue: it also measured only a BLOCK delta, which is the wrong
+    quantity for a task that asks for BOOST or DAMPEN. Every type is measured.
     """
-    effects: dict[str, dict[str, float]] = {}
+    effects: dict[str, dict[str, dict[str, float]]] = {}
     latent = set(org.latent_genes)
 
     for gene in org.genes:
         if gene.id in latent:
             continue
-        phenotypes = _noiseless_phenotypes(org, {gene.id: {"type": "BLOCK"}})
-        effects[gene.name] = {
-            ph: phenotypes.get(ph, baseline[ph]) - baseline[ph]
-            for ph in ph_labels
-        }
+        per_type: dict[str, dict[str, float]] = {}
+        for itype in INTERVENTION_TYPES:
+            phenotypes = _readout_noise_free_phenotypes(org, {gene.id: {"type": itype}})
+            per_type[itype] = {
+                # Direct index: both sides come from compute_phenotypes on
+                # the same organism, so a missing label is a bug, not a zero.
+                ph: phenotypes[ph] - baseline[ph]
+                for ph in ph_labels
+            }
+        effects[gene.id] = per_type
     return effects
 
 
 def check_additivity(
     session: ExperimentSession,
-    effects: dict[str, dict[str, float]],
+    effects: dict[str, dict[str, dict[str, float]]],
     baseline: dict[str, float],
 ) -> dict:
     """
-    For each prediction task, test whether the additive model (sum of
-    single-gene BLOCK/BOOST effects) predicts within ±0.10 of ground truth.
+    For each prediction task, test whether the additive model predicts within
+    ±0.10 of ground truth on every phenotype.
+
+    The additive model is the noiseless baseline plus, for each gene the task
+    intervenes on, that gene's own measured delta under the intervention type
+    the task asks for. ``effects`` is the output of
+    _noiseless_single_gene_effects: {gene_id: {intervention_type: {ph: delta}}}.
+
+    Raises ValueError if the organism carries a malfunction, and KeyError if
+    any measurement the additive model needs is absent. Nothing is defaulted.
 
     Returns dict with per-task results and summary flags.
     """
+    malfunctions = getattr(session.organism, "malfunctions", None) or []
+    if malfunctions:
+        raise ValueError(
+            f"check_additivity models healthy dynamics only, but organism "
+            f"{session.organism.id} carries {len(malfunctions)} malfunction(s): "
+            f"{sorted(m.type for m in malfunctions)}. For PERSIST this is "
+            f"unsound: _readout_noise_free_phenotypes passes "
+            f"active_signals={{}}, so the chronic signal override is dropped "
+            f"from the additive model but not from task.ground_truth. LOCK_HI "
+            f"and LOCK_LO live in organism.dynamics.rule, which both sides "
+            f"read, so those are in principle comparable. They are refused too "
+            f"because none of this has been measured against a disease organism."
+        )
+
     ph_labels = list(baseline.keys())
     task_results = []
+    gene_id_to_name = {g.id: g.name for g in session.organism.genes}
 
     for task_id, task in session._tasks.items():
-        # Build additive prediction
+        # Build the additive prediction: baseline plus each gene's own measured
+        # delta under the intervention type the task asks for.
+        #
+        # Issue 3, the second half: this used to multiply BLOCK deltas by
+        # -1.0, although the
+        # measured quantity is already a BLOCK delta. That subtracted a
+        # measured decrease instead of adding it. The deltas are now added as
+        # measured, and the result is clipped once at the end rather than after
+        # each gene, so the order of the genes cannot change the answer.
+        #
+        # Issue 3, the third half: every lookup below used to carry a default
+        # (`.get(gene_id, {})`, `.get(ph, 0.0)`, `.get(ph, 0.5)`). That is the
+        # same silent-zero mechanism that caused issue 3 in the first place: a
+        # missing measurement became a confident 0.0 and the verifier reported
+        # a number instead of a problem. Every one of them now raises.
         additive = dict(baseline)
-        for gene_name, iv in task.interventions.items():
-            iv_type = iv.get("type", "BLOCK") if isinstance(iv, dict) else iv
-            sign = -1.0 if iv_type == "BLOCK" else 1.0
-            gene_effects = effects.get(gene_name, {})
+        for gene_id, iv in task.interventions.items():
+            if isinstance(iv, dict):
+                if "type" not in iv:
+                    raise KeyError(
+                        f"{task_id}: intervention on {gene_id} has no 'type' "
+                        f"key: {iv!r}"
+                    )
+                iv_type = iv["type"]
+            else:
+                iv_type = iv
+            iv_type = str(iv_type).upper()
+            if gene_id not in effects:
+                raise KeyError(
+                    f"{task_id}: no measured effects for gene {gene_id}. "
+                    f"Measured genes: {sorted(effects)}"
+                )
+            if iv_type not in effects[gene_id]:
+                raise KeyError(
+                    f"{task_id}: gene {gene_id} was never measured under "
+                    f"{iv_type}. Measured types: {sorted(effects[gene_id])}"
+                )
+            gene_effects = effects[gene_id][iv_type]
             for ph in ph_labels:
-                additive[ph] = additive[ph] + sign * gene_effects.get(ph, 0.0)
-                additive[ph] = max(0.0, min(1.0, additive[ph]))
+                if ph not in gene_effects:
+                    raise KeyError(
+                        f"{task_id}: no measured delta for phenotype {ph!r} on "
+                        f"{gene_id} under {iv_type}"
+                    )
+                additive[ph] = additive[ph] + gene_effects[ph]
+        additive = {ph: max(0.0, min(1.0, v)) for ph, v in additive.items()}
 
         gt = task.ground_truth
-        errors = {ph: abs(additive[ph] - gt.get(ph, 0.5)) for ph in ph_labels}
+        for ph in ph_labels:
+            if ph not in gt:
+                raise KeyError(
+                    f"{task_id}: ground truth carries no phenotype {ph!r}. "
+                    f"Ground truth labels: {sorted(gt)}"
+                )
+        errors = {ph: abs(additive[ph] - gt[ph]) for ph in ph_labels}
         within_threshold = all(e <= ACCURACY_THRESHOLD for e in errors.values())
         max_error = max(errors.values())
 
         task_results.append({
             "task_id": task_id,
             "interventions": {
-                g: (iv.get("type") if isinstance(iv, dict) else iv)
+                gene_id_to_name[g]: (
+                    iv.get("type") if isinstance(iv, dict) else iv
+                )
                 for g, iv in task.interventions.items()
             },
             "max_additive_error": round(max_error, 4),
@@ -156,9 +257,9 @@ def check_latent_relevance(
     for gene in org.genes:
         if gene.id not in latent:
             continue
-        phenotypes = _noiseless_phenotypes(org, {gene.id: {"type": "BLOCK"}})
+        phenotypes = _readout_noise_free_phenotypes(org, {gene.id: {"type": "BLOCK"}})
         shifts = {
-            ph: abs(phenotypes.get(ph, baseline[ph]) - baseline[ph])
+            ph: abs(phenotypes[ph] - baseline[ph])
             for ph in ph_labels
         }
         relevant = any(s > threshold for s in shifts.values())
@@ -192,7 +293,13 @@ def verify_organism(seed: int, difficulty: str) -> dict:
         return {"seed": seed, "difficulty": difficulty, "error": f"session: {e}"}
 
     ph_labels = list(session.get_info()["baseline_phenotypes"].keys())
-    baseline = session.get_info()["baseline_phenotypes"]
+    # The additivity and latent checks compare simulations against each other,
+    # so the reference must come from the same simulation path. It is NOT that
+    # session.get_info()["baseline_phenotypes"] is noisy — it is not;
+    # _compute_baseline_phenotypes passes noise=False. It reads
+    # organism.baseline_state instead of re-simulating, so comparing a
+    # re-simulated perturbation against it would mix two procedures.
+    baseline = _readout_noise_free_phenotypes(org, {})
 
     # 1. Structural check
     n_latent_actual = len(org.latent_genes)
@@ -216,8 +323,8 @@ def verify_organism(seed: int, difficulty: str) -> dict:
 
     # 5. Observable gene coverage — what fraction of genes have any phenotype effect
     genes_with_effect = sum(
-        1 for g, effs in effects.items()
-        if any(abs(d) > 0.05 for d in effs.values())
+        1 for g, per_type in effects.items()
+        if any(abs(d) > 0.05 for d in per_type["BLOCK"].values())
     )
     coverage = genes_with_effect / max(len(effects), 1)
 

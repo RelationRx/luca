@@ -42,3 +42,8 @@ include = ["luca*"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: regenerates all 60 canonical organisms; deselect with -m 'not slow'",
+]
