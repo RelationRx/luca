@@ -106,17 +106,16 @@ class ExperimentSession:
         # live in dynamics.rule, but signal malfunctions do not. Every
         # simulation in this session must therefore include these overrides.
         # Without them, only the displayed baseline is diseased, and any
-        # experiment appears to cure the organism. The value convention
-        # (strength * severity, negated for inhibiting signals) matches
+        # experiment appears to cure the organism. The value convention is an
+        # UNSIGNED magnitude (strength * severity): dynamics.simulate_sigmoid
+        # applies the mode sign itself, so a value signed here would sign it
+        # twice and make a jammed inhibitor activate. This matches
         # chronic_signal_overrides in generation.py.
         self._malfunction_signal_overrides: dict[str, float] = {}
         for m in organism.malfunctions or []:
             if m.type == "PERSIST":
                 sig = next(s for s in organism.signals if s.id == m.target)
-                amp = sig.strength * m.severity
-                self._malfunction_signal_overrides[m.target] = (
-                    amp if sig.mode == "activates" else -amp
-                )
+                self._malfunction_signal_overrides[m.target] = sig.strength * m.severity
 
         # Network reconstruction state
         self._submitted_network: list[dict] | None = None
