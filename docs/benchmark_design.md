@@ -300,6 +300,18 @@ values. Key properties:
   and do nothing, which returned the held-out answer. A signal change is part
   of the comparison: the task's genes under a changed signal is a different
   experiment, and it is allowed.
+  The seal was **not** airtight between 2026-11-19 and 2026-11-21. A session
+  whose two tasks asked the same question let an agent answer the first,
+  unseal the combination, then run it and submit the measured values for the
+  second. On medium seed 10 that scored accuracy 1.0; see
+  [KNOWN_ISSUES.md](../KNOWN_ISSUES.md) issue 15. A separate escape through a
+  signal change is open and bucketed v2; see issue 21, and read a prediction
+  score as an upper bound.
+- **Distinct within a session**: no two tasks of one organism carry the same
+  gene-and-type combination. Enforced from 2026-11-21. The generator rejects a
+  candidate whose signature repeats a task already built, using the same
+  comparison the seal uses, and raises rather than emitting a duplicate. Before
+  that date 7 of 900 organisms over seeds 0–299 asked one question twice.
 - **Sequential reveal**: tasks are released one at a time. Task 2 is not visible
   until task 1 is submitted, so the agent cannot observe task 2's intervention
   directly before predicting it.

@@ -142,6 +142,19 @@ class ExperimentSession:
         This ensures prediction tasks require genuine causal reasoning rather than
         "predict baseline and score well". If no non-trivial task is found after
         max_retries, the attempt with the largest shift is used.
+
+        Distinctness guarantee (issue 15): no two tasks of one session carry the
+        same gene-and-type combination. A duplicate would break the issue 1
+        held-out seal, because _sealed_task_for locks a task only while it is
+        revealed and unanswered. Sameness is _intervention_signature, the same
+        comparison the seal uses, so the two cannot drift apart. A candidate
+        that repeats an existing task is rejected before it is simulated, and
+        the set is seeded from self._tasks so a repeated call stays distinct.
+
+        Raises RuntimeError if max_retries attempts all repeat an existing task.
+        ExperimentSession.__init__ calls this, so a caller that asks for more
+        prediction tasks than the organism can supply gets that error from the
+        constructor rather than a duplicate task.
         """
         iv_types = ["BLOCK", "BOOST", "DAMPEN"]
         latent_ids = set(self.organism.latent_genes)
@@ -167,7 +180,14 @@ class ExperimentSession:
         # unsealed, then submit the measured values for the identical task_01.
         # The signature is the same one the seal uses, so the generator and the
         # seal cannot drift apart on what "the same experiment" means.
-        seen_signatures: set[frozenset] = set()
+        # Seeded from the tasks that already exist, not empty. A second call
+        # with a smaller n overwrites the low ids and leaves the high ones in
+        # place, so a per-call set would let a rebuilt task repeat a surviving
+        # one. easy seed 6 did exactly that. Found by the code review.
+        seen_signatures: set[frozenset] = {
+            self._intervention_signature(t.interventions)
+            for t in self._tasks.values()
+        }
 
         for i in range(n):
             best_interventions = None
@@ -224,11 +244,13 @@ class ExperimentSession:
                 # confident wrong value.
                 raise RuntimeError(
                     f"_generate_tasks: could not find a distinct task {i} after "
-                    f"{max_retries} attempts; every candidate repeated a task already "
-                    f"built. organism seed {self.organism.seed}, difficulty "
+                    f"{max_retries} attempts; every candidate repeated one of the "
+                    f"{len(seen_signatures)} task signatures already built. organism "
+                    f"seed {self.organism.seed}, difficulty "
                     f"{self.organism.difficulty!r}, session seed {self._seed}, n={n}. "
-                    "The observable gene pool is too small for this many tasks. "
-                    "Ask for fewer tasks, or use a larger organism."
+                    "The observable gene pool may be too small for this many tasks, "
+                    "or the draws may simply have collided. Ask for fewer tasks, "
+                    "use a larger organism, or raise max_retries."
                 )
 
             task_id = f"task_{i:02d}"
@@ -399,9 +421,12 @@ class ExperimentSession:
             return None
         answered = {r.task_id for r in self._prediction_results}
         signature = self._intervention_signature(gene_interventions)
-        # sorted(): _revealed_task_ids is a set, and _generate_tasks does not
-        # de-duplicate — seed 10 medium produces two tasks with the identical
-        # gene-and-type pair. CLAUDE.md forbids bare set iteration.
+        # sorted(): _revealed_task_ids is a set, and CLAUDE.md forbids bare set
+        # iteration. Since the issue 15 fix _generate_tasks cannot emit two
+        # tasks with the same signature, so the tie this ordering breaks is no
+        # longer reachable from a generated organism. Keep the ordering anyway:
+        # the ids come from a set, and a stable lowest-id answer is what
+        # TestSealNamesTheLowestMatchingTask pins.
         for task_id in sorted(self._revealed_task_ids):
             if task_id in answered:
                 continue

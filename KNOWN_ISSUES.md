@@ -740,6 +740,12 @@ draws no extra numbers and keeps its exact identity.
 It reuses `_intervention_signature`, the function the seal uses. The generator
 and the seal therefore cannot drift apart on what "the same experiment" means.
 
+The set of signatures is seeded from the tasks that already exist, not left
+empty. A second `_generate_tasks` call with a smaller `n` overwrites the low
+ids and leaves the high ones in place, so an empty set would let a rebuilt task
+repeat a surviving one. Easy seed 6 did exactly that. The code review of this
+fix found it.
+
 When no distinct candidate appears within `max_retries`, the generator raises
 and names the seed, the difficulty and `n`. It does not emit the duplicate.
 No organism measured reaches that path; a request for more tasks than the

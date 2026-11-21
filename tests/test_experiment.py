@@ -1074,7 +1074,7 @@ class TestPredictionTasksAreDistinct:
         # possible signatures. 200 tasks cannot all be distinct, so the
         # generator must refuse rather than emit a duplicate.
         org = generate_organism(seed=0, difficulty="hard")
-        with pytest.raises(RuntimeError, match="repeated a task already built"):
+        with pytest.raises(RuntimeError, match="repeated one of the"):
             ExperimentSession(org, seed=0, n_prediction_tasks=200)
 
     def test_six_tasks_from_one_organism_are_all_distinct(self):
@@ -1097,6 +1097,18 @@ class TestPredictionTasksAreDistinct:
         signatures = self._signatures(session)
         assert len(signatures) == 2
         assert len(set(signatures)) == 2
+
+    def test_a_second_generate_tasks_call_does_not_readmit_a_duplicate(self):
+        # Found by the code review of this change. The seen-signature set is
+        # built per call, so a second call with a smaller n overwrites the low
+        # ids and leaves the high ones in place. A rebuilt task could then
+        # repeat a surviving one. easy seed 6 did exactly that.
+        org = generate_organism(seed=6, difficulty="easy")
+        session = ExperimentSession(org, seed=6, n_prediction_tasks=4)
+        session._generate_tasks(n=2)   # overwrites task_00 and task_01 only
+        signatures = self._signatures(session)
+        assert len(signatures) == 4
+        assert len(set(signatures)) == 4
 
     def test_task_generation_stays_deterministic_for_one_seed(self):
         def build():
