@@ -159,6 +159,16 @@ class ExperimentSession:
         # Only use phenotypes that have ≥2 candidates for intra-phenotype sampling
         shared_readout_phs = [gs for gs in ph_to_genes if len(gs) >= 2]
 
+        # Issue 15: this loop used to build n tasks without ever comparing a
+        # new one against the tasks already built, so one organism could ask
+        # the same question twice. That broke the issue 1 seal, because
+        # _sealed_task_for locks a task only while it is revealed and
+        # unanswered: an agent could answer task_00, run that exact experiment
+        # unsealed, then submit the measured values for the identical task_01.
+        # The signature is the same one the seal uses, so the generator and the
+        # seal cannot drift apart on what "the same experiment" means.
+        seen_signatures: set[frozenset] = set()
+
         for i in range(n):
             best_interventions = None
             best_result = None
@@ -178,6 +188,12 @@ class ExperimentSession:
                     gid: {"type": self._rng_py.choice(iv_types)}
                     for gid in target_ids
                 }
+                # Reject a repeat before simulate_sigmoid runs, so a rejected
+                # candidate costs no simulation. This draws extra numbers only
+                # on a collision, so an organism that never collides keeps its
+                # exact identity.
+                if self._intervention_signature(interventions) in seen_signatures:
+                    continue
                 result = simulate_sigmoid(
                     self.organism,
                     interventions=interventions,
@@ -201,12 +217,27 @@ class ExperimentSession:
                 if max_shift >= min_shift:
                     break  # non-trivial task found
 
+            if best_interventions is None:
+                # Every candidate repeated a task already built. Emitting the
+                # duplicate anyway would reopen the issue 1 leak, so raise
+                # instead. CLAUDE.md: let it raise rather than return a
+                # confident wrong value.
+                raise RuntimeError(
+                    f"_generate_tasks: could not find a distinct task {i} after "
+                    f"{max_retries} attempts; every candidate repeated a task already "
+                    f"built. organism seed {self.organism.seed}, difficulty "
+                    f"{self.organism.difficulty!r}, session seed {self._seed}, n={n}. "
+                    "The observable gene pool is too small for this many tasks. "
+                    "Ask for fewer tasks, or use a larger organism."
+                )
+
             task_id = f"task_{i:02d}"
             self._tasks[task_id] = PredictionTask(
                 id=task_id,
                 interventions=best_interventions,
                 ground_truth=best_result["phenotypes"],
             )
+            seen_signatures.add(self._intervention_signature(best_interventions))
 
     # ------------------------------------------------------------------
     # Public properties
