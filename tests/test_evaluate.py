@@ -44,6 +44,12 @@ class TestCompositeScoreDivisor:
     def test_a_subset_run_is_not_penalised_for_a_task_it_was_not_asked_to_do(self):
         # --tasks predict rescue. diagnose was never requested, so the average
         # is over two components: (0.8 + 0.6) / 2.
+        #
+        # A rescue_fraction of 0.6 under this task set is only reachable from a
+        # custom --agent. Through any built-in runner rescue is gated on a
+        # locked hypothesis, which needs diagnose active, so rescue_fraction
+        # would be None. _composite_score does not know that, and this pins the
+        # arithmetic. The reachable CLI case is the diagnose test below.
         score = evaluate._composite_score(
             _record(0.8, rescue_fraction=0.6),
             disease=True,
@@ -109,6 +115,10 @@ class TestCompositeScoreDivisor:
         assert score == 0.8
 
     def test_a_run_without_predict_has_no_composite_score(self):
+        # Pre-existing behaviour that issue 8 did not change: predict is
+        # required for a composite score, so --tasks diagnose rescue reports
+        # "n/a" even though both requested components were measured. Pinned
+        # here so a later change to that guard is deliberate.
         score = evaluate._composite_score(
             _record(0.8), disease=True, active_tasks=frozenset({"diagnose", "rescue"})
         )

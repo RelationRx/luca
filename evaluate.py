@@ -206,8 +206,13 @@ def _composite_score(record: dict, disease: bool, active_tasks: frozenset[str]) 
     """
     Composite benchmark score (0–1, higher is better).
 
-    Averages over the components this run asked for. Two cases that look alike
-    are scored differently, and issue 8 was the code collapsing them:
+    Averages over the components this run asked for. `predict` is required:
+    without it this returns None, so `--tasks diagnose rescue` has no composite
+    score even though both requested components were measured. That guard is
+    pre-existing and issue 8 did not change it.
+
+    Among the components it does average, two cases that look alike are scored
+    differently, and issue 8 was the code collapsing them:
 
       - a task NOT in active_tasks is excluded from the average entirely;
       - a task IN active_tasks that the model did not attempt scores 0.0,
@@ -227,13 +232,16 @@ def _composite_score(record: dict, disease: bool, active_tasks: frozenset[str]) 
     if not disease:
         return round(acc, 4)
     # This list used to be three elements long whatever the run asked for, so
-    # `--tasks predict rescue` was divided by three and penalised for a
-    # diagnosis it was never asked to perform: 0.8 and 0.6 scored 0.4667
-    # instead of 0.70. Issue 8.
+    # a subset run was divided by three and penalised for a task it was never
+    # asked to perform. `--tasks predict diagnose` with accuracy 0.8 and
+    # diagnosis 0.5 scored 0.4333 instead of 0.65. Issue 8.
     #
     # Index directly rather than .get(..., 0.0). _make_record always writes
     # both keys in disease mode, and a default here would turn a missing
     # measurement into a confident number — the mechanism behind issue 3.
+    # A missing key raises KeyError. _make_record's caller catches it per seed
+    # and records an error entry, so that seed is reported as failed rather
+    # than scored from a value nobody measured.
     components = [acc]
     for task, key in (("diagnose", "diagnosis_score"), ("rescue", "rescue_fraction")):
         if task in active_tasks:

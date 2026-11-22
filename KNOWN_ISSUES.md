@@ -150,7 +150,7 @@ pull requests cite it, so the table skips from 9 to 12.
 | 5a | The chronic malfunction signal override was negated twice. Five sites stored a value already signed for an inhibiting signal, and `luca/dynamics.py:50` applied the mode sign again. A persistent **inhibitor** therefore simulated as a strong **activator** | v1 | disease mode | ✅ **fixed 2026-11-20** — see below |
 | 6 | The heuristic baseline subtracted its own measured `BLOCK` delta instead of adding it, and treated `DAMPEN` as the opposite of `BLOCK`. Over seeds 0-9 it therefore scored **below** a baseline that runs no experiments at all, on medium and on hard | v1 | baseline comparisons | ✅ **fixed 2026-11-20** — see below |
 | 7 | The `v1-generation-freeze-2` tag named in `DECISIONS.md` predates a package rename and a vocabulary change, and does not reproduce current organisms | v1 | reproduction instructions | ⬜ open |
-| 8 | `_composite_score` always divided by three in disease mode, so a run with a task subset was penalised for tasks it was not asked to perform. `--tasks predict rescue` with accuracy 0.8 and rescue 0.6 scored **0.4667 instead of 0.70** | v1 | CLI subset runs only | ✅ **fixed 2026-11-22** — see below |
+| 8 | `_composite_score` always divided by three in disease mode, so a run with a task subset was penalised for tasks it was not asked to perform. `--tasks predict diagnose` with accuracy 0.8 and diagnosis 0.5 scored **0.4333 instead of 0.65** | v1 | CLI subset runs only | ✅ **fixed 2026-11-22** — see below |
 | 9 | Diagnosis is scored on one irrevocable attempt while rescue takes the best of every attempt | v1 + v2 | diagnosis-rescue comparisons | ⬜ open — v1 documents the asymmetry; v2 decides whether to change it |
 | 12 | `run_experiment` never validates an intervention's type. An unrecognised type is silently ignored, costs one unit of budget, and returns no error | v1 | agent feedback, held-out protocol | ✅ **fixed 2026-11-19** |
 | 13 | **The tool layer accepted intervention formats that it then ignored.** A request that did not use the documented `interventions` key reached the engine as an empty experiment: charged one unit of budget, returning the unperturbed organism and no error | v1 | **cross-model comparisons** | ✅ **fixed 2026-11-19** — see below |
@@ -789,12 +789,22 @@ Two different situations collapsed to the same `0.0`:
    count as `0.0`, because not attempting is a failed attempt.
 
 The docstring already stated that split. The code did not implement it. A
-`--tasks predict rescue` run with accuracy 0.8 and rescue 0.6 therefore scored
-`(0.8 + 0.6 + 0.0) / 3 = 0.4667` instead of `(0.8 + 0.6) / 2 = 0.70`. That is a
-33% penalty for a diagnosis the run never asked for.
+`--tasks predict diagnose` run with accuracy 0.8 and diagnosis 0.5 therefore
+scored `(0.8 + 0.5 + 0.0) / 3 = 0.4333` instead of `(0.8 + 0.5) / 2 = 0.65`.
+That is a 33% penalty for a rescue the run never asked for.
 
-`--tasks` is a documented CLI argument (`evaluate.py:353`), so this is a
+`--tasks` is a documented CLI argument (`evaluate.py:374`), so this is a
 supported path, not a hypothetical one.
+
+**`--tasks predict rescue` is a weaker example, and this file used to give it.**
+Rescue is gated on a locked malfunction hypothesis
+(`luca/experiment.py:704`), and the hypothesis tool is only offered when
+`diagnose` is active (`luca/agent.py:351`). Both built-in baselines gate on
+`session._hypothesis_locked` too, and `evaluate.py:431` prints a warning for
+exactly this combination. So through any built-in runner that combination
+always leaves `rescue_fraction = None`, and the change is 0.2667 → 0.40, not
+0.4667 → 0.70. Only a custom `--agent` calling the session directly reaches a
+real rescue fraction there.
 
 ### The mechanism
 
@@ -804,7 +814,10 @@ when the task was not requested, and both became `0.0`. This is the pattern
 default)` that turns a missing measurement into a confident number.
 
 The fix indexes directly. `_make_record` always writes both keys in disease
-mode, so a missing key now raises instead of scoring zero.
+mode, so a missing key now raises `KeyError` instead of scoring zero. The
+per-seed `except` in `run_evaluation` catches it and records that seed as an
+error, so the seed is reported as failed rather than scored from a value
+nobody measured.
 
 ### What moved
 
