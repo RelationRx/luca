@@ -150,7 +150,7 @@ pull requests cite it, so the table skips from 9 to 12.
 | 5a | The chronic malfunction signal override was negated twice. Five sites stored a value already signed for an inhibiting signal, and `luca/dynamics.py:50` applied the mode sign again. A persistent **inhibitor** therefore simulated as a strong **activator** | v1 | disease mode | ✅ **fixed 2026-11-20** — see below |
 | 6 | The heuristic baseline subtracted its own measured `BLOCK` delta instead of adding it, and treated `DAMPEN` as the opposite of `BLOCK`. Over seeds 0-9 it therefore scored **below** a baseline that runs no experiments at all, on medium and on hard | v1 | baseline comparisons | ✅ **fixed 2026-11-20** — see below |
 | 7 | The `v1-generation-freeze-2` tag named in `DECISIONS.md` predates a package rename and a vocabulary change, and does not reproduce current organisms | v1 | reproduction instructions | ⬜ open |
-| 8 | `_composite_score` always divides by three in disease mode, so a run with a task subset is penalised for tasks it was not asked to perform | v1 | CLI subset runs only | ⬜ open |
+| 8 | `_composite_score` always divided by three in disease mode, so a run with a task subset was penalised for tasks it was not asked to perform. `--tasks predict diagnose` with accuracy 0.8 and diagnosis 0.5 scored **0.4333 instead of 0.65** | v1 | CLI subset runs only | ✅ **fixed 2026-11-22** — see below |
 | 9 | Diagnosis is scored on one irrevocable attempt while rescue takes the best of every attempt | v1 + v2 | diagnosis-rescue comparisons | ⬜ open — v1 documents the asymmetry; v2 decides whether to change it |
 | 12 | `run_experiment` never validates an intervention's type. An unrecognised type is silently ignored, costs one unit of budget, and returns no error | v1 | agent feedback, held-out protocol | ✅ **fixed 2026-11-19** |
 | 13 | **The tool layer accepted intervention formats that it then ignored.** A request that did not use the documented `interventions` key reached the engine as an empty experiment: charged one unit of budget, returning the unperturbed organism and no error | v1 | **cross-model comparisons** | ✅ **fixed 2026-11-19** — see below |
@@ -767,6 +767,72 @@ seed 10 medium "must still generate the duplicate pair". No seed does now, so
 it builds the pair by hand. Its comment called the duplicate "latent, not
 observable"; that was wrong, and the new comment records why.
 
+## ✅ Issue 8, as fixed on 2026-11-22
+
+### What it did
+
+`_composite_score` built a three-element component list in disease mode,
+whatever the run asked for:
+
+```python
+diag   = record.get("diagnosis_score") if "diagnose" in active_tasks else None
+rescue = record.get("rescue_fraction") if "rescue" in active_tasks else None
+components = [acc, diag if diag is not None else 0.0,
+              rescue if rescue is not None else 0.0]
+return round(sum(components) / len(components), 4)
+```
+
+Two different situations collapsed to the same `0.0`:
+
+1. the task was **never requested** — it must be excluded from the average;
+2. the task **was requested** and the model did not attempt it — it must
+   count as `0.0`, because not attempting is a failed attempt.
+
+The docstring already stated that split. The code did not implement it. A
+`--tasks predict diagnose` run with accuracy 0.8 and diagnosis 0.5 therefore
+scored `(0.8 + 0.5 + 0.0) / 3 = 0.4333` instead of `(0.8 + 0.5) / 2 = 0.65`.
+That is a 33% penalty for a rescue the run never asked for.
+
+`--tasks` is a documented CLI argument (`evaluate.py:374`), so this is a
+supported path, not a hypothetical one.
+
+**`--tasks predict rescue` is a weaker example, and this file used to give it.**
+Rescue is gated on a locked malfunction hypothesis
+(`luca/experiment.py:704`), and the hypothesis tool is only offered when
+`diagnose` is active (`luca/agent.py:351`). Both built-in baselines gate on
+`session._hypothesis_locked` too, and `evaluate.py:431` prints a warning for
+exactly this combination. So through any built-in runner that combination
+always leaves `rescue_fraction = None`, and the change is 0.2667 → 0.40, not
+0.4667 → 0.70. Only a custom `--agent` calling the session directly reaches a
+real rescue fraction there.
+
+### The mechanism
+
+`record.get("diagnosis_score")` returns `None` both when the key is absent and
+when the task was not requested, and both became `0.0`. This is the pattern
+`CLAUDE.md` already names as the mechanism behind issue 3: a `.get(...,
+default)` that turns a missing measurement into a confident number.
+
+The fix indexes directly. `_make_record` always writes both keys in disease
+mode, so a missing key now raises `KeyError` instead of scoring zero. The
+per-seed `except` in `run_evaluation` catches it and records that seed as an
+error, so the seed is reported as failed rather than scored from a value
+nobody measured.
+
+### What moved
+
+**No published number.** A full run has all three tasks active, so the
+component list is still three long and every existing score is unchanged. Only
+subset runs change, and no published result used one.
+
+### Coverage
+
+`_composite_score` had **no tests at all** before this change.
+`tests/test_evaluate.py` now pins ten cases with hand-computed values,
+including the two that used to be indistinguishable: the same record scored
+under `--tasks predict rescue` and under a full run must give 0.70 and 0.4667,
+not one number.
+
 ## Reproducing any of these
 
 The reproduction scripts live in the development repository and will be
@@ -778,10 +844,10 @@ measurement, not by inspection alone.
 1. ~~Finish auditing the analysis scripts.~~ A first pass is done; it produced
    issues 12 and 13. The scaling-study logs and several analysis scripts are
    still unexamined.
-2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 6, 12, 13, 15, 19 and 20 are done.
+2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 6, 8, 12, 13, 15, 19 and 20 are done.
    19 and 5a shipped together, because fixing either alone leaves the rescue
-   broken. 15 landed on 2026-11-21. The order from here is 14, 8, 7, 17, and
-   finally the disclosure for 9. Issue 21 was found by the review of 19 and 5a and moved to
+   broken. 15 landed on 2026-11-21 and 8 on 2026-11-22. The order from here is
+   14, 7, 17, and finally the disclosure for 9. Issue 21 was found by the review of 19 and 5a and moved to
    v2 on 2026-11-20: it is a real hole, but signal prediction is being
    redesigned, and the seal's rule for signals belongs to that design.
 3. Recompute every affected number once the v1 fixes have landed, and record
