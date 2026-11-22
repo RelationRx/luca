@@ -155,7 +155,7 @@ pull requests cite it, so the table skips from 9 to 12.
 | 12 | `run_experiment` never validates an intervention's type. An unrecognised type is silently ignored, costs one unit of budget, and returns no error | v1 | agent feedback, held-out protocol | ✅ **fixed 2026-11-19** |
 | 13 | **The tool layer accepted intervention formats that it then ignored.** A request that did not use the documented `interventions` key reached the engine as an empty experiment: charged one unit of budget, returning the unperturbed organism and no error | v1 | **cross-model comparisons** | ✅ **fixed 2026-11-19** — see below |
 | 14 | `report.py` renders a refused `test_rescue` as `restored=0%` with no error line, so a reader cannot tell a refused rescue from a failed one | v1 | session reports only | ⬜ open |
-| 15 | `_generate_tasks` loops `n` times and never compares a new task against the tasks already built, so one organism can ask the same question twice and score it twice. Measured over seeds 0-19 at all three tiers on 2026-11-20, **no organism of the 60 carries a duplicate**, so the defect is latent here. An earlier note in this file named medium seed 10; that does not reproduce | v1 | prediction scoring | ⬜ open — latent, a guard rather than a number change |
+| 15 | `_generate_tasks` looped `n` times and never compared a new task against the tasks already built, so one organism could ask the same question twice. **The duplicate broke the issue 1 seal**: answer `task_00`, run that exact experiment unsealed, then reveal the identical `task_01` and submit the measured values. On medium seed 10 that scored **accuracy 1.0, mse 0.0001** for 1 unit of budget. Measured over seeds 0-299 at three tiers: **7 of 900** organisms carried an exact duplicate, and medium seed 10 carried one inside the canonical 60. An earlier entry here claimed no organism of the 60 carried a duplicate; that measurement compared dictionary key order, and 6 of the 7 duplicates reverse it | v1 | **held-out protocol**, prediction scoring | ✅ **fixed 2026-11-21** — see below |
 | 17 | `inspect.py` reads an intervention value of `"BLOCK"` as `""` when it colours the heatmap marker, so a string-valued intervention renders as a white `?`. Line 1443 reads the same value correctly | v1 | diagnostic figures only | ⬜ open |
 | 19 | `test_rescue` re-applied the chronic signal override after it read the agent's request, so the rescue the generator certifies for a `PERSIST` malfunction could not be performed. Measured before the fix: 9 of the 60 canonical disease organisms carried a `PERSIST` malfunction, all 9 were certified rescuable, and all 9 returned `restored_fraction = 0.0` | v1 | disease mode, rescue scoring | ✅ **fixed 2026-11-20** — see below |
 | 20 | `pytest` run from the repository root imported `luca` from a different checkout. There is no `conftest.py` and no pytest path setting, and pytest's `prepend` import mode puts the *test file's* directory on `sys.path`, never the repository root. An editable install of `luca` elsewhere therefore won. The tests that prove issues 1, 4 and 12 are fixed were failing under the documented command | v1 | every test run | ✅ **fixed 2026-11-20** — see below |
@@ -672,6 +672,101 @@ against hand-computed values.
 `docs/custom_agents.md` taught the same inverted rule in its worked example and
 is corrected.
 
+## ✅ Issue 15, as fixed on 2026-11-21
+
+### What the duplicate did
+
+`_generate_tasks` built `n` tasks in a loop. It never compared a new task
+against the tasks it had already built, so one organism could ask the same
+question twice.
+
+That is not only a scoring nuisance. It reopens issue 1. `_sealed_task_for`
+locks a task only while that task is revealed and unanswered, so a duplicate
+is reachable in three steps:
+
+1. Reveal `task_00`, answer it, and unseal the combination.
+2. Run that exact experiment. The engine does not refuse it, because the only
+   task holding that signature has been answered and the identical `task_01`
+   has not been revealed yet.
+3. Reveal `task_01`, which is the same question, and submit the measured
+   values.
+
+On medium seed 10, step 3 scored **accuracy 1.0, mse 0.0001** for 1 unit of
+budget. The agent measured the held-out answer instead of predicting it.
+
+### How often it happened
+
+Measured over seeds 0-299 at all three tiers, 900 organisms:
+
+| measure | before | after |
+|---|---|---|
+| exact duplicates — same genes and same types | **7 of 900** | **0 of 900** |
+| same gene pair, different types | 43 of 900 | 36 of 900 |
+
+Easy carried none. Medium carried three, at seeds 10, 137 and 239. Hard
+carried four, at seeds 61, 137, 155 and 195. Inside the canonical 60, seeds
+0-19, only **medium seed 10** carried a duplicate.
+
+A repeated gene pair under different intervention types asks a different
+question, so 36 of 900 is correct and is not a defect. The count fell by
+exactly the 7 exact duplicates.
+
+### Why this file said the defect was absent
+
+The previous entry claimed that no organism of the 60 carried a duplicate, and
+that an earlier note naming medium seed 10 did not reproduce. Both claims were
+false, and the note was right.
+
+The measurement behind them compared the interventions in dictionary key
+order. Six of the seven duplicates reverse that order:
+
+```
+task_00  {'g_013': BOOST, 'g_016': DAMPEN}
+task_01  {'g_016': DAMPEN, 'g_013': BOOST}
+```
+
+An order-sensitive comparison therefore reported "0 of 60". `ExperimentSession`
+already held the correct comparison: `_intervention_signature` returns a
+`frozenset`, so the seal had always seen through the key order. Only the
+measurement did not.
+
+### The fix
+
+A candidate whose signature repeats a task already built is rejected, and the
+retry loop draws again. The check runs **before** `simulate_sigmoid`, so a
+rejected candidate costs no simulation, and an organism that never collides
+draws no extra numbers and keeps its exact identity.
+
+It reuses `_intervention_signature`, the function the seal uses. The generator
+and the seal therefore cannot drift apart on what "the same experiment" means.
+
+The set of signatures is seeded from the tasks that already exist, not left
+empty. A second `_generate_tasks` call with a smaller `n` overwrites the low
+ids and leaves the high ones in place, so an empty set would let a rebuilt task
+repeat a surviving one. Easy seed 6 did exactly that. The code review of this
+fix found it.
+
+When no distinct candidate appears within `max_retries`, the generator raises
+and names the seed, the difficulty and `n`. It does not emit the duplicate.
+No organism measured reaches that path; a request for more tasks than the
+observable gene pool can supply does.
+
+### What moved
+
+Medium seed 10 is the only canonical organism this fix changed. Its `task_01`
+is now `{'g_014': DAMPEN, 'g_015': BOOST}`, a different question from
+`task_00`. Running `task_00`'s combination and submitting those values for
+`task_01` now scores **accuracy 0.3333, mse 0.0334**.
+
+**The additivity anchors did not move**: easy 40 of 40, medium 40 of 40, hard
+18 of 40 as the engine ships, and 40, 40 and 34 against a noise-free ground
+truth.
+
+`tests/test_experiment.py::TestSealNamesTheLowestMatchingTask` asserted that
+seed 10 medium "must still generate the duplicate pair". No seed does now, so
+it builds the pair by hand. Its comment called the duplicate "latent, not
+observable"; that was wrong, and the new comment records why.
+
 ## Reproducing any of these
 
 The reproduction scripts live in the development repository and will be
@@ -683,10 +778,10 @@ measurement, not by inspection alone.
 1. ~~Finish auditing the analysis scripts.~~ A first pass is done; it produced
    issues 12 and 13. The scaling-study logs and several analysis scripts are
    still unexamined.
-2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 6, 12, 13, 19 and 20 are done.
+2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 6, 12, 13, 15, 19 and 20 are done.
    19 and 5a shipped together, because fixing either alone leaves the rescue
-   broken. The order from here is 15, 14, 8, 7, 17, and finally the disclosure
-   for 9. Issue 21 was found by the review of 19 and 5a and moved to
+   broken. 15 landed on 2026-11-21. The order from here is 14, 8, 7, 17, and
+   finally the disclosure for 9. Issue 21 was found by the review of 19 and 5a and moved to
    v2 on 2026-11-20: it is a real hole, but signal prediction is being
    redesigned, and the seal's rule for signals belongs to that design.
 3. Recompute every affected number once the v1 fixes have landed, and record

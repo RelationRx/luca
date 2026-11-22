@@ -1,7 +1,7 @@
 """Tests for ExperimentSession."""
 import pytest
 from luca import generate_organism, generate_disease_organism, ExperimentSession
-from luca.experiment import recommended_budget
+from luca.experiment import recommended_budget, PredictionTask
 
 
 def test_recommended_budget_scales():
@@ -738,12 +738,18 @@ class TestSealCoversSignals:
 # ---------------------------------------------------------------------------
 # Review of PR #9, finding 6 — _revealed_task_ids is a set.
 #
-# CLAUDE.md forbids bare set iteration. _generate_tasks does not de-duplicate:
-# seed 10 medium produces task_00 and task_01 with the identical gene-and-type
-# pair and different ground truth. _sealed_task_for then names whichever id the
-# set happened to yield. Two revealed unanswered tasks are not reachable through
-# the public API today, so this is latent, not observable. The seal must still
-# name the lowest matching id, every run.
+# CLAUDE.md forbids bare set iteration. When two revealed, unanswered tasks
+# share a signature, _sealed_task_for must name the lowest matching id, every
+# run, and not whichever id the set happened to yield.
+#
+# Until the issue 15 fix, seed 10 medium supplied that pair for free, and this
+# test asserted that the duplicate "must still" be generated. _generate_tasks
+# now refuses to emit one, so no seed supplies it. The tie-break still needs a
+# test, so the pair is built by hand below.
+#
+# The old comment here called the duplicate "latent, not observable". That was
+# wrong: it was reachable through the public API and it leaked the held-out
+# answer. See TestPredictionTasksAreDistinct.
 # ---------------------------------------------------------------------------
 
 class TestSealNamesTheLowestMatchingTask:
@@ -751,11 +757,19 @@ class TestSealNamesTheLowestMatchingTask:
     def test_duplicate_tasks_resolve_to_the_lowest_id(self):
         org = generate_organism(seed=10, difficulty="medium")
         session = ExperimentSession(org, seed=10)
+        # Reversed key order, which is how six of the seven real duplicates
+        # presented. The signature must see through it.
+        original = session._tasks["task_00"]
+        session._tasks["task_01"] = PredictionTask(
+            id="task_01",
+            interventions=dict(reversed(list(original.interventions.items()))),
+            ground_truth={k: v + 0.01 for k, v in original.ground_truth.items()},
+        )
         assert session._intervention_signature(
             session._tasks["task_00"].interventions
         ) == session._intervention_signature(
             session._tasks["task_01"].interventions
-        ), "seed 10 medium must still generate the duplicate pair"
+        )
         session._revealed_task_ids = {"task_01", "task_00"}
         sealed = session._sealed_task_for(session._tasks["task_00"].interventions)
         assert sealed == "task_00"
@@ -994,3 +1008,114 @@ class TestThePersistRescueIsReachable:
             next(s for s in org.signals if s.id == m.target).strength * m.severity
         )}
         assert gene_m.target in org.dynamics.rule
+
+
+# ---------------------------------------------------------------------------
+# Issue 15 — _generate_tasks emitted two tasks with the same interventions.
+#
+# The loop built n tasks and never compared a new one against the tasks it had
+# already built, so one organism could ask the same question twice. The
+# duplicate breaks the issue 1 seal, because _sealed_task_for locks a task only
+# while that task is revealed and unanswered:
+#
+#   1. Reveal task_00, answer it, and unseal the combination.
+#   2. Run that exact experiment. The engine does not refuse it.
+#   3. Reveal task_01, the same question, and submit the measured values.
+#
+# Measured on medium seed 10 on 2026-11-21: task_01 scored accuracy 1.0,
+# mse 0.0001, for 1 unit of budget. The agent measured the held-out answer
+# instead of predicting it.
+#
+# Compare signatures, never dictionary key order. Six of the seven duplicates
+# reversed the key order, which is why an order-sensitive check reported
+# "0 of 60" and this repository recorded the issue as absent.
+# ---------------------------------------------------------------------------
+
+class TestPredictionTasksAreDistinct:
+
+    # Every seed that carried an exact duplicate before the fix, measured over
+    # seeds 0-299 at all three tiers on 2026-11-21. Easy carried none.
+    KNOWN_COLLISIONS = [
+        ("medium", 10), ("medium", 137), ("medium", 239),
+        ("hard", 61), ("hard", 137), ("hard", 155), ("hard", 195),
+    ]
+
+    @staticmethod
+    def _signatures(session):
+        return [
+            session._intervention_signature(task.interventions)
+            for _, task in sorted(session._tasks.items())
+        ]
+
+    @pytest.mark.parametrize("difficulty,seed", KNOWN_COLLISIONS)
+    def test_a_known_colliding_seed_now_emits_distinct_tasks(self, difficulty, seed):
+        org = generate_organism(seed=seed, difficulty=difficulty)
+        session = ExperimentSession(org, seed=seed)
+        signatures = self._signatures(session)
+        assert len(set(signatures)) == len(signatures)
+
+    @pytest.mark.slow
+    def test_no_canonical_organism_asks_one_question_twice(self):
+        for difficulty in ("easy", "medium", "hard"):
+            for seed in range(20):
+                for org in (
+                    generate_organism(seed=seed, difficulty=difficulty),
+                    generate_disease_organism(seed=seed, difficulty=difficulty),
+                ):
+                    session = ExperimentSession(org, seed=seed)
+                    signatures = self._signatures(session)
+                    assert len(set(signatures)) == len(signatures), (
+                        f"{difficulty}:{seed} repeats a task signature"
+                    )
+
+    def test_a_pool_too_small_for_n_raises_rather_than_duplicating(self):
+        # hard seed 0 has shared-readout phenotypes of 4, 3 and 3 observable
+        # genes: 12 distinct gene pairs, times 9 type assignments, is 108
+        # possible signatures. 200 tasks cannot all be distinct, so the
+        # generator must refuse rather than emit a duplicate.
+        org = generate_organism(seed=0, difficulty="hard")
+        with pytest.raises(RuntimeError, match="repeated one of the"):
+            ExperimentSession(org, seed=0, n_prediction_tasks=200)
+
+    def test_six_tasks_from_one_organism_are_all_distinct(self):
+        # n_prediction_tasks is a public argument, and more tasks collide more
+        # often. easy seed 1 produced one duplicate pair at n=6 before the fix.
+        org = generate_organism(seed=1, difficulty="easy")
+        session = ExperimentSession(org, seed=1, n_prediction_tasks=6)
+        signatures = self._signatures(session)
+        assert len(signatures) == 6
+        assert len(set(signatures)) == 6
+
+    def test_the_largest_shift_fallback_still_returns_distinct_tasks(self):
+        # min_shift=5.0 is unreachable, so every attempt loop runs to
+        # exhaustion and every task comes from the "largest shift" fallback.
+        # medium seed 8 produced a duplicate down that path before the fix.
+        org = generate_organism(seed=8, difficulty="medium")
+        session = ExperimentSession(org, seed=8)
+        session._tasks.clear()
+        session._generate_tasks(n=2, min_shift=5.0)
+        signatures = self._signatures(session)
+        assert len(signatures) == 2
+        assert len(set(signatures)) == 2
+
+    def test_a_second_generate_tasks_call_does_not_readmit_a_duplicate(self):
+        # Found by the code review of this change. The seen-signature set is
+        # built per call, so a second call with a smaller n overwrites the low
+        # ids and leaves the high ones in place. A rebuilt task could then
+        # repeat a surviving one. easy seed 6 did exactly that.
+        org = generate_organism(seed=6, difficulty="easy")
+        session = ExperimentSession(org, seed=6, n_prediction_tasks=4)
+        session._generate_tasks(n=2)   # overwrites task_00 and task_01 only
+        signatures = self._signatures(session)
+        assert len(signatures) == 4
+        assert len(set(signatures)) == 4
+
+    def test_task_generation_stays_deterministic_for_one_seed(self):
+        def build():
+            org = generate_organism(seed=10, difficulty="medium")
+            session = ExperimentSession(org, seed=10)
+            return [
+                (session._intervention_signature(t.interventions), t.ground_truth)
+                for _, t in sorted(session._tasks.items())
+            ]
+        assert build() == build()
