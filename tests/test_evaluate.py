@@ -142,3 +142,59 @@ class TestCompositeScoreDivisor:
                 disease=True,
                 active_tasks=FULL,
             )
+
+
+# ---------------------------------------------------------------------------
+# Issue 22 — the same `or 0.0` collapse as issue 14, in the score rather than
+# the display. Found by the code review of the issues 14 and 17 fix.
+#
+#   best_rescue = max(((r.get("restored_fraction") or 0.0) for r in rr),
+#                     default=None)
+#
+# A stored restored_fraction of None means no phenotype was aberrant, so there
+# was nothing to restore. `or 0.0` turned that into a failed rescue. The report
+# calls the same event "restored=n/a (no aberrant phenotype)", so the score and
+# the report described one session two ways.
+#
+# This is LATENT, not live. generate_disease_organism guarantees at least one
+# aberrant phenotype, and luca/experiment.py says so at the guard itself.
+# Measured 2026-11-24 across all 60 canonical disease organisms: none has zero
+# aberrant phenotypes. The guard is kept consistent rather than left to rot.
+#
+# An EMPTY rescue_results is a different case and must stay 0.0 through
+# _composite_score: the task was requested and never attempted, which is a
+# failed attempt.
+# ---------------------------------------------------------------------------
+
+class TestAnUnscorableRescueIsNotScoredAsFailed:
+
+    @staticmethod
+    def _record(fractions):
+        from luca import generate_disease_organism
+        org = generate_disease_organism(seed=0, difficulty="medium")
+        summary = {
+            "avg_accuracy": 0.8,
+            "malfunction_hypothesis": {"score": 0.5},
+            "rescue_results": [
+                {"restored_fraction": f, "mse_vs_healthy": 0.01} for f in fractions
+            ],
+        }
+        return evaluate._make_record(
+            0, org, summary, "test", True, "medium", FULL
+        )
+
+    def test_an_unscorable_rescue_is_not_recorded_as_zero(self):
+        assert self._record([None])["rescue_fraction"] is None
+
+    def test_the_best_of_several_ignores_the_unscorable_ones(self):
+        assert self._record([None, 0.5, None])["rescue_fraction"] == 0.5
+
+    def test_a_real_zero_is_still_recorded_as_zero(self):
+        assert self._record([0.0])["rescue_fraction"] == 0.0
+
+    def test_no_rescue_attempt_at_all_still_scores_zero_in_the_composite(self):
+        # Requested and never attempted is a failed attempt, not an excluded
+        # component. This must not change.
+        rec = self._record([])
+        assert rec["rescue_fraction"] is None
+        assert rec["composite_score"] == round((0.8 + 0.5 + 0.0) / 3, 4)

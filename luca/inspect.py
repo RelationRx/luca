@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .payloads import canonical_type
+
 if TYPE_CHECKING:
     from .schema import Organism
     from .experiment import ExperimentSession
@@ -13,6 +15,35 @@ if TYPE_CHECKING:
 
 MODULE_COLORS = ["green", "blue", "magenta", "cyan", "yellow", "red"]
 MODULE_HEX = ["#4CAF50", "#2196F3", "#CE93D8", "#00BCD4", "#FFC107", "#EF5350"]
+
+
+# ── Intervention rendering ──────────────────────────────────────────────────
+# Issue 17: the intervention type was resolved twice in plot_session, 24 lines
+# apart, with two different expressions. The strip used `str(val)` for a bare
+# string; the heatmap marker used `""`, so a bare-string intervention drew the
+# neutral "?" while the strip above drew it correctly.
+#
+# The first fix added a private resolver here. The code review caught that
+# `luca.payloads.canonical_type` already owned this, and already upper-cases —
+# the engine accepts "block" and runs it as BLOCK, then logs the agent's value
+# verbatim, so a private copy left the defect alive for a lowercase payload and
+# re-created the duplication this issue is about. There is one resolver, and it
+# is not in this module. Every renderer here calls it.
+#
+# canonical_type upper-cases a GENE type only. A signal verb such as
+# "deactivate" is not a gene type and keeps its case, so it falls to the
+# neutral marker. That is pre-existing and recorded as issue 23.
+IV_COLOR = {"BLOCK": "#EF5350", "BOOST": "#66BB6A", "DAMPEN": "#FFA726"}
+IV_SYM = {"BLOCK": "✕", "BOOST": "▲", "DAMPEN": "▼"}
+_IV_FALLBACK = ("#fff", "?")
+
+
+def _iv_marker(val) -> tuple[str, str]:
+    """(colour, symbol) for one intervention value, or the neutral fallback."""
+    itype = canonical_type(val)
+    if itype not in IV_COLOR:
+        return _IV_FALLBACK
+    return IV_COLOR[itype], IV_SYM[itype]
 
 
 def print_organism(org: "Organism") -> None:
@@ -946,8 +977,10 @@ def plot_disease_organism(
     ]
     if rescue_interventions:
         rescue_label = "rescued: " + ", ".join(
-            f"{n} {v.get('type','?')}" if isinstance(v, dict) else f"{n} {v}"
-            for n, v in rescue_interventions.items()
+            # `or "?"` keeps the old behaviour for a value with no readable
+            # type: canonical_type returns "" there, and a bare name with a
+            # trailing space reads as a rendering slip rather than a gap.
+            f'{n} {canonical_type(v) or "?"}' for n, v in rescue_interventions.items()
         )
         legend_bar.append(mpatches.Patch(color=RESCUE_COLOR, label=rescue_label))
     ax_bar.legend(handles=legend_bar, loc="lower right", fontsize=7,
@@ -1438,10 +1471,8 @@ def plot_session(
         cols_pheno.append(entry.get("phenotypes", {}))
         ivs = entry["interventions"]
         parts = []
-        IV_SYM = {"BLOCK": "✕", "BOOST": "▲", "DAMPEN": "▼"}
         for name, val in ivs.items():
-            itype = val.get("type", "?") if isinstance(val, dict) else str(val)
-            parts.append(f"{IV_SYM.get(itype, '?')}{name}")
+            parts.append(f"{_iv_marker(val)[1]}{name}")
         col_labels.append("\n".join(parts) if parts else "—")
         col_types.append("experiment")
 
@@ -1456,7 +1487,6 @@ def plot_session(
             pheno_mat[ri, ci] = ph.get(lbl, 0.0)
 
     # ── Intervention target lookup ──────────────────────────────────────────
-    IV_COLOR = {"BLOCK": "#EF5350", "BOOST": "#66BB6A", "DAMPEN": "#FFA726"}
     # col_iv_markers[ci] = list of (gene_row_index, color, symbol)
     exp_col_offset = col_types.index("experiment") if "experiment" in col_types else 1
     col_iv_markers: list[list] = [[] for _ in range(n_cols)]
@@ -1464,12 +1494,8 @@ def plot_session(
         for name, val in entry["interventions"].items():
             gid = name_to_id.get(name)
             if gid and gid in show_gene_ids:
-                itype = val.get("type", "") if isinstance(val, dict) else ""
-                col_iv_markers[ci].append((
-                    show_gene_ids.index(gid),
-                    IV_COLOR.get(itype, "#fff"),
-                    {"BLOCK": "✕", "BOOST": "▲", "DAMPEN": "▼"}.get(itype, "?"),
-                ))
+                colour, symbol = _iv_marker(val)
+                col_iv_markers[ci].append((show_gene_ids.index(gid), colour, symbol))
 
     # ── Turn attribution from agent log ──────────────────────────────────────
     # Map experiment column index → (turn_number, reasoning_snippet)
@@ -1638,10 +1664,16 @@ def plot_session(
     plt.setp(cb.ax.yaxis.get_ticklabels(), color="#aaa")
     cb.outline.set_edgecolor("#333")
 
+    # Built from IV_COLOR and IV_SYM rather than repeating their values, so a
+    # change to the markers cannot leave the legend describing the old figure.
+    _IV_GLOSS = {
+        "BLOCK": "suppress to zero",
+        "BOOST": "saturate to max",
+        "DAMPEN": "reduce to low",
+    }
     legend_handles = [
-        mpatches.Patch(color="#EF5350", label="✕ BLOCK — suppress to zero"),
-        mpatches.Patch(color="#66BB6A", label="▲ BOOST — saturate to max"),
-        mpatches.Patch(color="#FFA726", label="▼ DAMPEN — reduce to low"),
+        mpatches.Patch(color=IV_COLOR[t], label=f"{IV_SYM[t]} {t} — {_IV_GLOSS[t]}")
+        for t in ("BLOCK", "BOOST", "DAMPEN")
     ]
     if is_dis:
         legend_handles.append(

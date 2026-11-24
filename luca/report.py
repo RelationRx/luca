@@ -70,10 +70,20 @@ def print_session_trace(log: dict) -> None:
             print(f"  Malfunction:  {sym}  {mh['target_name']} ({mh['malfunction_type']})  score={score}")
         rr = summary.get("rescue_results", [])
         if rr:
-            best = max((r.get("restored_fraction") or 0.0) for r in rr)
-            best_mse = min(r["mse_vs_healthy"] for r in rr)
-            sym = "✓" if best >= 1.0 else ("~" if best >= 0.5 else "✗")
-            print(f"  Best rescue:  {sym}  restored={best:.0%}  mse_vs_healthy={best_mse}")
+            # Issue 14: `or 0.0` scored an unscorable rescue as a failed one.
+            # restored_fraction is None when nothing was aberrant, and such a
+            # result IS stored, so this line used to contradict the per-call
+            # line for the very same call. Found by the code review.
+            scored = [x["restored_fraction"] for x in rr
+                      if x["restored_fraction"] is not None]
+            best_mse = min(x["mse_vs_healthy"] for x in rr)
+            if scored:
+                best = max(scored)
+                sym = "✓" if best >= 1.0 else ("~" if best >= 0.5 else "✗")
+                print(f"  Best rescue:  {sym}  restored={best:.0%}  mse_vs_healthy={best_mse}")
+            else:
+                print(f"  Best rescue:  —  restored=n/a (no aberrant phenotype)  "
+                      f"mse_vs_healthy={best_mse}")
     print()
 
 
@@ -87,6 +97,21 @@ def _print_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> N
             res = json.loads(res)
         except Exception:
             pass
+
+    # Issues 14 and 24, and the class behind them. dispatch_tool and the
+    # engine can refuse ANY call — a missing parameter, an unknown id, a
+    # payload the tool layer cannot read. The guard used to live in each
+    # tool branch, so it had to be remembered seven times and four branches
+    # did not have it: a refused call rendered as one that ran and reported
+    # nothing. One guard here covers every tool, including any added later.
+    #
+    # The raw input is shown rather than a parsed view: when a payload is
+    # refused because the tool layer could not read it (issue 13), what the
+    # agent actually sent is the thing worth seeing.
+    if "error" in res:
+        print(f"  ▶ {tool}({json.dumps(inp, default=str)[:60]})")
+        print(f"     ✗ ERROR: {res['error']}")
+        return
 
     if tool == "get_organism_info":
         n_genes  = len(res.get("gene_names", []))
@@ -140,11 +165,18 @@ def _print_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> N
     elif tool == "test_rescue":
         iv  = _tool_call_iv(inp)
         bud = res.get("budget_remaining", "?")
-        rf  = res.get("restored_fraction") or 0.0
-        mse = res.get("mse_vs_healthy", "?")
-        sym = "✓" if rf >= 1.0 else ("~" if rf >= 0.5 else "✗")
         print(f"  ▶ test_rescue({_fmt_iv(iv)})  [budget→{bud}]")
-        print(f"     {sym} restored={rf:.0%}  mse_vs_healthy={mse}")
+        # Issue 14: `res.get("restored_fraction") or 0.0` rendered a None
+        # fraction as "restored=0%". None means nothing was aberrant, so there
+        # was nothing to restore — not the same as restoring nothing. A refusal
+        # never gets here; the guard at the top of this function takes it.
+        rf  = res["restored_fraction"]
+        mse = res.get("mse_vs_healthy", "?")
+        if rf is None:
+            print(f"     — restored=n/a (no aberrant phenotype)  mse_vs_healthy={mse}")
+        else:
+            sym = "✓" if rf >= 1.0 else ("~" if rf >= 0.5 else "✗")
+            print(f"     {sym} restored={rf:.0%}  mse_vs_healthy={mse}")
         for ph, ok in res.get("phenotype_in_healthy_range", {}).items():
             val = res.get("phenotypes", {}).get(ph, float("nan"))
             hr  = healthy_ranges.get(ph, ["?", "?"])
@@ -154,12 +186,8 @@ def _print_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> N
     elif tool == "submit_malfunction_hypothesis":
         target = inp.get("target_name", "?")
         mtype  = inp.get("malfunction_type", "?")
-        if "error" in res:
-            print(f"  ▶ submit_malfunction_hypothesis(target={target}, type={mtype})")
-            print(f"     ✗ ERROR: {res['error']}")
-        else:
-            print(f"  ▶ submit_malfunction_hypothesis(target={target}, type={mtype})")
-            print(f"     🔒 locked — score revealed at session end")
+        print(f"  ▶ submit_malfunction_hypothesis(target={target}, type={mtype})")
+        print(f"     🔒 locked — score revealed at session end")
 
     elif tool == "submit_prediction":
         task_id = inp.get("task_id", "?")
@@ -181,8 +209,6 @@ def _print_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> N
 
     else:
         print(f"  ▶ {tool}({json.dumps(inp)[:60]})")
-        if "error" in res:
-            print(f"     ✗ ERROR: {res['error']}")
 
 
 def _tool_call_iv(inp: Any) -> dict:
@@ -734,12 +760,20 @@ def _build_html(log: dict) -> str:
 
     rr = summary.get("rescue_results", [])
     if rr:
-        best     = max((r.get("restored_fraction") or 0.0) for r in rr)
-        best_mse = min(r["mse_vs_healthy"] for r in rr)
-        badge    = _badge(best, 1.0, 0.5)
+        # Issue 14, the same collapse as the terminal summary above.
+        scored   = [x["restored_fraction"] for x in rr
+                    if x["restored_fraction"] is not None]
+        best_mse = min(x["mse_vs_healthy"] for x in rr)
+        if scored:
+            best  = max(scored)
+            badge = _badge(best, 1.0, 0.5)
+            shown = f"restored={best:.0%}  mse_vs_healthy={best_mse}"
+        else:
+            badge = "<span class='badge badge-warn'>—</span>"
+            shown = f"restored=n/a (no aberrant phenotype)  mse_vs_healthy={best_mse}"
         parts.append(
             f"<tr><td>Best rescue</td>"
-            f"<td>restored={best:.0%}  mse_vs_healthy={best_mse}</td>"
+            f"<td>{shown}</td>"
             f"<td>{badge}</td></tr>"
         )
 
@@ -781,7 +815,20 @@ def _html_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> st
     border = color_map.get(tool, "#555")
     rows: list[str] = []
 
-    if tool == "get_organism_info":
+    # Issues 14 and 24, and the class behind them. dispatch_tool and the
+    # engine can refuse ANY call — a missing parameter, an unknown id, a
+    # payload the tool layer cannot read. The guard used to live in each
+    # tool branch, so it had to be remembered seven times and four branches
+    # did not have it: a refused call rendered as one that ran and reported
+    # nothing. One guard here covers every tool, including any added later.
+    #
+    # The raw input is shown rather than a parsed view: when a payload is
+    # refused because the tool layer could not read it (issue 13), what the
+    # agent actually sent is the thing worth seeing.
+    if "error" in res:
+        rows.append(f'<span class="err">✗ ERROR: {_he(str(res["error"]))}</span>')
+
+    elif tool == "get_organism_info":
         bp = res.get("baseline_phenotypes", {})
         if bp:
             rows.append("baseline: " + "  ".join(f"{k}={v:.3f}" for k, v in bp.items()))
@@ -821,10 +868,20 @@ def _html_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> st
             rows.append('<span class="warn">⚠ did not converge</span>')
 
     elif tool == "test_rescue":
-        rf  = res.get("restored_fraction") or 0.0
+        # Issue 14, the same None case as the terminal trace above. A refusal
+        # never gets here; the guard at the top of this function takes it.
+        rf  = res["restored_fraction"]
         mse = res.get("mse_vs_healthy", "?")
-        cls = "ok" if rf >= 1.0 else ("warn" if rf >= 0.5 else "err")
-        rows.append(f'<span class="{cls}">restored={rf:.0%}  mse_vs_healthy={mse}</span>')
+        if rf is None:
+            rows.append(
+                '<span class="warn">restored=n/a (no aberrant phenotype)  '
+                f'mse_vs_healthy={mse}</span>'
+            )
+        else:
+            cls = "ok" if rf >= 1.0 else ("warn" if rf >= 0.5 else "err")
+            rows.append(
+                f'<span class="{cls}">restored={rf:.0%}  mse_vs_healthy={mse}</span>'
+            )
         for ph, ok in res.get("phenotype_in_healthy_range", {}).items():
             val   = res.get("phenotypes", {}).get(ph, float("nan"))
             hr    = healthy_ranges.get(ph, ["?", "?"])
@@ -838,10 +895,7 @@ def _html_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> st
         target = inp.get("target_name", "?")
         mtype  = inp.get("malfunction_type", "?")
         rows.append(f"target={_he(target)}  type={_he(mtype)}")
-        if "error" in res:
-            rows.append(f'<span class="err">ERROR: {_he(str(res["error"]))}</span>')
-        else:
-            rows.append('<span class="warn">🔒 locked — score revealed at session end</span>')
+        rows.append('<span class="warn">🔒 locked — score revealed at session end</span>')
 
     elif tool == "submit_prediction":
         task_id = inp.get("task_id", "?")
@@ -862,10 +916,6 @@ def _html_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> st
 
     elif tool == "submit_hypothesis":
         rows.append(f"{res.get('length', 0)} chars stored")
-
-    else:
-        if "error" in res:
-            rows.append(f'<span class="err">ERROR: {_he(str(res["error"]))}</span>')
 
     row_html = "".join(f"<div class='result-row'>{r}</div>" for r in rows)
     return (

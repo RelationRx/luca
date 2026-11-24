@@ -288,3 +288,243 @@ class TestTheRendererSurvivesTheNewVerb:
         }
         edges = report._build_discovered_network([{"tool_calls": [tc]}], base)
         assert edges and edges[0]["direction"] == "activates"
+
+
+# ---------------------------------------------------------------------------
+# Issue 14 — a refused test_rescue rendered as "restored=0%".
+#
+# test_rescue returns {"error": ...} and nothing else when it refuses: before
+# a locked hypothesis, out of budget, on a sealed task, or on a payload it
+# cannot read. Every one of those paths returns before
+# self._rescue_results.append, so a refusal is never stored as a result.
+#
+# Both renderers read `res.get("restored_fraction") or 0.0`, so a refusal
+# printed "✗ restored=0%" with no error line. A reader could not tell a rescue
+# that was refused from one that was attempted and restored nothing. The
+# submit_malfunction_hypothesis branch in the same function already handled
+# `if "error" in res`; test_rescue did not.
+#
+# Two renderers carry the defect, not one: _print_tool_call for the terminal
+# trace and _html_tool_call for the exported report.
+# ---------------------------------------------------------------------------
+
+REFUSED = {
+    "tool": "test_rescue",
+    "input": {"interventions": {"G001": "BLOCK"}},
+    "result": {"error": "submit_malfunction_hypothesis() must be called before test_rescue()"},
+}
+
+ATTEMPTED_AND_FAILED = {
+    "tool": "test_rescue",
+    "input": {"interventions": {"G001": "BLOCK"}},
+    "result": {
+        "restored_fraction": 0.0,
+        "mse_vs_healthy": 0.21,
+        "phenotype_in_healthy_range": {},
+        "budget_remaining": 3,
+    },
+}
+
+
+# restored_fraction is None in a SUCCESS result when nothing was aberrant:
+# `restored / n_aberrant if n_aberrant else None`. There was nothing to
+# restore, which is not the same as restoring nothing. `or 0.0` collapsed this
+# into "restored=0%" too, so three cases rendered as one.
+NOTHING_ABERRANT = {
+    "tool": "test_rescue",
+    "input": {"interventions": {"G001": "BLOCK"}},
+    "result": {
+        "restored_fraction": None,
+        "n_aberrant": 0,
+        "mse_vs_healthy": 0.01,
+        "phenotype_in_healthy_range": {},
+        "budget_remaining": 3,
+    },
+}
+
+
+def _render_html(tc):
+    return report._html_tool_call(tc, {}, {})
+
+
+class TestARefusedRescueIsNotRenderedAsZeroPercent:
+
+    def test_the_trace_shows_the_error_for_a_refused_rescue(self):
+        out = _render(REFUSED, {})
+        assert "submit_malfunction_hypothesis() must be called" in out
+        assert "restored=0%" not in out
+
+    def test_the_html_shows_the_error_for_a_refused_rescue(self):
+        out = _render_html(REFUSED)
+        assert "submit_malfunction_hypothesis() must be called" in out
+        assert "restored=0%" not in out
+
+    def test_the_trace_still_shows_a_rescue_that_restored_nothing(self):
+        # Attempted and failed is a real 0%. It must keep saying so.
+        out = _render(ATTEMPTED_AND_FAILED, {})
+        assert "restored=0%" in out
+        assert "ERROR" not in out
+
+    def test_the_html_still_shows_a_rescue_that_restored_nothing(self):
+        out = _render_html(ATTEMPTED_AND_FAILED)
+        assert "restored=0%" in out
+
+    def test_the_two_cases_are_told_apart_in_the_trace(self):
+        refused = _render(REFUSED, {})
+        failed = _render(ATTEMPTED_AND_FAILED, {})
+        assert refused != failed
+
+    def test_the_two_cases_are_told_apart_in_the_html(self):
+        assert _render_html(REFUSED) != _render_html(ATTEMPTED_AND_FAILED)
+
+    def test_nothing_aberrant_is_not_rendered_as_zero_percent_in_the_trace(self):
+        out = _render(NOTHING_ABERRANT, {})
+        assert "restored=0%" not in out
+        assert "n/a" in out
+
+    def test_nothing_aberrant_is_not_rendered_as_zero_percent_in_the_html(self):
+        out = _render_html(NOTHING_ABERRANT)
+        assert "restored=0%" not in out
+        assert "n/a" in out
+
+    def test_all_three_cases_render_differently_in_the_trace(self):
+        outs = [_render(tc, {}) for tc in (REFUSED, ATTEMPTED_AND_FAILED, NOTHING_ABERRANT)]
+        assert len(set(outs)) == 3
+
+
+# ---------------------------------------------------------------------------
+# Issue 14, the sites the first pass missed. Found by the code review.
+#
+# The per-call renderers were fixed, but the session SUMMARY in both the
+# terminal trace and the HTML export still read
+# `max((r.get("restored_fraction") or 0.0) for r in rr)`. A successful rescue
+# with no aberrant phenotype carries restored_fraction=None and IS stored in
+# rescue_results, so the summary printed "Best rescue: ✗ restored=0%" for the
+# very call the per-call line now reports as "n/a". One report contradicted
+# itself.
+# ---------------------------------------------------------------------------
+
+def _log_with_rescue(fractions):
+    return {
+        "metadata": {"organism_id": "org_x", "seed": 0, "budget": 10,
+                     "disease_mode": True, "model": "test"},
+        "turns": [],
+        "summary": {
+            "rescue_results": [
+                {"restored_fraction": f, "mse_vs_healthy": 0.01} for f in fractions
+            ]
+        },
+    }
+
+
+class TestTheSummaryAgreesWithThePerCallLine:
+
+    def test_the_trace_summary_does_not_call_an_unscorable_rescue_zero(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            report.print_session_trace(_log_with_rescue([None]))
+        out = buf.getvalue()
+        assert "restored=0%" not in out
+        assert "n/a" in out
+
+    def test_the_html_summary_does_not_call_an_unscorable_rescue_zero(self):
+        html = report._build_html(_log_with_rescue([None]))
+        assert "restored=0%" not in html
+        assert "n/a" in html
+
+    def test_a_real_zero_is_still_reported_as_zero_in_the_summary(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            report.print_session_trace(_log_with_rescue([0.0]))
+        assert "restored=0%" in buf.getvalue()
+
+    def test_the_best_of_several_attempts_ignores_the_unscorable_ones(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            report.print_session_trace(_log_with_rescue([None, 0.5, None]))
+        assert "restored=50%" in buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# Issue 24 — a refused run_experiment rendered as an experiment that ran.
+#
+# Found by the third code review of the issues 14/17 branch. The issue 14 guard
+# was added to the test_rescue branch only. run_experiment had none, in either
+# renderer, so a refused call printed its header and nothing else — no error,
+# no phenotypes. Issue 13 made the engine refuse flat and stray-key payloads,
+# so this path is more common than the refused rescue issue 14 names.
+# ---------------------------------------------------------------------------
+
+REFUSED_EXPERIMENT = {
+    "tool": "run_experiment",
+    "input": {"perturbations": {"G001": "BLOCK"}},
+    "result": {"error": "No interventions found in tool input. Use {'interventions': {...}}."},
+}
+
+RAN_EXPERIMENT = {
+    "tool": "run_experiment",
+    "input": {"interventions": {"G001": "BLOCK"}},
+    "result": {
+        "phenotypes": {"energy-state": 0.4},
+        "status": "converged",
+        "budget_remaining": 3,
+    },
+}
+
+
+class TestARefusedExperimentIsNotRenderedAsOneThatRan:
+
+    def test_the_trace_shows_the_error(self):
+        out = _render(REFUSED_EXPERIMENT, {})
+        assert "No interventions found" in out
+
+    def test_the_html_shows_the_error(self):
+        out = _render_html(REFUSED_EXPERIMENT)
+        assert "No interventions found" in out
+
+    def test_an_experiment_that_ran_is_unchanged_in_the_trace(self):
+        out = _render(RAN_EXPERIMENT, {})
+        assert "energy-state=0.400" in out
+        assert "ERROR" not in out
+
+    def test_the_two_cases_are_told_apart_in_both_renderers(self):
+        assert _render(REFUSED_EXPERIMENT, {}) != _render(RAN_EXPERIMENT, {})
+        assert _render_html(REFUSED_EXPERIMENT) != _render_html(RAN_EXPERIMENT)
+
+
+# ---------------------------------------------------------------------------
+# The class behind issues 14 and 24, closed across every tool.
+#
+# Three review rounds each found the same defect in one more tool: test_rescue,
+# then run_experiment, then submit_prediction. The guard was per-branch, so
+# every branch had to be remembered separately and three were not.
+#
+# dispatch_tool can return {"error": ...} for ANY tool — a missing parameter,
+# an unknown id, a refused payload — so every branch needs the guard. This
+# parametrised test covers all of them, so a tool added without one fails here
+# rather than in a fourth review.
+# ---------------------------------------------------------------------------
+
+ALL_TOOLS = [
+    "get_organism_info",
+    "get_next_prediction_task",
+    "run_experiment",
+    "test_rescue",
+    "submit_malfunction_hypothesis",
+    "submit_prediction",
+    "submit_hypothesis",
+]
+
+ERROR_TEXT = "the engine refused this call"
+
+
+@pytest.mark.parametrize("tool", ALL_TOOLS)
+class TestEveryToolShowsARefusal:
+
+    def test_the_trace_shows_the_error(self, tool):
+        tc = {"tool": tool, "input": {}, "result": {"error": ERROR_TEXT}}
+        assert ERROR_TEXT in _render(tc, {})
+
+    def test_the_html_shows_the_error(self, tool):
+        tc = {"tool": tool, "input": {}, "result": {"error": ERROR_TEXT}}
+        assert ERROR_TEXT in _render_html(tc)
