@@ -977,7 +977,10 @@ def plot_disease_organism(
     ]
     if rescue_interventions:
         rescue_label = "rescued: " + ", ".join(
-            f"{n} {canonical_type(v)}" for n, v in rescue_interventions.items()
+            # `or "?"` keeps the old behaviour for a value with no readable
+            # type: canonical_type returns "" there, and a bare name with a
+            # trailing space reads as a rendering slip rather than a gap.
+            f'{n} {canonical_type(v) or "?"}' for n, v in rescue_interventions.items()
         )
         legend_bar.append(mpatches.Patch(color=RESCUE_COLOR, label=rescue_label))
     ax_bar.legend(handles=legend_bar, loc="lower right", fontsize=7,
@@ -1661,10 +1664,16 @@ def plot_session(
     plt.setp(cb.ax.yaxis.get_ticklabels(), color="#aaa")
     cb.outline.set_edgecolor("#333")
 
+    # Built from IV_COLOR and IV_SYM rather than repeating their values, so a
+    # change to the markers cannot leave the legend describing the old figure.
+    _IV_GLOSS = {
+        "BLOCK": "suppress to zero",
+        "BOOST": "saturate to max",
+        "DAMPEN": "reduce to low",
+    }
     legend_handles = [
-        mpatches.Patch(color="#EF5350", label="✕ BLOCK — suppress to zero"),
-        mpatches.Patch(color="#66BB6A", label="▲ BOOST — saturate to max"),
-        mpatches.Patch(color="#FFA726", label="▼ DAMPEN — reduce to low"),
+        mpatches.Patch(color=IV_COLOR[t], label=f"{IV_SYM[t]} {t} — {_IV_GLOSS[t]}")
+        for t in ("BLOCK", "BOOST", "DAMPEN")
     ]
     if is_dis:
         legend_handles.append(

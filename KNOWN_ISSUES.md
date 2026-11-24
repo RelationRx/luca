@@ -149,7 +149,6 @@ pull requests cite it, so the table skips from 9 to 12.
 | 4 | `submit_prediction` disclosed ground truth and scored every retry, so a resubmitted answer raised the session average | v1 | scoring integrity | ✅ **fixed 2026-11-19** |
 | 5a | The chronic malfunction signal override was negated twice. Five sites stored a value already signed for an inhibiting signal, and `luca/dynamics.py:50` applied the mode sign again. A persistent **inhibitor** therefore simulated as a strong **activator** | v1 | disease mode | ✅ **fixed 2026-11-20** — see below |
 | 6 | The heuristic baseline subtracted its own measured `BLOCK` delta instead of adding it, and treated `DAMPEN` as the opposite of `BLOCK`. Over seeds 0-9 it therefore scored **below** a baseline that runs no experiments at all, on medium and on hard | v1 | baseline comparisons | ✅ **fixed 2026-11-20** — see below |
-| 7 | The `v1-generation-freeze-2` tag named in `DECISIONS.md` predates a package rename and a vocabulary change, and does not reproduce current organisms | v1 | reproduction instructions | ⬜ open |
 | 8 | `_composite_score` always divided by three in disease mode, so a run with a task subset was penalised for tasks it was not asked to perform. `--tasks predict diagnose` with accuracy 0.8 and diagnosis 0.5 scored **0.4333 instead of 0.65** | v1 | CLI subset runs only | ✅ **fixed 2026-11-22** — see below |
 | 9 | Diagnosis is scored on one irrevocable attempt while rescue takes the best of every attempt | v1 + v2 | diagnosis-rescue comparisons | ⬜ open — v1 documents the asymmetry; v2 decides whether to change it |
 | 12 | `run_experiment` never validates an intervention's type. An unrecognised type is silently ignored, costs one unit of budget, and returns no error | v1 | agent feedback, held-out protocol | ✅ **fixed 2026-11-19** |
@@ -159,13 +158,14 @@ pull requests cite it, so the table skips from 9 to 12.
 | 17 | `inspect.py` read an intervention value of `"BLOCK"` as `""` when it coloured the heatmap marker, so a string-valued intervention rendered as a white `?`. The intervention strip 24 lines above read the same value correctly. The engine stores the agent's own payload shape verbatim, so both the bare-string and the wrapped form reach the renderer | v1 | diagnostic figures only | ✅ **fixed 2026-11-24** — see below |
 | 19 | `test_rescue` re-applied the chronic signal override after it read the agent's request, so the rescue the generator certifies for a `PERSIST` malfunction could not be performed. Measured before the fix: 9 of the 60 canonical disease organisms carried a `PERSIST` malfunction, all 9 were certified rescuable, and all 9 returned `restored_fraction = 0.0` | v1 | disease mode, rescue scoring | ✅ **fixed 2026-11-20** — see below |
 | 20 | `pytest` run from the repository root imported `luca` from a different checkout. There is no `conftest.py` and no pytest path setting, and pytest's `prepend` import mode puts the *test file's* directory on `sys.path`, never the repository root. An editable install of `luca` elsewhere therefore won. The tests that prove issues 1, 4 and 12 are fixed were failing under the documented command | v1 | every test run | ✅ **fixed 2026-11-20** — see below |
-| 22 | `evaluate.py:271` scores a rescue with `restored_fraction = None` as `0.0`, through `max(((r.get("restored_fraction") or 0.0) for r in rescue_results), default=None)`. `None` means no phenotype was aberrant, so there was nothing to restore. The same collapse as issue 14, in the score rather than the display. Found by the code review of the issue 14 fix | v1 | disease scoring | ⬜ open |
-| 23 | A signal action renders as the neutral `?` marker in `plot_session`. `canonical_type` upper-cases a gene type only, so `"deactivate"` is not in `IV_COLOR` and a signal experiment's column label reads `?potential-theta`. Pre-existing; found by the code review of the issue 17 fix | v2 | diagnostic figures only | ⬜ open — depends on issue 5b, what a signal verb should mean |
+| 22 | `evaluate.py` scored a rescue with `restored_fraction = None` as `0.0`, through `max(((r.get("restored_fraction") or 0.0) for r in rescue_results), default=None)`. `None` means no phenotype was aberrant, so there was nothing to restore, and the report calls the same event `restored=n/a`. **Latent**: `generate_disease_organism` guarantees at least one aberrant phenotype, and measured 2026-11-24 none of the 60 canonical disease organisms has zero. Found by the code review of the issues 14 and 17 fix | v1 + v2 | disease scoring | ⚠️ **the recorded field is fixed 2026-11-24; the composite is not** — see below |
 | 2 | Every easy and medium prediction task is solvable by a four-experiment additive strategy, contradicting the stated non-additivity guarantee. A session asks two tasks of two genes each, so measuring those genes separately and adding the effects answers both. Measured over seeds 0-19: easy 40 of 40, medium 40 of 40, hard 18 of 40 against the stored ground truth, and 34 of 40 noise-free — see issue 3 for which number answers which question | v2 | difficulty claims | ⬜ open — needs a generator change |
 | 5b | What `activate` should mean is undecided. Every signal is already on at `sig.strength`, so the verb has no referent. Since 2026-11-20 the engine refuses it rather than ignoring it, and `deactivate` works in both forms (issue 5a). Deciding what an agent should be able to *do* to a signal beyond switching it off is a design question, not a bug | v2 | disease mode, signal diagnosis | ⬜ open |
+| 7 | The `v1-generation-freeze-2` tag named in `DECISIONS.md:91` does not reproduce current organisms, and the import it implies cannot work: the package there is **`lemonoids`**. Measured 2026-11-24 on seed 0 medium, the organism is genuinely different, not merely relabelled — **58 relations against 59**, a different edge set, and `baseline_state["g_001"]` 0.796509 against 0.682518. Gene ids, gene names, phenotype labels and module membership are identical; every signal label changed. The tag is not broken — it freezes an earlier generation vintage, which is what a freeze tag is for. `DECISIONS.md` is wrong to call it the "current canonical version" | v2 | reproduction instructions | ⬜ open — **re-bucketed v1 → v2 on 2026-11-24**; a new freeze tag waits for the generator decision |
 | 16 | The list intervention form accepts only `BLOCK`, `BOOST` and `DAMPEN`, so it cannot express a signal, and its refusal message never mentions signals. The dict form accepts `{"wave-X": "deactivate"}` | v2 | agent feedback | ⬜ open |
 | 18 | Nothing shows an agent that a signal goes in the interventions map. 78 of 18,356 stored calls asked for a signal-only experiment through shapes the engine does not read, such as `{"signal_activations": ["burst-I"]}` and `{"interventions": [], "signals": [...]}` | v2 | disease mode, signal diagnosis | ⬜ open |
 | 21 | **The issue 1 seal has a deliberate escape, and the escape leaks.** Finding 3 of the PR #9 review made `_sealed_task_for` return `None` whenever the agent changes any signal, on the reasoning that the same genes under a changed signal is "a different experiment with a different outcome". The outcome is not different enough. A revealed task's exact gene pair plus one unrelated signal change runs and returns the held-out answer. Worst gap against the stored ground truth, against a scoring threshold of 0.10 — before the issue 5a fix: easy 19 **0.0150**, medium 16 **0.0199**, hard 12 **0.0913**; after it: **0.0253**, **0.0522**, **0.0913**. Closing it in v1 costs five lines, and `tests/test_experiment.py::TestSealCoversSignals` is the test that would change. We are not doing that, because signal prediction is being redesigned in v2 and the seal's rule for signals should follow that design, not precede it | v2 | **held-out protocol** | ⬜ open |
+| 23 | A signal action renders as the neutral `?` marker in `plot_session`. `canonical_type` upper-cases a gene type only, so `"deactivate"` is not in `IV_COLOR` and a signal experiment's column label reads `?potential-theta`. Pre-existing; found by the code review of the issue 17 fix | v2 | diagnostic figures only | ⬜ open — depends on issue 5b, what a signal verb should mean |
 
 Issues 1–8 came from the November 2026 review. Issue 9 was found while
 investigating it. Issues 12 and 13 were found by a subsequent audit of the
@@ -857,20 +857,42 @@ three different things into `restored=0%`:
    was nothing to restore, which is not the same as restoring nothing.
 3. **Attempted and restored nothing.** A real `0.0`.
 
+Case 1 is reachable from any refusal. Case 2 is a **defensive guard**:
+`generate_disease_organism` guarantees at least one aberrant phenotype, and
+measured on 2026-11-24 none of the 60 canonical disease organisms has zero, so
+`None` does not occur today. It is handled rather than left to rot.
+
 A reader could not tell them apart. The `submit_malfunction_hypothesis` branch
 in the same function already handled `if "error" in res`; `test_rescue` did
 not.
 
 The issue named `luca/report.py:143` as it stood on `main`, which is the
 `test_rescue` branch of `_print_tool_call`, the terminal trace. That line
-number moved with this fix; the function name is the stable handle. **Four**
+number moved with this fix; the function name is the stable handle. **Five**
 sites
 carried the defect, not one. `_html_tool_call` renders the same tool call into
 the exported HTML. Both session summaries — terminal and HTML — read
 `max((r.get("restored_fraction") or 0.0) for r in rr)`, so once the first two
 sites were fixed the same report said `n/a` on the per-call line and
 `restored=0%` in its own summary for that identical call. The code review found
-the two summary sites. All four are fixed.
+the two summary sites, and a second review found a fifth in `demo.py`. All five
+are fixed.
+
+`experiments/paper_v1/analyse.py` carries the same expression and is
+**deliberately left alone**: it is a frozen analysis script for an earlier
+result set, and changing it would make it no longer the script that produced
+those numbers. The expression is latent there for the same reason it is latent
+everywhere else.
+
+### Issue 22 is only half closed
+
+`_make_record` no longer records an unscorable rescue as `0.0`, so the stored
+`rescue_fraction` stops lying. `_composite_score` still maps `None` to `0.0`,
+and the record cannot tell "never attempted" from "attempted, nothing
+aberrant". The first must score `0.0` — not attempting is a failed attempt.
+What the second should score is a scoring-policy question, like the asymmetry
+in issue 9, and inventing an answer inside a rendering fix would be the wrong
+place to decide it. The remainder is bucketed v2.
 
 ### Issue 17 — the same value resolved twice, differently
 
@@ -908,13 +930,19 @@ shape of fix as issue 15, where the generator and the seal were made to share
 
 ### Coverage
 
-`luca/inspect.py` had **no test file**. `tests/test_inspect.py` adds 16 cases,
-including one that drives a real experiment through the tool layer and asserts
-the stored form renders with its own colour and symbol. `tests/test_report.py`
-gains 9, including one that asserts all three rescue outcomes render
-differently.
+`luca/inspect.py` had **no test file**. `tests/test_inspect.py` is new and
+collects **19** cases, including ones that drive a real experiment through the
+tool layer and assert the stored form renders with its own colour and symbol,
+in both the upper-case and the lower-case spelling the engine accepts.
+`tests/test_report.py` goes from 31 to **44**, including one that asserts all
+three rescue outcomes render differently. `tests/test_evaluate.py` goes from 10
+to **14** for issue 22.
 
-`pytest -q`: **345 passed**, against the 320 baseline.
+`pytest -q`: **356 passed**, against the 320 baseline on `main`. 19 + 13 + 4 is
+the whole difference.
+
+These counts were stale in a first version of this section, measured one commit
+before the end of the branch. They are now taken at its tip.
 
 ## Reproducing any of these
 
@@ -927,10 +955,12 @@ measurement, not by inspection alone.
 1. ~~Finish auditing the analysis scripts.~~ A first pass is done; it produced
    issues 12 and 13. The scaling-study logs and several analysis scripts are
    still unexamined.
-2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 6, 8, 12, 13, 14, 15, 17, 19 and 20 are done.
+2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 6, 8, 12, 13, 14, 15, 17, 19 and 20 are done, and the v1 half of 22.
    19 and 5a shipped together, because fixing either alone leaves the rescue
-   broken. 15 landed on 2026-11-21, 8 on 2026-11-22, and 14 and 17 together on
-   2026-11-24. The order from here is 7, and finally the disclosure for 9. Issue 21 was found by the review of 19 and 5a and moved to
+   broken. 15 landed on 2026-11-21, 8 on 2026-11-22, and 14, 17 and 22 together
+   on 2026-11-24. Issue 7 moved to v2 on 2026-11-24: a new freeze tag waits for
+   the generator decision. All that remains in v1 is the disclosure for issue 9
+   and the final measurement. Issue 21 was found by the review of 19 and 5a and moved to
    v2 on 2026-11-20: it is a real hole, but signal prediction is being
    redesigned, and the seal's rule for signals belongs to that design.
 3. Recompute every affected number once the v1 fixes have landed, and record

@@ -764,7 +764,7 @@ def _build_html(log: dict) -> str:
             badge = _badge(best, 1.0, 0.5)
             shown = f"restored={best:.0%}  mse_vs_healthy={best_mse}"
         else:
-            badge = '<span class="warn">—</span>'
+            badge = "<span class='badge badge-warn'>—</span>"
             shown = f"restored=n/a (no aberrant phenotype)  mse_vs_healthy={best_mse}"
         parts.append(
             f"<tr><td>Best rescue</td>"

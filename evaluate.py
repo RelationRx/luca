@@ -267,9 +267,23 @@ def _make_record(seed, org, summary, model_name, disease, difficulty, active_tas
     if disease:
         hyp = summary.get("malfunction_hypothesis") or {}
         rescue_results = summary.get("rescue_results") or []
-        best_rescue = max(
-            ((r.get("restored_fraction") or 0.0) for r in rescue_results), default=None
-        )
+        # Issue 22: `or 0.0` scored an unscorable rescue as a failed one. A
+        # stored restored_fraction of None means no phenotype was aberrant, so
+        # there was nothing to restore — the same distinction report.py draws
+        # when it prints "restored=n/a (no aberrant phenotype)". Without this
+        # the score and the report describe one session two ways.
+        #
+        # Latent rather than live: generate_disease_organism guarantees at
+        # least one aberrant phenotype, and no canonical disease organism has
+        # zero. Kept consistent so the guard does not rot.
+        #
+        # An empty rescue_results still yields None, and _composite_score
+        # scores that 0.0 — requested and never attempted is a failed attempt.
+        scored = [
+            r["restored_fraction"] for r in rescue_results
+            if r["restored_fraction"] is not None
+        ]
+        best_rescue = max(scored) if scored else None
         record["true_malfunction"] = summary.get("true_malfunction")
         record["diagnosis_score"] = hyp.get("score")
         record["rescue_fraction"] = best_rescue
