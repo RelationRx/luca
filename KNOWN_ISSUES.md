@@ -150,7 +150,7 @@ pull requests cite it, so the table skips from 9 to 12.
 | 5a | The chronic malfunction signal override was negated twice. Five sites stored a value already signed for an inhibiting signal, and `luca/dynamics.py:50` applied the mode sign again. A persistent **inhibitor** therefore simulated as a strong **activator** | v1 | disease mode | ✅ **fixed 2026-11-20** — see below |
 | 6 | The heuristic baseline subtracted its own measured `BLOCK` delta instead of adding it, and treated `DAMPEN` as the opposite of `BLOCK`. Over seeds 0-9 it therefore scored **below** a baseline that runs no experiments at all, on medium and on hard | v1 | baseline comparisons | ✅ **fixed 2026-11-20** — see below |
 | 8 | `_composite_score` always divided by three in disease mode, so a run with a task subset was penalised for tasks it was not asked to perform. `--tasks predict diagnose` with accuracy 0.8 and diagnosis 0.5 scored **0.4333 instead of 0.65** | v1 | CLI subset runs only | ✅ **fixed 2026-11-22** — see below |
-| 9 | Diagnosis is scored on one irrevocable attempt while rescue takes the best of every attempt | v1 + v2 | diagnosis-rescue comparisons | ⬜ open — v1 documents the asymmetry; v2 decides whether to change it |
+| 9 | Prediction and diagnosis are one-shot, without feedback, while rescue takes **the best of every attempt** and returns full feedback each time. The budget allows up to **31** rescue attempts, so an agent can hill-climb on rescue and cannot on the other two. The composite averages a one-shot score with a best-of-N one | v1 + v2 | diagnosis-rescue comparisons | ⚠️ **disclosed 2026-11-24 (v1 half done)**; whether to change the rule is v2 |
 | 12 | `run_experiment` never validates an intervention's type. An unrecognised type is silently ignored, costs one unit of budget, and returns no error | v1 | agent feedback, held-out protocol | ✅ **fixed 2026-11-19** |
 | 13 | **The tool layer accepted intervention formats that it then ignored.** A request that did not use the documented `interventions` key reached the engine as an empty experiment: charged one unit of budget, returning the unperturbed organism and no error | v1 | **cross-model comparisons** | ✅ **fixed 2026-11-19** — see below |
 | 14 | `report.py` rendered a refused `test_rescue` as `restored=0%` with no error line, so a reader could not tell a refused rescue from a failed one. **Three** outcomes collapsed into `0%`, not two: a refusal, a `None` fraction meaning nothing was aberrant, and a real 0.0. Both renderers carried it — the terminal trace and the HTML export | v1 | session reports only | ✅ **fixed 2026-11-24** — see below |
@@ -990,6 +990,43 @@ These counts were stale twice in earlier versions of this section, each time
 measured before the end of the branch. They are now taken at its tip, after the
 last code commit.
 
+## ⚠️ Issue 9, as disclosed on 2026-11-24
+
+The v1 half of this issue is to **state** the asymmetry wherever a score is
+reported. That is done. Whether to change the rule stays v2, because every
+option moves every existing disease number.
+
+### What the asymmetry is
+
+| Task | Attempts counted | Feedback before committing |
+|---|---|---|
+| Prediction | one per task; a resubmission is refused (issue 4) | none |
+| Diagnosis | one; locked on the first call | none |
+| Rescue | **the best of every attempt** | **full, on every attempt** |
+
+`test_rescue` returns the restored fraction, which phenotypes are now in their
+healthy range, and which previously healthy phenotypes the intervention broke.
+An agent can therefore hill-climb on rescue. It cannot on the other two, which
+reveal nothing until `get_summary()`.
+
+`recommended_budget` is `n_genes + n_signals + 8`, measured at **31** for every
+canonical disease organism at all three tiers, and `test_rescue` costs 1 unit.
+So an agent that runs no experiments could make up to 31 scored rescue attempts
+and keep the best.
+
+### Why it matters to a reader
+
+A diagnosis score and a rescue fraction are not comparable. A model scoring
+higher on rescue than on diagnosis may have had more attempts rather than
+better understanding. The composite averages the two as though they were earned
+the same way.
+
+### Where it is now stated
+
+- `docs/benchmark_design.md`, in the scoring section, with an "Attempts
+  counted" column added to the scoring table.
+- `README.md`, beside the composite score definition.
+
 ## Reproducing any of these
 
 The reproduction scripts live in the development repository and will be
@@ -1003,10 +1040,10 @@ measurement, not by inspection alone.
    still unexamined.
 2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 6, 8, 12, 13, 14, 15, 17, 19, 20 and 24 are done, and the v1 half of 22.
    19 and 5a shipped together, because fixing either alone leaves the rescue
-   broken. 15 landed on 2026-11-21, 8 on 2026-11-22, and 14, 17 and 22 together
-   on 2026-11-24. Issue 7 moved to v2 on 2026-11-24: a new freeze tag waits for
-   the generator decision. All that remains in v1 is the disclosure for issue 9
-   and the final measurement. Issue 21 was found by the review of 19 and 5a and moved to
+   broken. 15 landed on 2026-11-21, 8 on 2026-11-22, and 14, 17, 22 and 24
+   together on 2026-11-24. Issue 7 moved to v2 on 2026-11-24: a new freeze tag waits for
+   the generator decision. The issue 9 disclosure landed on 2026-11-24, so
+   **the final measurement is all that remains in v1**. Issue 21 was found by the review of 19 and 5a and moved to
    v2 on 2026-11-20: it is a real hole, but signal prediction is being
    redesigned, and the seal's rule for signals belongs to that design.
 3. Recompute every affected number once the v1 fixes have landed, and record

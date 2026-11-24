@@ -338,15 +338,50 @@ noisy target would make the benchmark stochastic across re-runs. At hard tier
 (σ=0.03), ±0.10 represents a ~3σ tolerance, so measurement noise alone is not
 penalised.
 
-| Task | Metric | How scored |
-|------|--------|------------|
-| Prediction | Accuracy | Fraction of phenotypes within ±0.10 of ground truth, averaged over tasks |
-| Diagnosis | Score | 1.0 exact (gene + type) · 0.5 correct gene wrong type · 0.0 wrong |
-| Rescue | Fraction | Fraction of aberrant phenotypes restored to healthy range |
-| Composite | — | Healthy: pred_acc · Disease: mean(pred_acc, diagnosis, rescue) |
+| Task | Metric | How scored | Attempts counted |
+|------|--------|------------|------------------|
+| Prediction | Accuracy | Fraction of phenotypes within ±0.10 of ground truth, averaged over tasks | **One per task.** A resubmission is refused |
+| Diagnosis | Score | 1.0 exact (gene + type) · 0.5 correct gene wrong type · 0.0 wrong | **One.** Locked on the first call |
+| Rescue | Fraction | Fraction of aberrant phenotypes restored to healthy range | **The best of every attempt** |
+| Composite | — | Healthy: pred_acc · Disease: mean(pred_acc, diagnosis, rescue) | — |
 
 MSE is computed and logged per prediction task but is not used in final scoring.
 Scores are only revealed via `get_summary()` at session end.
+
+#### A known asymmetry: one attempt against the best of many
+
+**The three sub-scores are not earned under the same rules, and the composite
+averages them as though they were.** This is recorded as issue 9 in
+[KNOWN_ISSUES.md](../KNOWN_ISSUES.md). It is disclosed here rather than
+changed, because changing it would invalidate every comparison already made.
+
+- **Prediction and diagnosis are one-shot.** `submit_prediction` scores one
+  answer per task and refuses a second. `submit_malfunction_hypothesis` locks
+  on its first call. Neither reveals a score before the session ends, so the
+  agent commits without feedback.
+- **Rescue is best-of-N.** Every `test_rescue` call is scored and kept, and the
+  reported fraction is the maximum over all of them. Each call also returns
+  full feedback: the restored fraction, which phenotypes are now in range, and
+  which previously healthy phenotypes the intervention broke. An agent can
+  therefore hill-climb on rescue, and cannot on the other two.
+- **The budget allows many attempts.** `recommended_budget` is
+  `n_genes + n_signals + 8`, which is **31** for every canonical disease
+  organism at all three tiers. `test_rescue` costs 1 unit, so an agent that
+  spends nothing on experiments could make up to 31 scored attempts and keep
+  the best.
+
+Two consequences for anyone reading a result:
+
+1. **A diagnosis score and a rescue fraction are not comparable.** A model that
+   scores higher on rescue than on diagnosis may simply have had more attempts,
+   not better understanding.
+2. **The composite weights a one-shot score equally with a best-of-N score.**
+   Report the sub-scores, as `README.md` already recommends, and treat the
+   composite as a convenience summary rather than a measurement.
+
+Whether to change the rule — scoring only the first rescue, or scoring the
+last, or charging for retries — is deferred to LUCA v2, because every option
+moves every existing disease number.
 
 ---
 

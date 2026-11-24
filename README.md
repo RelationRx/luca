@@ -86,6 +86,8 @@ LUCA is a benchmark for causal reasoning under a fixed experimental budget. Each
 
 **Composite score**: healthy = prediction accuracy; disease = mean(prediction accuracy, diagnosis score, rescue fraction). In disease mode, sub-scores (pred_acc / diagnosis / rescue) are the primary reported metrics — the composite is a convenience summary.
 
+> **The three sub-scores are not earned under the same rules.** Prediction and diagnosis are one-shot: a prediction is scored once per task and a diagnosis locks on the first call, both without feedback. Rescue takes the **best of every attempt**, and each attempt returns full feedback, so an agent can hill-climb on rescue and cannot on the other two. The budget allows up to 31 rescue attempts. A diagnosis score and a rescue fraction are therefore not comparable, and the composite averages a one-shot score with a best-of-N one. See [docs/benchmark_design.md](docs/benchmark_design.md#scoring) and issue 9 in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
 > Prediction tasks are revealed one at a time — the agent cannot see task 2 until task 1 is submitted, so the held-out interventions cannot be run directly before predicting.
 
 > Modules are **hidden from the agent** — inferring functional groupings is part of the challenge.
