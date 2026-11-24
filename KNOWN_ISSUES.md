@@ -159,7 +159,7 @@ pull requests cite it, so the table skips from 9 to 12.
 | 19 | `test_rescue` re-applied the chronic signal override after it read the agent's request, so the rescue the generator certifies for a `PERSIST` malfunction could not be performed. Measured before the fix: 9 of the 60 canonical disease organisms carried a `PERSIST` malfunction, all 9 were certified rescuable, and all 9 returned `restored_fraction = 0.0` | v1 | disease mode, rescue scoring | ✅ **fixed 2026-11-20** — see below |
 | 20 | `pytest` run from the repository root imported `luca` from a different checkout. There is no `conftest.py` and no pytest path setting, and pytest's `prepend` import mode puts the *test file's* directory on `sys.path`, never the repository root. An editable install of `luca` elsewhere therefore won. The tests that prove issues 1, 4 and 12 are fixed were failing under the documented command | v1 | every test run | ✅ **fixed 2026-11-20** — see below |
 | 22 | `evaluate.py` scored a rescue with `restored_fraction = None` as `0.0`, through `max(((r.get("restored_fraction") or 0.0) for r in rescue_results), default=None)`. `None` means no phenotype was aberrant, so there was nothing to restore, and the report calls the same event `restored=n/a`. **Latent**: `generate_disease_organism` guarantees at least one aberrant phenotype, and measured 2026-11-24 none of the 60 canonical disease organisms has zero. Found by the code review of the issues 14 and 17 fix | v1 + v2 | disease scoring | ⚠️ **the recorded field is fixed 2026-11-24; the composite is not** — see below |
-| 24 | `report.py` rendered a refused `run_experiment` as an experiment that ran: it printed the header and nothing else, with no error line, in both the terminal trace and the HTML export. The issue 14 guard was added to the `test_rescue` branch only. Issue 13 made the engine refuse flat and stray-key payloads, so this is the commonest refusal in a trace. Found by the third code review of the issues 14 and 17 fix | v1 | session reports only | ✅ **fixed 2026-11-24** — shipped with issues 14, 17 and 22 |
+| 24 | `report.py` rendered a refused call as one that ran: it printed the header and nothing else, with no error line, in both the terminal trace and the HTML export. The guard was written per tool branch, and **four of the seven branches had none** — `get_organism_info`, `get_next_prediction_task`, `submit_prediction` and `submit_hypothesis`. Issue 13 made the engine refuse flat and stray-key payloads, so a refusal is common. Found over three review rounds of the issues 14 and 17 fix, one tool at a time, which is why the fix is one guard per renderer rather than a fourth patch | v1 | session reports only | ✅ **fixed 2026-11-24** — shipped with issues 14, 17 and 22 |
 | 2 | Every easy and medium prediction task is solvable by a four-experiment additive strategy, contradicting the stated non-additivity guarantee. A session asks two tasks of two genes each, so measuring those genes separately and adding the effects answers both. Measured over seeds 0-19: easy 40 of 40, medium 40 of 40, hard 18 of 40 against the stored ground truth, and 34 of 40 noise-free — see issue 3 for which number answers which question | v2 | difficulty claims | ⬜ open — needs a generator change |
 | 5b | What `activate` should mean is undecided. Every signal is already on at `sig.strength`, so the verb has no referent. Since 2026-11-20 the engine refuses it rather than ignoring it, and `deactivate` works in both forms (issue 5a). Deciding what an agent should be able to *do* to a signal beyond switching it off is a design question, not a bug | v2 | disease mode, signal diagnosis | ⬜ open |
 | 7 | The `v1-generation-freeze-2` tag named in `DECISIONS.md:91` does not reproduce current organisms, and the import it implies cannot work: the package there is **`lemonoids`**. Measured 2026-11-24 on seed 0 medium, the organism is genuinely different, not merely relabelled — **58 relations against 59**, a different edge set, and `baseline_state["g_001"]` 0.796509 against 0.682518. Gene ids, gene names, phenotype labels and module membership are identical; every signal label changed. The tag is not broken — it freezes an earlier generation vintage, which is what a freeze tag is for. `DECISIONS.md` is wrong to call it the "current canonical version" | v2 | reproduction instructions | ⬜ open — **re-bucketed v1 → v2 on 2026-11-24**; a new freeze tag waits for the generator decision |
@@ -840,11 +840,17 @@ not one number.
 
 ## ✅ Issues 14, 17, 22 and 24, as fixed on 2026-11-24
 
-They shipped in one pull request. They are **not** a true cluster: neither
-needs the other to be correct. The workflow rule in `CLAUDE.md` asks for one PR
-per issue, and **the maintainer waived it for these two on 2026-11-24**, after
-being shown the sizes. Two separate review cycles would have cost more than
-they bought.
+Four issues shipped in one pull request, and they got there for two different
+reasons. The workflow rule in `CLAUDE.md` asks for one PR per issue.
+
+- **14 and 17** are not a true cluster — neither needs the other to be
+  correct. **The maintainer waived the rule for this pair on 2026-11-24**,
+  after being shown the sizes, because two review cycles would have cost more
+  than they bought.
+- **22 and 24** were found by the reviews of this branch and fixed here under
+  the cluster rule itself. Issue 22 must agree with issue 14 or one session
+  gets two descriptions, and issue 24 is the same defect as issue 14 in the
+  same two functions. Issue 12 joined PR #9 on the same grounds.
 
 ### Issue 14 — three outcomes rendered as one
 
@@ -883,8 +889,28 @@ are fixed.
 A third review then found that the guard had been added to the `test_rescue`
 branch only. A refused `run_experiment` still printed its header and nothing
 else, in both renderers, so it read as an experiment that ran and reported
-nothing. That is recorded as issue 24 and fixed here: it is the same defect,
-in the same two functions, for the tool that is refused far more often.
+nothing. That is issue 24.
+
+**A fourth review found the same defect a third time, in `submit_prediction`,
+and that is the finding that mattered.** Three rounds each found one more tool
+because the guard was written per branch, so it had to be remembered seven
+times. An audit then showed **four of the seven branches had no reachable
+guard** in each renderer: `get_organism_info`, `get_next_prediction_task`,
+`submit_prediction` and `submit_hypothesis`. A `grep` for `"error" in res` was
+not enough to see this — `submit_hypothesis` had no guard of its own and fell
+through to an `else` that never ran for it.
+
+So the fix is not a fourth patch. **One guard now sits at the top of each
+renderer and covers every tool**, including any added later, and the six
+per-branch guards are removed. A refused call shows what was asked and why it
+was refused, and nothing else — there are no results to render. The raw input
+is shown rather than a parsed view, because when the tool layer refuses a
+payload it could not read (issue 13), what the agent actually sent is the thing
+worth seeing.
+
+`tests/test_report.py::TestEveryToolShowsARefusal` parametrises over all seven
+tools in both renderers, so a tool added without a guard fails there rather
+than in a fifth review.
 
 `experiments/paper_v1/analyse.py` carries the same expression and is
 **deliberately left alone**: it is a frozen analysis script for an earlier
@@ -952,11 +978,12 @@ call site that stops using it fails: asserting only the resolver's own output
 would not have caught a single site reverting, because the other site resolves
 the same values. Verified by reverting one site and watching it fail.
 
-`tests/test_report.py` goes from 31 to **48**, including one that asserts all
-three rescue outcomes render differently and four for issue 24.
-`tests/test_evaluate.py` goes from 10 to **14** for issue 22.
+`tests/test_report.py` goes from 31 to **62**, including one that asserts all
+three rescue outcomes render differently and fourteen that hold every tool, in
+both renderers, to showing a refusal. `tests/test_evaluate.py` goes from 10 to
+**14** for issue 22.
 
-`pytest -q`: **361 passed**, against the 320 baseline on `main`. 20 + 17 + 4 is
+`pytest -q`: **375 passed**, against the 320 baseline on `main`. 20 + 31 + 4 is
 the whole difference.
 
 These counts were stale twice in earlier versions of this section, each time

@@ -490,3 +490,41 @@ class TestARefusedExperimentIsNotRenderedAsOneThatRan:
     def test_the_two_cases_are_told_apart_in_both_renderers(self):
         assert _render(REFUSED_EXPERIMENT, {}) != _render(RAN_EXPERIMENT, {})
         assert _render_html(REFUSED_EXPERIMENT) != _render_html(RAN_EXPERIMENT)
+
+
+# ---------------------------------------------------------------------------
+# The class behind issues 14 and 24, closed across every tool.
+#
+# Three review rounds each found the same defect in one more tool: test_rescue,
+# then run_experiment, then submit_prediction. The guard was per-branch, so
+# every branch had to be remembered separately and three were not.
+#
+# dispatch_tool can return {"error": ...} for ANY tool — a missing parameter,
+# an unknown id, a refused payload — so every branch needs the guard. This
+# parametrised test covers all of them, so a tool added without one fails here
+# rather than in a fourth review.
+# ---------------------------------------------------------------------------
+
+ALL_TOOLS = [
+    "get_organism_info",
+    "get_next_prediction_task",
+    "run_experiment",
+    "test_rescue",
+    "submit_malfunction_hypothesis",
+    "submit_prediction",
+    "submit_hypothesis",
+]
+
+ERROR_TEXT = "the engine refused this call"
+
+
+@pytest.mark.parametrize("tool", ALL_TOOLS)
+class TestEveryToolShowsARefusal:
+
+    def test_the_trace_shows_the_error(self, tool):
+        tc = {"tool": tool, "input": {}, "result": {"error": ERROR_TEXT}}
+        assert ERROR_TEXT in _render(tc, {})
+
+    def test_the_html_shows_the_error(self, tool):
+        tc = {"tool": tool, "input": {}, "result": {"error": ERROR_TEXT}}
+        assert ERROR_TEXT in _render_html(tc)
