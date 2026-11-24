@@ -154,9 +154,9 @@ pull requests cite it, so the table skips from 9 to 12.
 | 9 | Diagnosis is scored on one irrevocable attempt while rescue takes the best of every attempt | v1 + v2 | diagnosis-rescue comparisons | ⬜ open — v1 documents the asymmetry; v2 decides whether to change it |
 | 12 | `run_experiment` never validates an intervention's type. An unrecognised type is silently ignored, costs one unit of budget, and returns no error | v1 | agent feedback, held-out protocol | ✅ **fixed 2026-11-19** |
 | 13 | **The tool layer accepted intervention formats that it then ignored.** A request that did not use the documented `interventions` key reached the engine as an empty experiment: charged one unit of budget, returning the unperturbed organism and no error | v1 | **cross-model comparisons** | ✅ **fixed 2026-11-19** — see below |
-| 14 | `report.py` renders a refused `test_rescue` as `restored=0%` with no error line, so a reader cannot tell a refused rescue from a failed one | v1 | session reports only | ⬜ open |
+| 14 | `report.py` rendered a refused `test_rescue` as `restored=0%` with no error line, so a reader could not tell a refused rescue from a failed one. **Three** outcomes collapsed into `0%`, not two: a refusal, a `None` fraction meaning nothing was aberrant, and a real 0.0. Both renderers carried it — the terminal trace and the HTML export | v1 | session reports only | ✅ **fixed 2026-11-24** — see below |
 | 15 | `_generate_tasks` looped `n` times and never compared a new task against the tasks already built, so one organism could ask the same question twice. **The duplicate broke the issue 1 seal**: answer `task_00`, run that exact experiment unsealed, then reveal the identical `task_01` and submit the measured values. On medium seed 10 that scored **accuracy 1.0, mse 0.0001** for 1 unit of budget. Measured over seeds 0-299 at three tiers: **7 of 900** organisms carried an exact duplicate, and medium seed 10 carried one inside the canonical 60. An earlier entry here claimed no organism of the 60 carried a duplicate; that measurement compared dictionary key order, and 6 of the 7 duplicates reverse it | v1 | **held-out protocol**, prediction scoring | ✅ **fixed 2026-11-21** — see below |
-| 17 | `inspect.py` reads an intervention value of `"BLOCK"` as `""` when it colours the heatmap marker, so a string-valued intervention renders as a white `?`. Line 1443 reads the same value correctly | v1 | diagnostic figures only | ⬜ open |
+| 17 | `inspect.py` read an intervention value of `"BLOCK"` as `""` when it coloured the heatmap marker, so a string-valued intervention rendered as a white `?`. The intervention strip 24 lines above read the same value correctly. The engine stores the agent's own payload shape, and **1,450 of 18,356** stored calls used the bare-string form | v1 | diagnostic figures only | ✅ **fixed 2026-11-24** — see below |
 | 19 | `test_rescue` re-applied the chronic signal override after it read the agent's request, so the rescue the generator certifies for a `PERSIST` malfunction could not be performed. Measured before the fix: 9 of the 60 canonical disease organisms carried a `PERSIST` malfunction, all 9 were certified rescuable, and all 9 returned `restored_fraction = 0.0` | v1 | disease mode, rescue scoring | ✅ **fixed 2026-11-20** — see below |
 | 20 | `pytest` run from the repository root imported `luca` from a different checkout. There is no `conftest.py` and no pytest path setting, and pytest's `prepend` import mode puts the *test file's* directory on `sys.path`, never the repository root. An editable install of `luca` elsewhere therefore won. The tests that prove issues 1, 4 and 12 are fixed were failing under the documented command | v1 | every test run | ✅ **fixed 2026-11-20** — see below |
 | 2 | Every easy and medium prediction task is solvable by a four-experiment additive strategy, contradicting the stated non-additivity guarantee. A session asks two tasks of two genes each, so measuring those genes separately and adding the effects answers both. Measured over seeds 0-19: easy 40 of 40, medium 40 of 40, hard 18 of 40 against the stored ground truth, and 34 of 40 noise-free — see issue 3 for which number answers which question | v2 | difficulty claims | ⬜ open — needs a generator change |
@@ -833,6 +833,66 @@ including the two that used to be indistinguishable: the same record scored
 under `--tasks predict rescue` and under a full run must give 0.70 and 0.4667,
 not one number.
 
+## ✅ Issues 14 and 17, as fixed on 2026-11-24
+
+They shipped in one pull request. They are **not** a true cluster: neither
+needs the other to be correct. They were batched because each is a handful of
+lines and a separate review cycle would have cost more than it bought.
+
+### Issue 14 — three outcomes rendered as one
+
+Both renderers read `res.get("restored_fraction") or 0.0`. That collapsed
+three different things into `restored=0%`:
+
+1. **Refused.** `test_rescue` returned `{"error": ...}`. Every refusal path in
+   `ExperimentSession.test_rescue` returns before `_rescue_results.append`, so
+   there is no fraction to show at all.
+2. **Nothing aberrant.** `restored_fraction` is `None`, because
+   `restored / n_aberrant if n_aberrant else None` had nothing to divide. There
+   was nothing to restore, which is not the same as restoring nothing.
+3. **Attempted and restored nothing.** A real `0.0`.
+
+A reader could not tell them apart. The `submit_malfunction_hypothesis` branch
+in the same function already handled `if "error" in res`; `test_rescue` did
+not.
+
+The issue named `luca/report.py:143`, the terminal trace. `_html_tool_call`
+carried the identical defect, and the exported HTML is the artefact people
+share. Both are fixed. Fixing only the named line would have closed the issue
+on paper and left the shared report wrong.
+
+### Issue 17 — the same value resolved twice, differently
+
+`plot_session` resolved the intervention type in two places:
+
+```python
+# the intervention strip
+itype = val.get("type", "?") if isinstance(val, dict) else str(val)
+# the heatmap marker, 24 lines later
+itype = val.get("type", "") if isinstance(val, dict) else ""
+```
+
+`ExperimentSession` logs the agent's own payload shape, so a bare-string
+experiment is stored as `{'G001': 'BLOCK'}`. The marker resolved that to `""`
+and fell through to the neutral `("#fff", "?")`, while the strip above showed
+it correctly. The payload counts in this repository put **1,450 of 18,356**
+stored calls in the bare form, so this was common rather than exotic.
+
+The duplication was the cause, so the fix removes it: `_iv_type` and
+`_iv_marker` at module level, used by both sites. This is the same shape of
+fix as issue 15, where the generator and the seal were made to share
+`_intervention_signature`.
+
+### Coverage
+
+`luca/inspect.py` had **no test file**. `tests/test_inspect.py` adds 16 cases,
+including one that drives a real experiment through the tool layer and asserts
+the stored form renders with its own colour and symbol. `tests/test_report.py`
+gains 9, including one that asserts all three rescue outcomes render
+differently.
+
+`pytest -q`: **345 passed**, against the 320 baseline.
+
 ## Reproducing any of these
 
 The reproduction scripts live in the development repository and will be
@@ -844,10 +904,10 @@ measurement, not by inspection alone.
 1. ~~Finish auditing the analysis scripts.~~ A first pass is done; it produced
    issues 12 and 13. The scaling-study logs and several analysis scripts are
    still unexamined.
-2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 6, 8, 12, 13, 15, 19 and 20 are done.
+2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 6, 8, 12, 13, 14, 15, 17, 19 and 20 are done.
    19 and 5a shipped together, because fixing either alone leaves the rescue
-   broken. 15 landed on 2026-11-21 and 8 on 2026-11-22. The order from here is
-   14, 7, 17, and finally the disclosure for 9. Issue 21 was found by the review of 19 and 5a and moved to
+   broken. 15 landed on 2026-11-21, 8 on 2026-11-22, and 14 and 17 together on
+   2026-11-24. The order from here is 7, and finally the disclosure for 9. Issue 21 was found by the review of 19 and 5a and moved to
    v2 on 2026-11-20: it is a real hole, but signal prediction is being
    redesigned, and the seal's rule for signals belongs to that design.
 3. Recompute every affected number once the v1 fixes have landed, and record
