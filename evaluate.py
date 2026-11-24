@@ -334,6 +334,15 @@ def print_summary(model_name: str, records: list[dict], disease: bool) -> None:
         print(f"  Rescue fraction      {mean_std('rescue_fraction')}")
     print(f"  Budget used          {budget_str}")
     print(f"{'─' * width}")
+    if disease:
+        # Issue 9. These two lines sit next to each other and invite a
+        # comparison that is not valid: diagnosis is one blind attempt, rescue
+        # is the best of up to 31 with feedback each time. Saying so only in
+        # the documents leaves it unsaid where the number is actually read.
+        print("  Diagnosis is one blind attempt; rescue takes the best")
+        print("  of many, with feedback each time, so the two are not")
+        print("  comparable. See issue 9 in KNOWN_ISSUES.md.")
+        print(f"{'─' * width}")
 
 
 # ---------------------------------------------------------------------------

@@ -198,3 +198,40 @@ class TestAnUnscorableRescueIsNotScoredAsFailed:
         rec = self._record([])
         assert rec["rescue_fraction"] is None
         assert rec["composite_score"] == round((0.8 + 0.5 + 0.0) / 3, 4)
+
+
+# ---------------------------------------------------------------------------
+# Issue 9, v1 half. The asymmetry has to be stated where a score is READ, not
+# only in the documents. print_summary is what a benchmark user sees: it prints
+# "Diagnosis score" and "Rescue fraction" on adjacent lines, which invites
+# exactly the comparison that is not valid.
+#
+# Found by the second review of the disclosure: the register claimed the
+# asymmetry was stated "wherever a score is reported", and this terminal
+# output said nothing.
+# ---------------------------------------------------------------------------
+
+class TestTheTerminalSummaryStatesTheAsymmetry:
+
+    @staticmethod
+    def _printed(disease):
+        import io, contextlib
+        records = [{
+            "avg_mse": 0.01, "avg_accuracy": 0.8, "composite_score": 0.6,
+            "diagnosis_score": 0.5, "rescue_fraction": 0.5,
+            "budget_used": 10, "budget_total": 31, "difficulty": "medium",
+        }]
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            evaluate.print_summary("test", records, disease=disease)
+        return buf.getvalue()
+
+    def test_a_disease_run_warns_that_the_sub_scores_differ(self):
+        out = self._printed(disease=True)
+        assert "Diagnosis score" in out and "Rescue fraction" in out
+        assert "issue 9" in out
+
+    def test_a_healthy_run_does_not_carry_the_disease_caveat(self):
+        out = self._printed(disease=False)
+        assert "Diagnosis score" not in out
+        assert "issue 9" not in out

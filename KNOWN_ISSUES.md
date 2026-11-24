@@ -118,7 +118,7 @@ you discover it later.
 
 ## Confirmed issues
 
-✅ fixed in this repository · ⚠️ fixed elsewhere, not yet here · ⬜ open
+✅ fixed in this repository · ◐ partly fixed here · ⚠️ fixed elsewhere, not yet here · ⬜ open
 
 Every issue carries a **bucket**:
 
@@ -132,8 +132,10 @@ Every issue carries a **bucket**:
 **The table is sorted by bucket: every v1 issue first, then v2.** Within each
 bucket it is in issue-number order, so the numbers are not consecutive.
 
-Nine of the twenty rows below are fixed here: issues 1, 3, 4, 5a, 6, 12, 13,
-19 and 20. Eleven are open: six in v1 and five in v2.
+Of the twenty-three rows below, **fourteen are fixed here**, **two are partly
+fixed** (9 and 22, whose remaining halves are v2), and **seven are open, all of
+them v2**. No v1 row is open: the only v1 work left is the final measurement,
+which is not an issue.
 The count is of rows, not of original issue numbers: issue 5 is split into 5a
 and 5b, and 10 and 11 are withdrawn.
 
@@ -150,7 +152,7 @@ pull requests cite it, so the table skips from 9 to 12.
 | 5a | The chronic malfunction signal override was negated twice. Five sites stored a value already signed for an inhibiting signal, and `luca/dynamics.py:50` applied the mode sign again. A persistent **inhibitor** therefore simulated as a strong **activator** | v1 | disease mode | ✅ **fixed 2026-11-20** — see below |
 | 6 | The heuristic baseline subtracted its own measured `BLOCK` delta instead of adding it, and treated `DAMPEN` as the opposite of `BLOCK`. Over seeds 0-9 it therefore scored **below** a baseline that runs no experiments at all, on medium and on hard | v1 | baseline comparisons | ✅ **fixed 2026-11-20** — see below |
 | 8 | `_composite_score` always divided by three in disease mode, so a run with a task subset was penalised for tasks it was not asked to perform. `--tasks predict diagnose` with accuracy 0.8 and diagnosis 0.5 scored **0.4333 instead of 0.65** | v1 | CLI subset runs only | ✅ **fixed 2026-11-22** — see below |
-| 9 | Diagnosis is scored on one irrevocable attempt while rescue takes the best of every attempt | v1 + v2 | diagnosis-rescue comparisons | ⬜ open — v1 documents the asymmetry; v2 decides whether to change it |
+| 9 | The three disease sub-scores are earned under three different rules. **Diagnosis** is a sealed one-shot: it locks on the first call and returns no score. **Prediction** is one answer per task, but each submission discloses that task's ground truth, so an agent recalibrates before the next one. **Rescue** takes the best of up to **31** attempts, with full feedback each time. The composite averages all three as though they were alike | v1 + v2 | diagnosis-rescue comparisons | ◐ **disclosed 2026-11-24 (v1 half done)**; whether to change the rule is v2 |
 | 12 | `run_experiment` never validates an intervention's type. An unrecognised type is silently ignored, costs one unit of budget, and returns no error | v1 | agent feedback, held-out protocol | ✅ **fixed 2026-11-19** |
 | 13 | **The tool layer accepted intervention formats that it then ignored.** A request that did not use the documented `interventions` key reached the engine as an empty experiment: charged one unit of budget, returning the unperturbed organism and no error | v1 | **cross-model comparisons** | ✅ **fixed 2026-11-19** — see below |
 | 14 | `report.py` rendered a refused `test_rescue` as `restored=0%` with no error line, so a reader could not tell a refused rescue from a failed one. **Three** outcomes collapsed into `0%`, not two: a refusal, a `None` fraction meaning nothing was aberrant, and a real 0.0. Both renderers carried it — the terminal trace and the HTML export | v1 | session reports only | ✅ **fixed 2026-11-24** — see below |
@@ -158,7 +160,7 @@ pull requests cite it, so the table skips from 9 to 12.
 | 17 | `inspect.py` read an intervention value of `"BLOCK"` as `""` when it coloured the heatmap marker, so a string-valued intervention rendered as a white `?`. The intervention strip 24 lines above read the same value correctly. The engine stores the agent's own payload shape verbatim, so both the bare-string and the wrapped form reach the renderer | v1 | diagnostic figures only | ✅ **fixed 2026-11-24** — see below |
 | 19 | `test_rescue` re-applied the chronic signal override after it read the agent's request, so the rescue the generator certifies for a `PERSIST` malfunction could not be performed. Measured before the fix: 9 of the 60 canonical disease organisms carried a `PERSIST` malfunction, all 9 were certified rescuable, and all 9 returned `restored_fraction = 0.0` | v1 | disease mode, rescue scoring | ✅ **fixed 2026-11-20** — see below |
 | 20 | `pytest` run from the repository root imported `luca` from a different checkout. There is no `conftest.py` and no pytest path setting, and pytest's `prepend` import mode puts the *test file's* directory on `sys.path`, never the repository root. An editable install of `luca` elsewhere therefore won. The tests that prove issues 1, 4 and 12 are fixed were failing under the documented command | v1 | every test run | ✅ **fixed 2026-11-20** — see below |
-| 22 | `evaluate.py` scored a rescue with `restored_fraction = None` as `0.0`, through `max(((r.get("restored_fraction") or 0.0) for r in rescue_results), default=None)`. `None` means no phenotype was aberrant, so there was nothing to restore, and the report calls the same event `restored=n/a`. **Latent**: `generate_disease_organism` guarantees at least one aberrant phenotype, and measured 2026-11-24 none of the 60 canonical disease organisms has zero. Found by the code review of the issues 14 and 17 fix | v1 + v2 | disease scoring | ⚠️ **the recorded field is fixed 2026-11-24; the composite is not** — see below |
+| 22 | `evaluate.py` scored a rescue with `restored_fraction = None` as `0.0`, through `max(((r.get("restored_fraction") or 0.0) for r in rescue_results), default=None)`. `None` means no phenotype was aberrant, so there was nothing to restore, and the report calls the same event `restored=n/a`. **Latent**: `generate_disease_organism` guarantees at least one aberrant phenotype, and measured 2026-11-24 none of the 60 canonical disease organisms has zero. Found by the code review of the issues 14 and 17 fix | v1 + v2 | disease scoring | ◐ **the recorded field is fixed 2026-11-24; the composite is not** — see below |
 | 24 | `report.py` rendered a refused call as one that ran: it printed the header and nothing else, with no error line, in both the terminal trace and the HTML export. The guard was written per tool branch, and **four of the seven branches had none** — `get_organism_info`, `get_next_prediction_task`, `submit_prediction` and `submit_hypothesis`. Issue 13 made the engine refuse flat and stray-key payloads, so a refusal is common. Found over three review rounds of the issues 14 and 17 fix, one tool at a time, which is why the fix is one guard per renderer rather than a fourth patch | v1 | session reports only | ✅ **fixed 2026-11-24** — shipped with issues 14, 17 and 22 |
 | 2 | Every easy and medium prediction task is solvable by a four-experiment additive strategy, contradicting the stated non-additivity guarantee. A session asks two tasks of two genes each, so measuring those genes separately and adding the effects answers both. Measured over seeds 0-19: easy 40 of 40, medium 40 of 40, hard 18 of 40 against the stored ground truth, and 34 of 40 noise-free — see issue 3 for which number answers which question | v2 | difficulty claims | ⬜ open — needs a generator change |
 | 5b | What `activate` should mean is undecided. Every signal is already on at `sig.strength`, so the verb has no referent. Since 2026-11-20 the engine refuses it rather than ignoring it, and `deactivate` works in both forms (issue 5a). Deciding what an agent should be able to *do* to a signal beyond switching it off is a design question, not a bug | v2 | disease mode, signal diagnosis | ⬜ open |
@@ -990,6 +992,66 @@ These counts were stale twice in earlier versions of this section, each time
 measured before the end of the branch. They are now taken at its tip, after the
 last code commit.
 
+## ◐ Issue 9, as disclosed on 2026-11-24
+
+The v1 half of this issue is to **state** the asymmetry wherever a score is
+reported. That is done. Whether to change the rule stays v2, because every
+option moves every existing disease number.
+
+### What the asymmetry is
+
+| Task | Attempts counted | Feedback |
+|---|---|---|
+| Diagnosis | one; locked on the first call | **none at all** until `get_summary()` |
+| Prediction | one per task; a resubmission is refused (issue 4) | **none within a task; that task's full ground truth on submission**, which arrives before the next task is committed |
+| Rescue | **the best of every attempt** | **full, on every attempt** |
+
+An accepted `test_rescue` call returns the restored fraction, which phenotypes
+are now in their healthy range, and a **count** of previously healthy
+phenotypes the intervention broke, so an agent can hill-climb within a session.
+A refused call returns before the result is stored, which is what issues 14 and
+24 were about.
+
+**Of the three composite sub-scores, only diagnosis is earned blind.** (The
+network reconstruction score is withheld too, but it is not part of the
+composite.) A first version of this section said
+prediction revealed nothing either. That was wrong, and the fourth review of
+this change caught it. `submit_prediction` returns the accuracy, the MSE and
+each phenotype's ground truth on the call itself — its own docstring says so,
+and issue 4 removed only the scoring of retries, not the disclosure. A session
+carries two tasks by default, so `task_00`'s ground truth reaches the agent
+before `task_01` is committed.
+
+`evaluate.py` takes the maximum over the rescue attempts. `get_summary()`
+stores the raw list under `rescue_results` and computes no maximum, so a reader
+calling it directly will not find a "reported fraction" field.
+
+`recommended_budget` is `n_genes + n_signals + 8`, measured at **31** for every
+canonical disease organism at all three tiers, and `test_rescue` costs 1 unit.
+So an agent that runs no experiments could make up to 31 scored rescue attempts
+and keep the best.
+
+### Why it matters to a reader
+
+A diagnosis score and a rescue fraction are not comparable. A model scoring
+higher on rescue than on diagnosis may have had more attempts and more feedback
+rather than better understanding. Diagnosis is the only composite sub-score
+earned blind, and the composite averages all three as though they were alike.
+
+### Where it is now stated
+
+- `docs/benchmark_design.md`, in the scoring section, with an "Attempts
+  counted" column added to the scoring table.
+- `README.md`, beside the composite score definition.
+- `evaluate.py`, in `print_summary`, which prints "Diagnosis score" and
+  "Rescue fraction" on adjacent lines and is what a benchmark user actually
+  reads. A note there was missing from the first version of this fix, which
+  claimed the asymmetry was stated "wherever a score is reported" while the
+  terminal output said nothing. `tests/test_evaluate.py` pins it, and pins
+  that a healthy run does not carry the disease caveat.
+
+`pytest -q`: **377 passed**, against the 375 baseline on `main`.
+
 ## Reproducing any of these
 
 The reproduction scripts live in the development repository and will be
@@ -1003,15 +1065,16 @@ measurement, not by inspection alone.
    still unexamined.
 2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 6, 8, 12, 13, 14, 15, 17, 19, 20 and 24 are done, and the v1 half of 22.
    19 and 5a shipped together, because fixing either alone leaves the rescue
-   broken. 15 landed on 2026-11-21, 8 on 2026-11-22, and 14, 17 and 22 together
-   on 2026-11-24. Issue 7 moved to v2 on 2026-11-24: a new freeze tag waits for
-   the generator decision. All that remains in v1 is the disclosure for issue 9
-   and the final measurement. Issue 21 was found by the review of 19 and 5a and moved to
+   broken. 15 landed on 2026-11-21, 8 on 2026-11-22, and 14, 17, 22 and 24
+   together on 2026-11-24. Issue 7 moved to v2 on 2026-11-24: a new freeze tag waits for
+   the generator decision. The issue 9 disclosure landed on 2026-11-24, so
+   **the final measurement is all that remains in v1**. Issue 21 was found by the review of 19 and 5a and moved to
    v2 on 2026-11-20: it is a real hole, but signal prediction is being
    redesigned, and the seal's rule for signals belongs to that design.
 3. Recompute every affected number once the v1 fixes have landed, and record
    it here. Several v1 fixes change the numbers, including the canonical
    disease organisms.
-4. The v2 issues — 2, 5b, 16, 18, 21 and the scoring half of 9 — are not patched
+4. The v2 issues — 2, 5b, 7, 16, 18, 21, 23, the scoring half of 9 and the
+   composite half of 22 — are not patched
    here. They need a generator change or a decision about what the API should
    mean.
