@@ -129,6 +129,13 @@ def _print_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> N
         bud = res.get("budget_remaining", "?")
         status = res.get("status", "")
         print(f"  ▶ run_experiment({_fmt_iv(iv)})  [budget→{bud}]")
+        # Issue 24: a refused run_experiment used to print this header and
+        # nothing else — no error, no phenotypes — so it read as an experiment
+        # that ran and happened to report nothing. Issue 13 made the engine
+        # refuse flat and stray-key payloads, so this is the commonest refusal
+        # in the trace.
+        if "error" in res:
+            print(f"     ✗ ERROR: {res['error']}")
         phenos = res.get("phenotypes", {})
         if phenos:
             parts = []
@@ -838,6 +845,9 @@ def _html_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> st
     elif tool == "run_experiment":
         bud = res.get("budget_remaining", "?")
         rows.append(f"budget→{bud}")
+        # Issue 24, the same gap as the terminal trace above.
+        if "error" in res:
+            rows.append(f'<span class="err">✗ ERROR: {_he(res["error"])}</span>')
         phenos = res.get("phenotypes", {})
         for ph, val in phenos.items():
             base  = baseline_phenos.get(ph)

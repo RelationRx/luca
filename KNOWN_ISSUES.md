@@ -159,6 +159,7 @@ pull requests cite it, so the table skips from 9 to 12.
 | 19 | `test_rescue` re-applied the chronic signal override after it read the agent's request, so the rescue the generator certifies for a `PERSIST` malfunction could not be performed. Measured before the fix: 9 of the 60 canonical disease organisms carried a `PERSIST` malfunction, all 9 were certified rescuable, and all 9 returned `restored_fraction = 0.0` | v1 | disease mode, rescue scoring | ✅ **fixed 2026-11-20** — see below |
 | 20 | `pytest` run from the repository root imported `luca` from a different checkout. There is no `conftest.py` and no pytest path setting, and pytest's `prepend` import mode puts the *test file's* directory on `sys.path`, never the repository root. An editable install of `luca` elsewhere therefore won. The tests that prove issues 1, 4 and 12 are fixed were failing under the documented command | v1 | every test run | ✅ **fixed 2026-11-20** — see below |
 | 22 | `evaluate.py` scored a rescue with `restored_fraction = None` as `0.0`, through `max(((r.get("restored_fraction") or 0.0) for r in rescue_results), default=None)`. `None` means no phenotype was aberrant, so there was nothing to restore, and the report calls the same event `restored=n/a`. **Latent**: `generate_disease_organism` guarantees at least one aberrant phenotype, and measured 2026-11-24 none of the 60 canonical disease organisms has zero. Found by the code review of the issues 14 and 17 fix | v1 + v2 | disease scoring | ⚠️ **the recorded field is fixed 2026-11-24; the composite is not** — see below |
+| 24 | `report.py` rendered a refused `run_experiment` as an experiment that ran: it printed the header and nothing else, with no error line, in both the terminal trace and the HTML export. The issue 14 guard was added to the `test_rescue` branch only. Issue 13 made the engine refuse flat and stray-key payloads, so this is the commonest refusal in a trace. Found by the third code review of the issues 14 and 17 fix | v1 | session reports only | ✅ **fixed 2026-11-24** — shipped with issues 14, 17 and 22 |
 | 2 | Every easy and medium prediction task is solvable by a four-experiment additive strategy, contradicting the stated non-additivity guarantee. A session asks two tasks of two genes each, so measuring those genes separately and adding the effects answers both. Measured over seeds 0-19: easy 40 of 40, medium 40 of 40, hard 18 of 40 against the stored ground truth, and 34 of 40 noise-free — see issue 3 for which number answers which question | v2 | difficulty claims | ⬜ open — needs a generator change |
 | 5b | What `activate` should mean is undecided. Every signal is already on at `sig.strength`, so the verb has no referent. Since 2026-11-20 the engine refuses it rather than ignoring it, and `deactivate` works in both forms (issue 5a). Deciding what an agent should be able to *do* to a signal beyond switching it off is a design question, not a bug | v2 | disease mode, signal diagnosis | ⬜ open |
 | 7 | The `v1-generation-freeze-2` tag named in `DECISIONS.md:91` does not reproduce current organisms, and the import it implies cannot work: the package there is **`lemonoids`**. Measured 2026-11-24 on seed 0 medium, the organism is genuinely different, not merely relabelled — **58 relations against 59**, a different edge set, and `baseline_state["g_001"]` 0.796509 against 0.682518. Gene ids, gene names, phenotype labels and module membership are identical; every signal label changed. The tag is not broken — it freezes an earlier generation vintage, which is what a freeze tag is for. `DECISIONS.md` is wrong to call it the "current canonical version" | v2 | reproduction instructions | ⬜ open — **re-bucketed v1 → v2 on 2026-11-24**; a new freeze tag waits for the generator decision |
@@ -174,7 +175,8 @@ and 4 fix. Issues 16, 17 and 18 were found by the code review of the issue 13
 fix, and 18 by a scan of the stored calls that followed it. Issues 19 and 20
 were found on 2026-11-20 while planning the remaining v1 work. Issue 21 was
 found by the code review of the issue 19 and 5a fix. Issues 22 and 23 were
-found by the code review of the issues 14 and 17 fix on 2026-11-24.
+found by the code review of the issues 14 and 17 fix on 2026-11-24, and issue
+24 by the third review of that same branch.
 
 ## ✅ Issues 1, 4 and 12, as fixed on 2026-11-19
 
@@ -836,7 +838,7 @@ including the two that used to be indistinguishable: the same record scored
 under `--tasks predict rescue` and under a full run must give 0.70 and 0.4667,
 not one number.
 
-## ✅ Issues 14 and 17, as fixed on 2026-11-24
+## ✅ Issues 14, 17, 22 and 24, as fixed on 2026-11-24
 
 They shipped in one pull request. They are **not** a true cluster: neither
 needs the other to be correct. The workflow rule in `CLAUDE.md` asks for one PR
@@ -878,6 +880,12 @@ sites were fixed the same report said `n/a` on the per-call line and
 the two summary sites, and a second review found a fifth in `demo.py`. All five
 are fixed.
 
+A third review then found that the guard had been added to the `test_rescue`
+branch only. A refused `run_experiment` still printed its header and nothing
+else, in both renderers, so it read as an experiment that ran and reported
+nothing. That is recorded as issue 24 and fixed here: it is the same defect,
+in the same two functions, for the tool that is refused far more often.
+
 `experiments/paper_v1/analyse.py` carries the same expression and is
 **deliberately left alone**: it is a frozen analysis script for an earlier
 result set, and changing it would make it no longer the script that produced
@@ -893,6 +901,11 @@ aberrant". The first must score `0.0` — not attempting is a failed attempt.
 What the second should score is a scoring-policy question, like the asymmetry
 in issue 9, and inventing an answer inside a rendering fix would be the wrong
 place to decide it. The remainder is bucketed v2.
+
+The same run now reports two numbers that disagree about such a session.
+`print_summary` calls `mean_std("rescue_fraction")`, which drops a `None`
+record from the mean, while `_composite_score` keeps it and scores it `0.0`.
+Both belong to the v2 half of this issue. Latent today, for the reason above.
 
 ### Issue 17 — the same value resolved twice, differently
 
@@ -931,18 +944,24 @@ shape of fix as issue 15, where the generator and the seal were made to share
 ### Coverage
 
 `luca/inspect.py` had **no test file**. `tests/test_inspect.py` is new and
-collects **19** cases, including ones that drive a real experiment through the
+collects **20** cases, including ones that drive a real experiment through the
 tool layer and assert the stored form renders with its own colour and symbol,
 in both the upper-case and the lower-case spelling the engine accepts.
-`tests/test_report.py` goes from 31 to **44**, including one that asserts all
-three rescue outcomes render differently. `tests/test_evaluate.py` goes from 10
-to **14** for issue 22.
+One of its tests drives `plot_session` itself and spies on the resolver, so a
+call site that stops using it fails: asserting only the resolver's own output
+would not have caught a single site reverting, because the other site resolves
+the same values. Verified by reverting one site and watching it fail.
 
-`pytest -q`: **356 passed**, against the 320 baseline on `main`. 19 + 13 + 4 is
+`tests/test_report.py` goes from 31 to **48**, including one that asserts all
+three rescue outcomes render differently and four for issue 24.
+`tests/test_evaluate.py` goes from 10 to **14** for issue 22.
+
+`pytest -q`: **361 passed**, against the 320 baseline on `main`. 20 + 17 + 4 is
 the whole difference.
 
-These counts were stale in a first version of this section, measured one commit
-before the end of the branch. They are now taken at its tip.
+These counts were stale twice in earlier versions of this section, each time
+measured before the end of the branch. They are now taken at its tip, after the
+last code commit.
 
 ## Reproducing any of these
 
@@ -955,7 +974,7 @@ measurement, not by inspection alone.
 1. ~~Finish auditing the analysis scripts.~~ A first pass is done; it produced
    issues 12 and 13. The scaling-study logs and several analysis scripts are
    still unexamined.
-2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 6, 8, 12, 13, 14, 15, 17, 19 and 20 are done, and the v1 half of 22.
+2. **Land every v1 fix.** Issues 1, 3, 4, 5a, 6, 8, 12, 13, 14, 15, 17, 19, 20 and 24 are done, and the v1 half of 22.
    19 and 5a shipped together, because fixing either alone leaves the rescue
    broken. 15 landed on 2026-11-21, 8 on 2026-11-22, and 14, 17 and 22 together
    on 2026-11-24. Issue 7 moved to v2 on 2026-11-24: a new freeze tag waits for

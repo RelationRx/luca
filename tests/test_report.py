@@ -443,3 +443,50 @@ class TestTheSummaryAgreesWithThePerCallLine:
         with contextlib.redirect_stdout(buf):
             report.print_session_trace(_log_with_rescue([None, 0.5, None]))
         assert "restored=50%" in buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# Issue 24 — a refused run_experiment rendered as an experiment that ran.
+#
+# Found by the third code review of the issues 14/17 branch. The issue 14 guard
+# was added to the test_rescue branch only. run_experiment had none, in either
+# renderer, so a refused call printed its header and nothing else — no error,
+# no phenotypes. Issue 13 made the engine refuse flat and stray-key payloads,
+# so this path is more common than the refused rescue issue 14 names.
+# ---------------------------------------------------------------------------
+
+REFUSED_EXPERIMENT = {
+    "tool": "run_experiment",
+    "input": {"perturbations": {"G001": "BLOCK"}},
+    "result": {"error": "No interventions found in tool input. Use {'interventions': {...}}."},
+}
+
+RAN_EXPERIMENT = {
+    "tool": "run_experiment",
+    "input": {"interventions": {"G001": "BLOCK"}},
+    "result": {
+        "phenotypes": {"energy-state": 0.4},
+        "status": "converged",
+        "budget_remaining": 3,
+    },
+}
+
+
+class TestARefusedExperimentIsNotRenderedAsOneThatRan:
+
+    def test_the_trace_shows_the_error(self):
+        out = _render(REFUSED_EXPERIMENT, {})
+        assert "No interventions found" in out
+
+    def test_the_html_shows_the_error(self):
+        out = _render_html(REFUSED_EXPERIMENT)
+        assert "No interventions found" in out
+
+    def test_an_experiment_that_ran_is_unchanged_in_the_trace(self):
+        out = _render(RAN_EXPERIMENT, {})
+        assert "energy-state=0.400" in out
+        assert "ERROR" not in out
+
+    def test_the_two_cases_are_told_apart_in_both_renderers(self):
+        assert _render(REFUSED_EXPERIMENT, {}) != _render(RAN_EXPERIMENT, {})
+        assert _render_html(REFUSED_EXPERIMENT) != _render_html(RAN_EXPERIMENT)

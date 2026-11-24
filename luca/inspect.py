@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .payloads import canonical_type
+
 if TYPE_CHECKING:
     from .schema import Organism
     from .experiment import ExperimentSession
@@ -14,9 +16,6 @@ if TYPE_CHECKING:
 MODULE_COLORS = ["green", "blue", "magenta", "cyan", "yellow", "red"]
 MODULE_HEX = ["#4CAF50", "#2196F3", "#CE93D8", "#00BCD4", "#FFC107", "#EF5350"]
 
-
-
-from .payloads import canonical_type
 
 # ── Intervention rendering ──────────────────────────────────────────────────
 # Issue 17: the intervention type was resolved twice in plot_session, 24 lines
@@ -45,6 +44,7 @@ def _iv_marker(val) -> tuple[str, str]:
     if itype not in IV_COLOR:
         return _IV_FALLBACK
     return IV_COLOR[itype], IV_SYM[itype]
+
 
 def print_organism(org: "Organism") -> None:
     """Rich terminal inspector. Falls back to plain text if rich is not installed."""

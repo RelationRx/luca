@@ -129,3 +129,51 @@ class TestTheMarkerUsesTheEnginesOwnResolver:
         # canonical_type upper-cases a GENE type only. A signal verb is not a
         # gene type and keeps the case the agent sent.
         assert luca_inspect.canonical_type("deactivate") == "deactivate"
+
+
+class TestPlotSessionRoutesThroughTheResolver:
+    """Found by the third code review.
+
+    Every other test here exercises `_iv_marker` directly. None drove
+    `plot_session`, so restoring either of the old inline expressions at its
+    two call sites would have left all of them green — and "one resolver, so
+    the two cannot disagree again" was the whole point of the fix.
+
+    This spies on the resolver while a real figure is built, so a call site
+    that stops using it fails the test.
+    """
+
+    def test_every_call_site_resolves_through_iv_marker(self, tmp_path, monkeypatch):
+        import matplotlib
+        matplotlib.use("Agg")
+        from luca import generate_organism, ExperimentSession
+        from luca.agent import dispatch_tool
+
+        session = ExperimentSession(generate_organism(seed=0), budget=6, seed=0)
+        genes = session.get_info()["gene_names"]
+        # One of each payload form the engine stores, including the lowercase
+        # spelling it accepts.
+        dispatch_tool(session, "run_experiment", {genes[0]: "block"})
+        dispatch_tool(session, "run_experiment",
+                      {"interventions": {genes[1]: {"type": "BOOST"}}})
+
+        seen = []
+        real = luca_inspect._iv_marker
+
+        def spy(val):
+            seen.append(val)
+            return real(val)
+
+        monkeypatch.setattr(luca_inspect, "_iv_marker", spy)
+        luca_inspect.plot_session(
+            session, save_path=str(tmp_path / "session.png"), show=False
+        )
+
+        # Two interventions, each resolved once by the intervention strip and
+        # once by the heatmap marker. A call site that stops using the resolver
+        # drops this to 2, which is the regression this test exists to catch —
+        # asserting only the set of types would not, because the other site
+        # resolves the same values.
+        assert len(seen) == 4, seen
+        rendered = {luca_inspect.canonical_type(v) for v in seen}
+        assert rendered == {"BLOCK", "BOOST"}
