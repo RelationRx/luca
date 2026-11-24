@@ -288,3 +288,105 @@ class TestTheRendererSurvivesTheNewVerb:
         }
         edges = report._build_discovered_network([{"tool_calls": [tc]}], base)
         assert edges and edges[0]["direction"] == "activates"
+
+
+# ---------------------------------------------------------------------------
+# Issue 14 — a refused test_rescue rendered as "restored=0%".
+#
+# test_rescue returns {"error": ...} and nothing else when it refuses: before
+# a locked hypothesis, out of budget, on a sealed task, or on a payload it
+# cannot read. Every one of those paths returns before
+# self._rescue_results.append, so a refusal is never stored as a result.
+#
+# Both renderers read `res.get("restored_fraction") or 0.0`, so a refusal
+# printed "✗ restored=0%" with no error line. A reader could not tell a rescue
+# that was refused from one that was attempted and restored nothing. The
+# submit_malfunction_hypothesis branch in the same function already handled
+# `if "error" in res`; test_rescue did not.
+#
+# Two renderers carry the defect, not one: _print_tool_call for the terminal
+# trace and _html_tool_call for the exported report.
+# ---------------------------------------------------------------------------
+
+REFUSED = {
+    "tool": "test_rescue",
+    "input": {"interventions": {"G001": "BLOCK"}},
+    "result": {"error": "submit_malfunction_hypothesis() must be called before test_rescue()"},
+}
+
+ATTEMPTED_AND_FAILED = {
+    "tool": "test_rescue",
+    "input": {"interventions": {"G001": "BLOCK"}},
+    "result": {
+        "restored_fraction": 0.0,
+        "mse_vs_healthy": 0.21,
+        "phenotype_in_healthy_range": {},
+        "budget_remaining": 3,
+    },
+}
+
+
+# restored_fraction is None in a SUCCESS result when nothing was aberrant:
+# `restored / n_aberrant if n_aberrant else None`. There was nothing to
+# restore, which is not the same as restoring nothing. `or 0.0` collapsed this
+# into "restored=0%" too, so three cases rendered as one.
+NOTHING_ABERRANT = {
+    "tool": "test_rescue",
+    "input": {"interventions": {"G001": "BLOCK"}},
+    "result": {
+        "restored_fraction": None,
+        "n_aberrant": 0,
+        "mse_vs_healthy": 0.01,
+        "phenotype_in_healthy_range": {},
+        "budget_remaining": 3,
+    },
+}
+
+
+def _render_html(tc):
+    return report._html_tool_call(tc, {}, {})
+
+
+class TestARefusedRescueIsNotRenderedAsZeroPercent:
+
+    def test_the_trace_shows_the_error_for_a_refused_rescue(self):
+        out = _render(REFUSED, {})
+        assert "submit_malfunction_hypothesis() must be called" in out
+        assert "restored=0%" not in out
+
+    def test_the_html_shows_the_error_for_a_refused_rescue(self):
+        out = _render_html(REFUSED)
+        assert "submit_malfunction_hypothesis() must be called" in out
+        assert "restored=0%" not in out
+
+    def test_the_trace_still_shows_a_rescue_that_restored_nothing(self):
+        # Attempted and failed is a real 0%. It must keep saying so.
+        out = _render(ATTEMPTED_AND_FAILED, {})
+        assert "restored=0%" in out
+        assert "ERROR" not in out
+
+    def test_the_html_still_shows_a_rescue_that_restored_nothing(self):
+        out = _render_html(ATTEMPTED_AND_FAILED)
+        assert "restored=0%" in out
+
+    def test_the_two_cases_are_told_apart_in_the_trace(self):
+        refused = _render(REFUSED, {})
+        failed = _render(ATTEMPTED_AND_FAILED, {})
+        assert refused != failed
+
+    def test_the_two_cases_are_told_apart_in_the_html(self):
+        assert _render_html(REFUSED) != _render_html(ATTEMPTED_AND_FAILED)
+
+    def test_nothing_aberrant_is_not_rendered_as_zero_percent_in_the_trace(self):
+        out = _render(NOTHING_ABERRANT, {})
+        assert "restored=0%" not in out
+        assert "n/a" in out
+
+    def test_nothing_aberrant_is_not_rendered_as_zero_percent_in_the_html(self):
+        out = _render_html(NOTHING_ABERRANT)
+        assert "restored=0%" not in out
+        assert "n/a" in out
+
+    def test_all_three_cases_render_differently_in_the_trace(self):
+        outs = [_render(tc, {}) for tc in (REFUSED, ATTEMPTED_AND_FAILED, NOTHING_ABERRANT)]
+        assert len(set(outs)) == 3

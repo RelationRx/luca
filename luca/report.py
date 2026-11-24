@@ -140,11 +140,22 @@ def _print_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> N
     elif tool == "test_rescue":
         iv  = _tool_call_iv(inp)
         bud = res.get("budget_remaining", "?")
-        rf  = res.get("restored_fraction") or 0.0
-        mse = res.get("mse_vs_healthy", "?")
-        sym = "✓" if rf >= 1.0 else ("~" if rf >= 0.5 else "✗")
         print(f"  ▶ test_rescue({_fmt_iv(iv)})  [budget→{bud}]")
-        print(f"     {sym} restored={rf:.0%}  mse_vs_healthy={mse}")
+        # Issue 14: `res.get("restored_fraction") or 0.0` collapsed three
+        # different outcomes into "restored=0%". A refusal never reaches
+        # _rescue_results at all, and a None fraction means nothing was
+        # aberrant, so there was nothing to restore. Neither is a rescue that
+        # restored nothing, and a reader could not tell them apart.
+        if "error" in res:
+            print(f"     ✗ ERROR: {res['error']}")
+        else:
+            rf  = res["restored_fraction"]
+            mse = res.get("mse_vs_healthy", "?")
+            if rf is None:
+                print(f"     — restored=n/a (no aberrant phenotype)  mse_vs_healthy={mse}")
+            else:
+                sym = "✓" if rf >= 1.0 else ("~" if rf >= 0.5 else "✗")
+                print(f"     {sym} restored={rf:.0%}  mse_vs_healthy={mse}")
         for ph, ok in res.get("phenotype_in_healthy_range", {}).items():
             val = res.get("phenotypes", {}).get(ph, float("nan"))
             hr  = healthy_ranges.get(ph, ["?", "?"])
@@ -821,10 +832,22 @@ def _html_tool_call(tc: dict, baseline_phenos: dict, healthy_ranges: dict) -> st
             rows.append('<span class="warn">⚠ did not converge</span>')
 
     elif tool == "test_rescue":
-        rf  = res.get("restored_fraction") or 0.0
-        mse = res.get("mse_vs_healthy", "?")
-        cls = "ok" if rf >= 1.0 else ("warn" if rf >= 0.5 else "err")
-        rows.append(f'<span class="{cls}">restored={rf:.0%}  mse_vs_healthy={mse}</span>')
+        # Issue 14, the same three cases as the terminal trace above.
+        if "error" in res:
+            rows.append(f'<span class="err">✗ ERROR: {_he(res["error"])}</span>')
+        else:
+            rf  = res["restored_fraction"]
+            mse = res.get("mse_vs_healthy", "?")
+            if rf is None:
+                rows.append(
+                    '<span class="warn">restored=n/a (no aberrant phenotype)  '
+                    f'mse_vs_healthy={mse}</span>'
+                )
+            else:
+                cls = "ok" if rf >= 1.0 else ("warn" if rf >= 0.5 else "err")
+                rows.append(
+                    f'<span class="{cls}">restored={rf:.0%}  mse_vs_healthy={mse}</span>'
+                )
         for ph, ok in res.get("phenotype_in_healthy_range", {}).items():
             val   = res.get("phenotypes", {}).get(ph, float("nan"))
             hr    = healthy_ranges.get(ph, ["?", "?"])
