@@ -340,13 +340,18 @@ penalised.
 
 | Task | Metric | How scored | Attempts counted |
 |------|--------|------------|------------------|
-| Prediction | Accuracy | Fraction of phenotypes within ±0.10 of ground truth, averaged over tasks | **One per task.** A resubmission is refused |
-| Diagnosis | Score | 1.0 exact (gene + type) · 0.5 correct gene wrong type · 0.0 wrong | **One.** Locked on the first call |
-| Rescue | Fraction | Fraction of aberrant phenotypes restored to healthy range | **The best of every attempt** |
+| Prediction | Accuracy | Fraction of phenotypes within ±0.10 of ground truth, averaged over tasks | **One per task**, a resubmission is refused — but ground truth is disclosed on submission |
+| Diagnosis | Score | 1.0 exact (gene + type) · 0.5 correct gene wrong type · 0.0 wrong | **One**, locked on the first call, no feedback |
+| Rescue | Fraction | Fraction of aberrant phenotypes restored to healthy range | **The best of every attempt**, full feedback each time |
 | Composite | — | Healthy: pred_acc · Disease: mean(pred_acc, diagnosis, rescue) | — |
 
 MSE is computed and logged per prediction task but is not used in final scoring.
-Scores are only revealed via `get_summary()` at session end.
+
+**Not every score is withheld to the end.** `submit_prediction` returns the
+accuracy, the MSE and the per-phenotype ground truth for that task on the call
+itself. The diagnosis score is the one that is withheld until `get_summary()`.
+An earlier version of this line said all scores were withheld; the code
+contradicts it.
 
 #### A known asymmetry: one attempt against the best of many
 
@@ -355,15 +360,24 @@ averages them as though they were.** This is recorded as issue 9 in
 [KNOWN_ISSUES.md](../KNOWN_ISSUES.md). It is disclosed here rather than
 changed, because changing it would invalidate every comparison already made.
 
-- **Prediction and diagnosis are one-shot.** `submit_prediction` scores one
-  answer per task and refuses a second. `submit_malfunction_hypothesis` locks
-  on its first call. Neither reveals a score before the session ends, so the
-  agent commits without feedback.
-- **Rescue is best-of-N.** Every `test_rescue` call is scored and kept, and the
-  reported fraction is the maximum over all of them. Each call also returns
-  full feedback: the restored fraction, which phenotypes are now in range, and
-  which previously healthy phenotypes the intervention broke. An agent can
-  therefore hill-climb on rescue, and cannot on the other two.
+There are **three** regimes, not two:
+
+- **Diagnosis is a sealed one-shot.** `submit_malfunction_hypothesis` locks on
+  its first call and returns only `{"stored", "note"}` — no score, no hint. The
+  agent commits with no feedback at all, and learns the result at
+  `get_summary()`.
+- **Prediction is one-shot per task, but not sealed.** `submit_prediction`
+  scores one answer per task and refuses a second (issue 4), yet it returns the
+  accuracy, the MSE and each phenotype's ground truth on that call. A session
+  carries two tasks by default (`n_prediction_tasks=2`), so an agent sees
+  `task_00`'s exact ground truth and its own accuracy **before** it commits
+  `task_01`, and can recalibrate.
+- **Rescue is best-of-N.** Every `test_rescue` call is scored and kept. Each
+  returns the restored fraction, which phenotypes are now in range, and which
+  previously healthy phenotypes the intervention broke, so an agent can
+  hill-climb within a session. `evaluate.py` then takes the maximum over the
+  attempts; `get_summary()` itself stores the raw list under `rescue_results`
+  and computes no maximum.
 - **The budget allows many attempts.** `recommended_budget` is
   `n_genes + n_signals + 8`, which is **31** for every canonical disease
   organism at all three tiers. `test_rescue` costs 1 unit, so an agent that
@@ -373,8 +387,9 @@ changed, because changing it would invalidate every comparison already made.
 Two consequences for anyone reading a result:
 
 1. **A diagnosis score and a rescue fraction are not comparable.** A model that
-   scores higher on rescue than on diagnosis may simply have had more attempts,
-   not better understanding.
+   scores higher on rescue than on diagnosis may simply have had more attempts
+   and more feedback, not better understanding. Diagnosis is the only sub-score
+   earned blind.
 2. **The composite weights a one-shot score equally with a best-of-N score.**
    Report the sub-scores, as `README.md` already recommends, and treat the
    composite as a convenience summary rather than a measurement.
