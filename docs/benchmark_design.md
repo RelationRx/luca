@@ -349,8 +349,10 @@ MSE is computed and logged per prediction task but is not used in final scoring.
 
 **Not every score is withheld to the end.** `submit_prediction` returns the
 accuracy, the MSE and the per-phenotype ground truth for that task on the call
-itself. The diagnosis score is the one that is withheld until `get_summary()`.
-An earlier version of this line said all scores were withheld; the code
+itself. The scores that *are* withheld until `get_summary()` are the
+**diagnosis** score and the **network reconstruction** score: both
+`submit_malfunction_hypothesis` and `submit_network` return only a note. An
+earlier version of this line said all scores were withheld; the code
 contradicts it.
 
 #### A known asymmetry: one attempt against the best of many
@@ -360,7 +362,7 @@ averages them as though they were.** This is recorded as issue 9 in
 [KNOWN_ISSUES.md](../KNOWN_ISSUES.md). It is disclosed here rather than
 changed, because changing it would invalidate every comparison already made.
 
-There are **three** regimes, not two:
+The three composite sub-scores are earned under three different regimes:
 
 - **Diagnosis is a sealed one-shot.** `submit_malfunction_hypothesis` locks on
   its first call and returns only `{"stored", "note"}` — no score, no hint. The
@@ -372,10 +374,12 @@ There are **three** regimes, not two:
   carries two tasks by default (`n_prediction_tasks=2`), so an agent sees
   `task_00`'s exact ground truth and its own accuracy **before** it commits
   `task_01`, and can recalibrate.
-- **Rescue is best-of-N.** Every `test_rescue` call is scored and kept. Each
-  returns the restored fraction, which phenotypes are now in range, and which
-  previously healthy phenotypes the intervention broke, so an agent can
-  hill-climb within a session. `evaluate.py` then takes the maximum over the
+- **Rescue is best-of-N.** Every *accepted* `test_rescue` call is scored and
+  kept — a refused one returns before the result is stored, which is what
+  issues 14 and 24 were about. Each accepted call returns the restored
+  fraction, which phenotypes are now in range, and a **count** of previously
+  healthy phenotypes the intervention broke, so an agent can hill-climb within
+  a session. `evaluate.py` then takes the maximum over the
   attempts; `get_summary()` itself stores the raw list under `rescue_results`
   and computes no maximum.
 - **The budget allows many attempts.** `recommended_budget` is

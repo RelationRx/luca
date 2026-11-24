@@ -134,8 +134,8 @@ bucket it is in issue-number order, so the numbers are not consecutive.
 
 Of the twenty-three rows below, **fourteen are fixed here**, **two are partly
 fixed** (9 and 22, whose remaining halves are v2), and **seven are open, all of
-them v2**. No v1 row is open: the only v1 work left in the repair stack is the
-final measurement, which is not an issue.
+them v2**. No v1 row is open: the only v1 work left is the final measurement,
+which is not an issue.
 The count is of rows, not of original issue numbers: issue 5 is split into 5a
 and 5b, and 10 and 11 are withdrawn.
 
@@ -1006,11 +1006,15 @@ option moves every existing disease number.
 | Prediction | one per task; a resubmission is refused (issue 4) | **none within a task; that task's full ground truth on submission**, which arrives before the next task is committed |
 | Rescue | **the best of every attempt** | **full, on every attempt** |
 
-`test_rescue` returns the restored fraction, which phenotypes are now in their
-healthy range, and which previously healthy phenotypes the intervention broke,
-so an agent can hill-climb within a session.
+An accepted `test_rescue` call returns the restored fraction, which phenotypes
+are now in their healthy range, and a **count** of previously healthy
+phenotypes the intervention broke, so an agent can hill-climb within a session.
+A refused call returns before the result is stored, which is what issues 14 and
+24 were about.
 
-**Only diagnosis is earned blind.** A first version of this section said
+**Of the three composite sub-scores, only diagnosis is earned blind.** (The
+network reconstruction score is withheld too, but it is not part of the
+composite.) A first version of this section said
 prediction revealed nothing either. That was wrong, and the fourth review of
 this change caught it. `submit_prediction` returns the accuracy, the MSE and
 each phenotype's ground truth on the call itself — its own docstring says so,
@@ -1031,14 +1035,22 @@ and keep the best.
 
 A diagnosis score and a rescue fraction are not comparable. A model scoring
 higher on rescue than on diagnosis may have had more attempts and more feedback
-rather than better understanding. Diagnosis is the only sub-score earned blind,
-and the composite averages all three as though they were alike.
+rather than better understanding. Diagnosis is the only composite sub-score
+earned blind, and the composite averages all three as though they were alike.
 
 ### Where it is now stated
 
 - `docs/benchmark_design.md`, in the scoring section, with an "Attempts
   counted" column added to the scoring table.
 - `README.md`, beside the composite score definition.
+- `evaluate.py`, in `print_summary`, which prints "Diagnosis score" and
+  "Rescue fraction" on adjacent lines and is what a benchmark user actually
+  reads. A note there was missing from the first version of this fix, which
+  claimed the asymmetry was stated "wherever a score is reported" while the
+  terminal output said nothing. `tests/test_evaluate.py` pins it, and pins
+  that a healthy run does not carry the disease caveat.
+
+`pytest -q`: **377 passed**, against the 375 baseline on `main`.
 
 ## Reproducing any of these
 
@@ -1062,6 +1074,7 @@ measurement, not by inspection alone.
 3. Recompute every affected number once the v1 fixes have landed, and record
    it here. Several v1 fixes change the numbers, including the canonical
    disease organisms.
-4. The v2 issues — 2, 5b, 16, 18, 21 and the scoring half of 9 — are not patched
+4. The v2 issues — 2, 5b, 7, 16, 18, 21, 23, the scoring half of 9 and the
+   composite half of 22 — are not patched
    here. They need a generator change or a decision about what the API should
    mean.
