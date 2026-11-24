@@ -390,3 +390,56 @@ class TestARefusedRescueIsNotRenderedAsZeroPercent:
     def test_all_three_cases_render_differently_in_the_trace(self):
         outs = [_render(tc, {}) for tc in (REFUSED, ATTEMPTED_AND_FAILED, NOTHING_ABERRANT)]
         assert len(set(outs)) == 3
+
+
+# ---------------------------------------------------------------------------
+# Issue 14, the sites the first pass missed. Found by the code review.
+#
+# The per-call renderers were fixed, but the session SUMMARY in both the
+# terminal trace and the HTML export still read
+# `max((r.get("restored_fraction") or 0.0) for r in rr)`. A successful rescue
+# with no aberrant phenotype carries restored_fraction=None and IS stored in
+# rescue_results, so the summary printed "Best rescue: ✗ restored=0%" for the
+# very call the per-call line now reports as "n/a". One report contradicted
+# itself.
+# ---------------------------------------------------------------------------
+
+def _log_with_rescue(fractions):
+    return {
+        "metadata": {"organism_id": "org_x", "seed": 0, "budget": 10,
+                     "disease_mode": True, "model": "test"},
+        "turns": [],
+        "summary": {
+            "rescue_results": [
+                {"restored_fraction": f, "mse_vs_healthy": 0.01} for f in fractions
+            ]
+        },
+    }
+
+
+class TestTheSummaryAgreesWithThePerCallLine:
+
+    def test_the_trace_summary_does_not_call_an_unscorable_rescue_zero(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            report.print_session_trace(_log_with_rescue([None]))
+        out = buf.getvalue()
+        assert "restored=0%" not in out
+        assert "n/a" in out
+
+    def test_the_html_summary_does_not_call_an_unscorable_rescue_zero(self):
+        html = report._build_html(_log_with_rescue([None]))
+        assert "restored=0%" not in html
+        assert "n/a" in html
+
+    def test_a_real_zero_is_still_reported_as_zero_in_the_summary(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            report.print_session_trace(_log_with_rescue([0.0]))
+        assert "restored=0%" in buf.getvalue()
+
+    def test_the_best_of_several_attempts_ignores_the_unscorable_ones(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            report.print_session_trace(_log_with_rescue([None, 0.5, None]))
+        assert "restored=50%" in buf.getvalue()

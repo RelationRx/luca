@@ -16,30 +16,32 @@ MODULE_HEX = ["#4CAF50", "#2196F3", "#CE93D8", "#00BCD4", "#FFC107", "#EF5350"]
 
 
 
+from .payloads import canonical_type
+
 # ── Intervention rendering ──────────────────────────────────────────────────
-# One resolver, used by every renderer in this module.
+# Issue 17: the intervention type was resolved twice in plot_session, 24 lines
+# apart, with two different expressions. The strip used `str(val)` for a bare
+# string; the heatmap marker used `""`, so a bare-string intervention drew the
+# neutral "?" while the strip above drew it correctly.
 #
-# Issue 17: the type was resolved twice, in two places, with two different
-# expressions. The intervention strip used `str(val)` for a bare string; the
-# heatmap marker 24 lines below used `""`. ExperimentSession logs the agent's
-# own payload shape, so `{"G001": "BLOCK"}` is stored as `{'G001': 'BLOCK'}`
-# and rendered as a white "?" in the marker while the strip showed it
-# correctly. CLAUDE.md counts 1,450 of 18,356 stored calls in that form.
+# The first fix added a private resolver here. The code review caught that
+# `luca.payloads.canonical_type` already owned this, and already upper-cases —
+# the engine accepts "block" and runs it as BLOCK, then logs the agent's value
+# verbatim, so a private copy left the defect alive for a lowercase payload and
+# re-created the duplication this issue is about. There is one resolver, and it
+# is not in this module. Every renderer here calls it.
+#
+# canonical_type upper-cases a GENE type only. A signal verb such as
+# "deactivate" is not a gene type and keeps its case, so it falls to the
+# neutral marker. That is pre-existing and recorded as issue 23.
 IV_COLOR = {"BLOCK": "#EF5350", "BOOST": "#66BB6A", "DAMPEN": "#FFA726"}
 IV_SYM = {"BLOCK": "✕", "BOOST": "▲", "DAMPEN": "▼"}
 _IV_FALLBACK = ("#fff", "?")
 
 
-def _iv_type(val) -> str:
-    """The intervention type, from either payload form the engine stores."""
-    if isinstance(val, dict):
-        return str(val.get("type", ""))
-    return str(val)
-
-
 def _iv_marker(val) -> tuple[str, str]:
     """(colour, symbol) for one intervention value, or the neutral fallback."""
-    itype = _iv_type(val)
+    itype = canonical_type(val)
     if itype not in IV_COLOR:
         return _IV_FALLBACK
     return IV_COLOR[itype], IV_SYM[itype]
@@ -975,8 +977,7 @@ def plot_disease_organism(
     ]
     if rescue_interventions:
         rescue_label = "rescued: " + ", ".join(
-            f"{n} {v.get('type','?')}" if isinstance(v, dict) else f"{n} {v}"
-            for n, v in rescue_interventions.items()
+            f"{n} {canonical_type(v)}" for n, v in rescue_interventions.items()
         )
         legend_bar.append(mpatches.Patch(color=RESCUE_COLOR, label=rescue_label))
     ax_bar.legend(handles=legend_bar, loc="lower right", fontsize=7,

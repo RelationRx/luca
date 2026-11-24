@@ -70,10 +70,20 @@ def print_session_trace(log: dict) -> None:
             print(f"  Malfunction:  {sym}  {mh['target_name']} ({mh['malfunction_type']})  score={score}")
         rr = summary.get("rescue_results", [])
         if rr:
-            best = max((r.get("restored_fraction") or 0.0) for r in rr)
-            best_mse = min(r["mse_vs_healthy"] for r in rr)
-            sym = "✓" if best >= 1.0 else ("~" if best >= 0.5 else "✗")
-            print(f"  Best rescue:  {sym}  restored={best:.0%}  mse_vs_healthy={best_mse}")
+            # Issue 14: `or 0.0` scored an unscorable rescue as a failed one.
+            # restored_fraction is None when nothing was aberrant, and such a
+            # result IS stored, so this line used to contradict the per-call
+            # line for the very same call. Found by the code review.
+            scored = [x["restored_fraction"] for x in rr
+                      if x["restored_fraction"] is not None]
+            best_mse = min(x["mse_vs_healthy"] for x in rr)
+            if scored:
+                best = max(scored)
+                sym = "✓" if best >= 1.0 else ("~" if best >= 0.5 else "✗")
+                print(f"  Best rescue:  {sym}  restored={best:.0%}  mse_vs_healthy={best_mse}")
+            else:
+                print(f"  Best rescue:  —  restored=n/a (no aberrant phenotype)  "
+                      f"mse_vs_healthy={best_mse}")
     print()
 
 
@@ -745,12 +755,20 @@ def _build_html(log: dict) -> str:
 
     rr = summary.get("rescue_results", [])
     if rr:
-        best     = max((r.get("restored_fraction") or 0.0) for r in rr)
-        best_mse = min(r["mse_vs_healthy"] for r in rr)
-        badge    = _badge(best, 1.0, 0.5)
+        # Issue 14, the same collapse as the terminal summary above.
+        scored   = [x["restored_fraction"] for x in rr
+                    if x["restored_fraction"] is not None]
+        best_mse = min(x["mse_vs_healthy"] for x in rr)
+        if scored:
+            best  = max(scored)
+            badge = _badge(best, 1.0, 0.5)
+            shown = f"restored={best:.0%}  mse_vs_healthy={best_mse}"
+        else:
+            badge = '<span class="warn">—</span>'
+            shown = f"restored=n/a (no aberrant phenotype)  mse_vs_healthy={best_mse}"
         parts.append(
             f"<tr><td>Best rescue</td>"
-            f"<td>restored={best:.0%}  mse_vs_healthy={best_mse}</td>"
+            f"<td>{shown}</td>"
             f"<td>{badge}</td></tr>"
         )
 

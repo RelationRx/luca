@@ -156,9 +156,11 @@ pull requests cite it, so the table skips from 9 to 12.
 | 13 | **The tool layer accepted intervention formats that it then ignored.** A request that did not use the documented `interventions` key reached the engine as an empty experiment: charged one unit of budget, returning the unperturbed organism and no error | v1 | **cross-model comparisons** | ✅ **fixed 2026-11-19** — see below |
 | 14 | `report.py` rendered a refused `test_rescue` as `restored=0%` with no error line, so a reader could not tell a refused rescue from a failed one. **Three** outcomes collapsed into `0%`, not two: a refusal, a `None` fraction meaning nothing was aberrant, and a real 0.0. Both renderers carried it — the terminal trace and the HTML export | v1 | session reports only | ✅ **fixed 2026-11-24** — see below |
 | 15 | `_generate_tasks` looped `n` times and never compared a new task against the tasks already built, so one organism could ask the same question twice. **The duplicate broke the issue 1 seal**: answer `task_00`, run that exact experiment unsealed, then reveal the identical `task_01` and submit the measured values. On medium seed 10 that scored **accuracy 1.0, mse 0.0001** for 1 unit of budget. Measured over seeds 0-299 at three tiers: **7 of 900** organisms carried an exact duplicate, and medium seed 10 carried one inside the canonical 60. An earlier entry here claimed no organism of the 60 carried a duplicate; that measurement compared dictionary key order, and 6 of the 7 duplicates reverse it | v1 | **held-out protocol**, prediction scoring | ✅ **fixed 2026-11-21** — see below |
-| 17 | `inspect.py` read an intervention value of `"BLOCK"` as `""` when it coloured the heatmap marker, so a string-valued intervention rendered as a white `?`. The intervention strip 24 lines above read the same value correctly. The engine stores the agent's own payload shape, and **1,450 of 18,356** stored calls used the bare-string form | v1 | diagnostic figures only | ✅ **fixed 2026-11-24** — see below |
+| 17 | `inspect.py` read an intervention value of `"BLOCK"` as `""` when it coloured the heatmap marker, so a string-valued intervention rendered as a white `?`. The intervention strip 24 lines above read the same value correctly. The engine stores the agent's own payload shape verbatim, so both the bare-string and the wrapped form reach the renderer | v1 | diagnostic figures only | ✅ **fixed 2026-11-24** — see below |
 | 19 | `test_rescue` re-applied the chronic signal override after it read the agent's request, so the rescue the generator certifies for a `PERSIST` malfunction could not be performed. Measured before the fix: 9 of the 60 canonical disease organisms carried a `PERSIST` malfunction, all 9 were certified rescuable, and all 9 returned `restored_fraction = 0.0` | v1 | disease mode, rescue scoring | ✅ **fixed 2026-11-20** — see below |
 | 20 | `pytest` run from the repository root imported `luca` from a different checkout. There is no `conftest.py` and no pytest path setting, and pytest's `prepend` import mode puts the *test file's* directory on `sys.path`, never the repository root. An editable install of `luca` elsewhere therefore won. The tests that prove issues 1, 4 and 12 are fixed were failing under the documented command | v1 | every test run | ✅ **fixed 2026-11-20** — see below |
+| 22 | `evaluate.py:271` scores a rescue with `restored_fraction = None` as `0.0`, through `max(((r.get("restored_fraction") or 0.0) for r in rescue_results), default=None)`. `None` means no phenotype was aberrant, so there was nothing to restore. The same collapse as issue 14, in the score rather than the display. Found by the code review of the issue 14 fix | v1 | disease scoring | ⬜ open |
+| 23 | A signal action renders as the neutral `?` marker in `plot_session`. `canonical_type` upper-cases a gene type only, so `"deactivate"` is not in `IV_COLOR` and a signal experiment's column label reads `?potential-theta`. Pre-existing; found by the code review of the issue 17 fix | v2 | diagnostic figures only | ⬜ open — depends on issue 5b, what a signal verb should mean |
 | 2 | Every easy and medium prediction task is solvable by a four-experiment additive strategy, contradicting the stated non-additivity guarantee. A session asks two tasks of two genes each, so measuring those genes separately and adding the effects answers both. Measured over seeds 0-19: easy 40 of 40, medium 40 of 40, hard 18 of 40 against the stored ground truth, and 34 of 40 noise-free — see issue 3 for which number answers which question | v2 | difficulty claims | ⬜ open — needs a generator change |
 | 5b | What `activate` should mean is undecided. Every signal is already on at `sig.strength`, so the verb has no referent. Since 2026-11-20 the engine refuses it rather than ignoring it, and `deactivate` works in both forms (issue 5a). Deciding what an agent should be able to *do* to a signal beyond switching it off is a design question, not a bug | v2 | disease mode, signal diagnosis | ⬜ open |
 | 16 | The list intervention form accepts only `BLOCK`, `BOOST` and `DAMPEN`, so it cannot express a signal, and its refusal message never mentions signals. The dict form accepts `{"wave-X": "deactivate"}` | v2 | agent feedback | ⬜ open |
@@ -171,7 +173,8 @@ analysis layer. Issues 14 and 15 were found by the code review of the issue 1
 and 4 fix. Issues 16, 17 and 18 were found by the code review of the issue 13
 fix, and 18 by a scan of the stored calls that followed it. Issues 19 and 20
 were found on 2026-11-20 while planning the remaining v1 work. Issue 21 was
-found by the code review of the issue 19 and 5a fix.
+found by the code review of the issue 19 and 5a fix. Issues 22 and 23 were
+found by the code review of the issues 14 and 17 fix on 2026-11-24.
 
 ## ✅ Issues 1, 4 and 12, as fixed on 2026-11-19
 
@@ -836,8 +839,10 @@ not one number.
 ## ✅ Issues 14 and 17, as fixed on 2026-11-24
 
 They shipped in one pull request. They are **not** a true cluster: neither
-needs the other to be correct. They were batched because each is a handful of
-lines and a separate review cycle would have cost more than it bought.
+needs the other to be correct. The workflow rule in `CLAUDE.md` asks for one PR
+per issue, and **the maintainer waived it for these two on 2026-11-24**, after
+being shown the sizes. Two separate review cycles would have cost more than
+they bought.
 
 ### Issue 14 — three outcomes rendered as one
 
@@ -856,10 +861,16 @@ A reader could not tell them apart. The `submit_malfunction_hypothesis` branch
 in the same function already handled `if "error" in res`; `test_rescue` did
 not.
 
-The issue named `luca/report.py:143`, the terminal trace. `_html_tool_call`
-carried the identical defect, and the exported HTML is the artefact people
-share. Both are fixed. Fixing only the named line would have closed the issue
-on paper and left the shared report wrong.
+The issue named `luca/report.py:143` as it stood on `main`, which is the
+`test_rescue` branch of `_print_tool_call`, the terminal trace. That line
+number moved with this fix; the function name is the stable handle. **Four**
+sites
+carried the defect, not one. `_html_tool_call` renders the same tool call into
+the exported HTML. Both session summaries — terminal and HTML — read
+`max((r.get("restored_fraction") or 0.0) for r in rr)`, so once the first two
+sites were fixed the same report said `n/a` on the per-call line and
+`restored=0%` in its own summary for that identical call. The code review found
+the two summary sites. All four are fixed.
 
 ### Issue 17 — the same value resolved twice, differently
 
@@ -875,12 +886,24 @@ itype = val.get("type", "") if isinstance(val, dict) else ""
 `ExperimentSession` logs the agent's own payload shape, so a bare-string
 experiment is stored as `{'G001': 'BLOCK'}`. The marker resolved that to `""`
 and fell through to the neutral `("#fff", "?")`, while the strip above showed
-it correctly. The payload counts in this repository put **1,450 of 18,356**
-stored calls in the bare form, so this was common rather than exotic.
+it correctly.
 
-The duplication was the cause, so the fix removes it: `_iv_type` and
-`_iv_marker` at module level, used by both sites. This is the same shape of
-fix as issue 15, where the generator and the seal were made to share
+**A first version of this entry claimed "1,450 of 18,356 stored calls used the
+bare-string form". That was wrong, and the code review caught it.** 1,450 is
+the count of **flat** payloads — calls with no `interventions` wrapper key —
+which is a different dimension from whether an intervention's *value* is a bare
+string. `intervention_payload` also strips the container before
+`run_experiment` logs anything, so the flat count cannot describe what the
+marker renders. The bare-string share is not measured: the stored logs are not
+in this repository. The claim is dropped rather than restated.
+
+The duplication was the cause, so the fix removes it. The first attempt added a
+private resolver to `luca/inspect.py`; the review caught that
+`luca/payloads.py:107 canonical_type` already owned this job and already
+upper-cases. A private copy left the defect alive for the lowercase form the
+engine accepts, and re-created the duplication the issue is about. Every
+renderer in `luca/inspect.py` now calls `canonical_type`. This is the same
+shape of fix as issue 15, where the generator and the seal were made to share
 `_intervention_signature`.
 
 ### Coverage
