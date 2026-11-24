@@ -15,6 +15,35 @@ MODULE_COLORS = ["green", "blue", "magenta", "cyan", "yellow", "red"]
 MODULE_HEX = ["#4CAF50", "#2196F3", "#CE93D8", "#00BCD4", "#FFC107", "#EF5350"]
 
 
+
+# ── Intervention rendering ──────────────────────────────────────────────────
+# One resolver, used by every renderer in this module.
+#
+# Issue 17: the type was resolved twice, in two places, with two different
+# expressions. The intervention strip used `str(val)` for a bare string; the
+# heatmap marker 24 lines below used `""`. ExperimentSession logs the agent's
+# own payload shape, so `{"G001": "BLOCK"}` is stored as `{'G001': 'BLOCK'}`
+# and rendered as a white "?" in the marker while the strip showed it
+# correctly. CLAUDE.md counts 1,450 of 18,356 stored calls in that form.
+IV_COLOR = {"BLOCK": "#EF5350", "BOOST": "#66BB6A", "DAMPEN": "#FFA726"}
+IV_SYM = {"BLOCK": "✕", "BOOST": "▲", "DAMPEN": "▼"}
+_IV_FALLBACK = ("#fff", "?")
+
+
+def _iv_type(val) -> str:
+    """The intervention type, from either payload form the engine stores."""
+    if isinstance(val, dict):
+        return str(val.get("type", ""))
+    return str(val)
+
+
+def _iv_marker(val) -> tuple[str, str]:
+    """(colour, symbol) for one intervention value, or the neutral fallback."""
+    itype = _iv_type(val)
+    if itype not in IV_COLOR:
+        return _IV_FALLBACK
+    return IV_COLOR[itype], IV_SYM[itype]
+
 def print_organism(org: "Organism") -> None:
     """Rich terminal inspector. Falls back to plain text if rich is not installed."""
     try:
@@ -1438,10 +1467,8 @@ def plot_session(
         cols_pheno.append(entry.get("phenotypes", {}))
         ivs = entry["interventions"]
         parts = []
-        IV_SYM = {"BLOCK": "✕", "BOOST": "▲", "DAMPEN": "▼"}
         for name, val in ivs.items():
-            itype = val.get("type", "?") if isinstance(val, dict) else str(val)
-            parts.append(f"{IV_SYM.get(itype, '?')}{name}")
+            parts.append(f"{_iv_marker(val)[1]}{name}")
         col_labels.append("\n".join(parts) if parts else "—")
         col_types.append("experiment")
 
@@ -1456,7 +1483,6 @@ def plot_session(
             pheno_mat[ri, ci] = ph.get(lbl, 0.0)
 
     # ── Intervention target lookup ──────────────────────────────────────────
-    IV_COLOR = {"BLOCK": "#EF5350", "BOOST": "#66BB6A", "DAMPEN": "#FFA726"}
     # col_iv_markers[ci] = list of (gene_row_index, color, symbol)
     exp_col_offset = col_types.index("experiment") if "experiment" in col_types else 1
     col_iv_markers: list[list] = [[] for _ in range(n_cols)]
@@ -1464,12 +1490,8 @@ def plot_session(
         for name, val in entry["interventions"].items():
             gid = name_to_id.get(name)
             if gid and gid in show_gene_ids:
-                itype = val.get("type", "") if isinstance(val, dict) else ""
-                col_iv_markers[ci].append((
-                    show_gene_ids.index(gid),
-                    IV_COLOR.get(itype, "#fff"),
-                    {"BLOCK": "✕", "BOOST": "▲", "DAMPEN": "▼"}.get(itype, "?"),
-                ))
+                colour, symbol = _iv_marker(val)
+                col_iv_markers[ci].append((show_gene_ids.index(gid), colour, symbol))
 
     # ── Turn attribution from agent log ──────────────────────────────────────
     # Map experiment column index → (turn_number, reasoning_snippet)
